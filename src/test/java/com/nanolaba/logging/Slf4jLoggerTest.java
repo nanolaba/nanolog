@@ -1,26 +1,44 @@
 package com.nanolaba.logging;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.nanolaba.logging.util.InfoObject;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-public class Slf4jLoggerTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-    @BeforeEach
-    public void init() {
-        LOG.init(new Slf4jLogger());
+public class Slf4jLoggerTest extends AbstractLoggerTest<Slf4jLogger> {
+
+    @BeforeAll
+    public static void init() {
+        System.setProperty(org.slf4j.simple.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "TRACE");
     }
 
     @Test
-    public void testDebugLog() {
-        LOG.debug(Slf4jLoggerTest.class, new RuntimeException("ex"), () -> "ex1");
-        LOG.debug(Slf4jLoggerTest.class, new RuntimeException("ex"), "ex2");
-        LOG.debug(Slf4jLoggerTest.class, () -> "ex3");
-        LOG.debug(Slf4jLoggerTest.class, "ex4");
-        LOG.debug(() -> "ex5");
-        LOG.debug("ex6");
-        LOG.debug(new RuntimeException("ex7"), () -> "ex7");
-        LOG.debug(new RuntimeException("ex8"), "ex8");
-        LOG.debug(new RuntimeException("ex88"));
-        LOG.debug("Some {} message {} with {} args ", "123123", "ASASD", 123);
+    public void testInfoLevel() {
+        Slf4jLogger logger = createLogger();
+
+        LOG.init(logger);
+
+        LOG.info(InfoObject.class, "");
+        assertEquals("[main] INFO com.nanolaba.logging.util.InfoObject - " + System.lineSeparator(), getErrAndClear());
+
+        LOG.info(InfoObject.class, "some message {} next {}", "abc", "123");
+        assertEquals("[main] INFO com.nanolaba.logging.util.InfoObject - some message abc next 123" + System.lineSeparator(), getErrAndClear());
+
+        LOG.info(InfoObject.class, new Throwable("test"));
+        assertTrue(getErrAndClear().startsWith("[main] INFO com.nanolaba.logging.util.InfoObject - null" + System.lineSeparator() +
+                                               "java.lang.Throwable: test" + System.lineSeparator() +
+                                               "\tat com.nanolaba.logging.Slf4jLoggerTest.testInfoLevel"));
+
+
+        for (LogEntry.LogEntryLevel level : LogEntry.LogEntryLevel.values()) {
+            LOG.log(level, InfoObject.class, null, () -> "some message {} next {}", "abc", "123");
+            assertEquals("[main] " + level + " com.nanolaba.logging.util.InfoObject - some message abc next 123" + System.lineSeparator(), getErrAndClear());
+        }
+    }
+
+    protected Slf4jLogger createLogger() {
+        return new Slf4jLogger();
     }
 }

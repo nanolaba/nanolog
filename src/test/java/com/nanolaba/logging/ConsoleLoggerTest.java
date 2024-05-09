@@ -10,7 +10,7 @@ import java.util.Date;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ConsoleLoggerTest extends AbstractLoggerTest {
+public class ConsoleLoggerTest extends AbstractLoggerTest<ConsoleLogger> {
 
     @Test
     public void testInfoLevel() {
@@ -78,7 +78,7 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
         assertEquals("ERROR " + currentYear + " [InfoObject]" + System.lineSeparator(), getErrAndClear());
     }
 
-    private ConsoleLogger createLogger() {
+    protected ConsoleLogger createLogger() {
         ConsoleLogger logger = new ConsoleLogger() {
             @Override
             protected Date getCurrentDate() {
