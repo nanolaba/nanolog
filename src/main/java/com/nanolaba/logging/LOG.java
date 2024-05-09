@@ -326,12 +326,7 @@ public class LOG {
     }
 
     private static <T> Supplier<T> memoize(Supplier<T> original) {
-
-        if (original == null) {
-            return null;
-        }
-
-        return new Supplier<T>() {
+        return new Supplier<>() {
             private Supplier<T> delegate = this::firstTime;
             private boolean initialized;
 
