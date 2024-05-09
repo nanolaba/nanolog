@@ -50,6 +50,9 @@ public class LOGTest {
 
         LOG.trace(LOGTest.class, "ex10 {}", "asd", 123);
         assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.trace(new RuntimeException("ex11"));
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
     }
 
     @Test
@@ -93,6 +96,9 @@ public class LOGTest {
 
         LOG.debug(LOGTest.class, "ex10 {}", "asd", 123);
         assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.debug(new RuntimeException("ex11"));
+        assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
     }
 
 
@@ -137,6 +143,9 @@ public class LOGTest {
 
         LOG.info(LOGTest.class, "ex10 {}", "asd", 123);
         assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.info(new RuntimeException("ex11"));
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
     }
 
 
@@ -181,6 +190,9 @@ public class LOGTest {
 
         LOG.error(LOGTest.class, "ex10 {}", "asd", 123);
         assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.error(new RuntimeException("ex11"));
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
     }
 
 
@@ -225,6 +237,9 @@ public class LOGTest {
 
         LOG.warn(LOGTest.class, "ex10 {}", "asd", 123);
         assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.warn(new RuntimeException("ex11"));
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
     }
 
 
