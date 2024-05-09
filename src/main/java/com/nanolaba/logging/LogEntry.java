@@ -1,7 +1,6 @@
 package com.nanolaba.logging;
 
 import java.util.Arrays;
-import java.util.function.Supplier;
 
 public class LogEntry {
 
@@ -10,12 +9,12 @@ public class LogEntry {
     }
 
     private final LogEntryLevel level;
-    private final Supplier<Class> sourceClass;
+    private final Class sourceClass;
     private final Throwable throwable;
-    private final Supplier<Object> message;
+    private final Object message;
     private final Object[] args;
 
-    public LogEntry(LogEntryLevel level, Supplier<Class> sourceClass, Throwable throwable, Supplier<Object> message, Object... args) {
+    public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
         this.level = level;
         this.sourceClass = sourceClass;
         this.throwable = throwable;
@@ -28,7 +27,7 @@ public class LogEntry {
     }
 
     public Class getSourceClass() {
-        return sourceClass == null ? null : sourceClass.get();
+        return sourceClass;
     }
 
     public Throwable getThrowable() {
@@ -36,7 +35,7 @@ public class LogEntry {
     }
 
     public Object getMessage() {
-        return message == null ? null : message.get();
+        return message;
     }
 
     public Object[] getArgs() {
@@ -47,9 +46,9 @@ public class LogEntry {
     public String toString() {
         return "LogEntry{" +
                "level=" + level +
-               ", sourceClass=" + (sourceClass == null ? null : (sourceClass.get() == null ? null : sourceClass.get().getCanonicalName())) +
+               ", sourceClass=" + (sourceClass == null ? null : sourceClass.getCanonicalName()) +
                ", throwable=" + throwable +
-               ", message=" + (message == null ? null : message.get()) +
+               ", message=" + message +
                ", args=" + Arrays.toString(args) +
                '}';
     }

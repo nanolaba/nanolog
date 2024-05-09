@@ -2,6 +2,8 @@ package com.nanolaba.logging;
 
 import java.util.function.Supplier;
 
+import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
+
 public class LOG {
 
     private static ILogger logger = new SimpleConsoleLogger();
@@ -14,290 +16,299 @@ public class LOG {
 
     // TRACE
     public static void trace(Class targetClass, Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, t, memoize(message)));
+        log(TRACE, targetClass, t, message);
     }
 
     public static void trace(Class targetClass, Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, t, () -> message));
+        log(TRACE, targetClass, t, () -> message);
     }
 
     public static void trace(Class targetClass, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, null, memoize(message)));
+        log(TRACE, targetClass, null, message);
     }
 
     public static void trace(Class targetClass, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, null, () -> message));
+        log(TRACE, targetClass, null, () -> message);
     }
 
     public static void trace(Class targetClass, String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, null, () -> message, args));
+        log(TRACE, targetClass, null, () -> message, args);
     }
 
     public static void trace(Class targetClass, Throwable throwable) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, () -> targetClass, throwable, null));
+        log(TRACE, targetClass, throwable, null);
     }
 
     public static void trace(Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), t, memoize(message)));
+        log(TRACE, getCurrentClass(), t, message);
     }
 
     public static void trace(Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), t, () -> message));
+        log(TRACE, getCurrentClass(), t, () -> message);
     }
 
     public static void trace(Throwable t) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), t, null));
+        log(TRACE, getCurrentClass(), t, null);
     }
 
     public static void trace(Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), null, memoize(message)));
+        log(TRACE, getCurrentClass(), null, message);
     }
 
     public static void trace(Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), null, () -> message));
+        log(TRACE, getCurrentClass(), null, () -> message);
     }
 
     public static void trace(String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass), null, () -> message, args));
+        log(TRACE, getCurrentClass(), null, () -> message, args);
     }
 
     public static boolean isTraceEnabled(Class targetClass) {
-        return logger.isEnabled(LogEntry.LogEntryLevel.TRACE, () -> targetClass);
+        return logger.isEnabled(TRACE, targetClass);
     }
 
     public static boolean isTraceEnabled() {
-        return logger.isEnabled(LogEntry.LogEntryLevel.TRACE, memoize(LOG::getCurrentClass));
+        return logger.isEnabled(TRACE, getCurrentClass());
     }
 
     // DEBUG
     public static void debug(Class targetClass, Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, t, memoize(message)));
+        log(DEBUG, targetClass, t, message);
     }
 
     public static void debug(Class targetClass, Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, t, () -> message));
+        log(DEBUG, targetClass, t, () -> message);
     }
 
     public static void debug(Class targetClass, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, null, memoize(message)));
+        log(DEBUG, targetClass, null, message);
     }
 
     public static void debug(Class targetClass, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, null, () -> message));
+        log(DEBUG, targetClass, null, () -> message);
     }
 
     public static void debug(Class targetClass, String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, null, () -> message, args));
+        log(DEBUG, targetClass, null, () -> message, args);
     }
 
     public static void debug(Class targetClass, Throwable throwable) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, () -> targetClass, throwable, null));
+        log(DEBUG, targetClass, throwable, null);
     }
 
     public static void debug(Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), t, memoize(message)));
+        log(DEBUG, getCurrentClass(), t, message);
     }
 
     public static void debug(Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), t, () -> message));
+        log(DEBUG, getCurrentClass(), t, () -> message);
     }
 
     public static void debug(Throwable t) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), t, null));
+        log(DEBUG, getCurrentClass(), t, null);
     }
 
     public static void debug(Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), null, memoize(message)));
+        log(DEBUG, getCurrentClass(), null, message);
     }
 
     public static void debug(Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), null, () -> message));
+        log(DEBUG, getCurrentClass(), null, () -> message);
     }
 
     public static void debug(String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass), null, () -> message, args));
+        log(DEBUG, getCurrentClass(), null, () -> message, args);
     }
 
     public static boolean isDebugEnabled(Class targetClass) {
-        return logger.isEnabled(LogEntry.LogEntryLevel.DEBUG, () -> targetClass);
+        return logger.isEnabled(DEBUG, targetClass);
     }
 
     public static boolean isDebugEnabled() {
-        return logger.isEnabled(LogEntry.LogEntryLevel.DEBUG, memoize(LOG::getCurrentClass));
+        return logger.isEnabled(DEBUG, getCurrentClass());
     }
 
     // INFO
     public static void info(Class targetClass, Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, t, memoize(message)));
+        log(INFO, targetClass, t, (message));
     }
 
     public static void info(Class targetClass, Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, t, () -> message));
+        log(INFO, targetClass, t, () -> message);
     }
 
     public static void info(Class targetClass, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, null, memoize(message)));
+        log(INFO, targetClass, null, message);
     }
 
     public static void info(Class targetClass, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, null, () -> message));
+        log(INFO, targetClass, null, () -> message);
     }
 
     public static void info(Class targetClass, String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, null, () -> message, args));
+        log(INFO, targetClass, null, () -> message, args);
     }
 
     public static void info(Class targetClass, Throwable throwable) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, () -> targetClass, throwable, null));
+        log(INFO, targetClass, throwable, null);
     }
 
     public static void info(Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), t, memoize(message)));
+        log(INFO, getCurrentClass(), t, message);
     }
 
     public static void info(Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), t, () -> message));
+        log(INFO, getCurrentClass(), t, () -> message);
     }
 
     public static void info(Throwable t) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), t, null));
+        log(INFO, getCurrentClass(), t, null);
     }
 
     public static void info(Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), null, memoize(message)));
+        log(INFO, getCurrentClass(), null, message);
     }
 
+
     public static void info(Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), null, () -> message));
+        log(INFO, getCurrentClass(), null, () -> message);
     }
 
     public static void info(String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass), null, () -> message, args));
+        log(INFO, getCurrentClass(), null, () -> message, args);
     }
 
     public static boolean isInfoEnabled(Class targetClass) {
-        return logger.isEnabled(LogEntry.LogEntryLevel.INFO, () -> targetClass);
+        return logger.isEnabled(INFO, targetClass);
     }
 
     public static boolean isInfoEnabled() {
-        return logger.isEnabled(LogEntry.LogEntryLevel.INFO, memoize(LOG::getCurrentClass));
+        return logger.isEnabled(INFO, getCurrentClass());
     }
 
     // WARN
     public static void warn(Class targetClass, Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, t, memoize(message)));
+        log(WARN, targetClass, t, message);
     }
 
     public static void warn(Class targetClass, Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, t, () -> message));
+        log(WARN, targetClass, t, () -> message);
     }
 
     public static void warn(Class targetClass, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, null, memoize(message)));
+        log(WARN, targetClass, null, message);
     }
 
     public static void warn(Class targetClass, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, null, () -> message));
+        log(WARN, targetClass, null, () -> message);
     }
 
     public static void warn(Class targetClass, String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, null, () -> message, args));
+        log(WARN, targetClass, null, () -> message, args);
     }
 
     public static void warn(Class targetClass, Throwable throwable) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, () -> targetClass, throwable, null));
+        log(WARN, targetClass, throwable, null);
     }
 
     public static void warn(Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), t, memoize(message)));
+        log(WARN, getCurrentClass(), t, message);
     }
 
     public static void warn(Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), t, () -> message));
+        log(WARN, getCurrentClass(), t, () -> message);
     }
 
     public static void warn(Throwable t) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), t, null));
+        log(WARN, getCurrentClass(), t, null);
     }
 
     public static void warn(Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), null, memoize(message)));
+        log(WARN, getCurrentClass(), null, message);
     }
 
     public static void warn(Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), null, () -> message));
+        log(WARN, getCurrentClass(), null, () -> message);
     }
 
     public static void warn(String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass), null, () -> message, args));
+        log(WARN, getCurrentClass(), null, () -> message, args);
     }
 
     public static boolean isWarnEnabled(Class targetClass) {
-        return logger.isEnabled(LogEntry.LogEntryLevel.WARN, () -> targetClass);
+        return logger.isEnabled(WARN, targetClass);
     }
 
     public static boolean isWarnEnabled() {
-        return logger.isEnabled(LogEntry.LogEntryLevel.WARN, memoize(LOG::getCurrentClass));
+        return logger.isEnabled(WARN, getCurrentClass());
     }
 
     // ERROR
     public static void error(Class targetClass, Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, t, memoize(message)));
+        log(ERROR, targetClass, t, message);
     }
 
     public static void error(Class targetClass, Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, t, () -> message));
+        log(ERROR, targetClass, t, () -> message);
     }
 
     public static void error(Class targetClass, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, null, memoize(message)));
+        log(ERROR, targetClass, null, message);
     }
 
     public static void error(Class targetClass, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, null, () -> message));
+        log(ERROR, targetClass, null, () -> message);
     }
 
     public static void error(Class targetClass, String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, null, () -> message, args));
+        log(ERROR, targetClass, null, () -> message, args);
     }
 
     public static void error(Class targetClass, Throwable throwable) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, () -> targetClass, throwable, null));
+        log(ERROR, targetClass, throwable, null);
     }
 
     public static void error(Throwable t, Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), t, memoize(message)));
+        log(ERROR, getCurrentClass(), t, message);
     }
 
     public static void error(Throwable t, Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), t, () -> message));
+        log(ERROR, getCurrentClass(), t, () -> message);
     }
 
     public static void error(Throwable t) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), t, null));
+        log(ERROR, getCurrentClass(), t, null);
     }
 
     public static void error(Supplier<Object> message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), null, memoize(message)));
+        log(ERROR, getCurrentClass(), null, message);
     }
 
     public static void error(Object message) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), null, () -> message));
+        log(ERROR, getCurrentClass(), null, () -> message);
     }
 
     public static void error(String message, Object... args) {
-        logger.log(new LogEntry(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass), null, () -> message, args));
+        log(ERROR, getCurrentClass(), null, () -> message, args);
     }
 
     public static boolean isErrorEnabled(Class targetClass) {
-        return logger.isEnabled(LogEntry.LogEntryLevel.ERROR, () -> targetClass);
+        return logger.isEnabled(ERROR, targetClass);
     }
 
     public static boolean isErrorEnabled() {
-        return logger.isEnabled(LogEntry.LogEntryLevel.ERROR, memoize(LOG::getCurrentClass));
+        return logger.isEnabled(ERROR, getCurrentClass());
     }
 
-    /////////////////////////////////////////
+    // UNIVERSAL LOG
+
+    public static void log(LogEntry.LogEntryLevel level, Class loggedClass, Throwable throwable, Supplier<Object> message, Object... args) {
+        if (logger.isEnabled(level, loggedClass)) {
+            logger.log(new LogEntry(level, loggedClass, throwable, message == null ? null : message.get(), args));
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
     private static Class getCurrentClass() {
@@ -323,26 +334,5 @@ public class LOG {
         }
 
         throw new IllegalStateException("Unable to determine the current class");
-    }
-
-    private static <T> Supplier<T> memoize(Supplier<T> original) {
-        return new Supplier<>() {
-            private Supplier<T> delegate = this::firstTime;
-            private boolean initialized;
-
-            @Override
-            public T get() {
-                return delegate.get();
-            }
-
-            private synchronized T firstTime() {
-                if (!initialized) {
-                    T value = original.get();
-                    delegate = () -> value;
-                    initialized = true;
-                }
-                return delegate.get();
-            }
-        };
     }
 }

@@ -4,8 +4,6 @@ import com.nanolaba.logging.util.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.util.function.Supplier;
-
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,9 +19,7 @@ public class LogEntryLevelTest {
             }
 
             @Override
-            public boolean isEnabled(LogEntry.LogEntryLevel level, Supplier<Class> sourceCLass) {
-
-                Class clz = sourceCLass.get();
+            public boolean isEnabled(LogEntry.LogEntryLevel level, Class clz) {
 
                 return (level == TRACE && clz == TraceObject.class ||
                         level == DEBUG && clz == DebugObject.class ||

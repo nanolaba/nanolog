@@ -15,7 +15,7 @@ public class SimpleConsoleLoggerTest {
         SimpleConsoleLogger logger = new SimpleConsoleLogger();
 
         for (LogEntry.LogEntryLevel level : LogEntry.LogEntryLevel.values()) {
-            logger.log(new LogEntry(level, this::getClass, new Throwable("test throwable"), () -> "some message"));
+            logger.log(new LogEntry(level, getClass(), new Throwable("test throwable"), "some message"));
         }
     }
 
@@ -24,7 +24,7 @@ public class SimpleConsoleLoggerTest {
         SimpleConsoleLogger logger = new SimpleConsoleLogger();
 
         for (LogEntry.LogEntryLevel level : LogEntry.LogEntryLevel.values()) {
-            logger.log(new LogEntry(level, this::getClass, new Throwable("test throwable"), () -> "some message {} next {}", "abc", "123"));
+            logger.log(new LogEntry(level, getClass(), new Throwable("test throwable"), "some message {} next {}", "abc", "123"));
         }
     }
 
