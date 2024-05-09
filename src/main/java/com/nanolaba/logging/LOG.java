@@ -317,12 +317,12 @@ public class LOG {
 
                     return result;
                 } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                    return null;
+                    throw new IllegalStateException("Unable to determine the current class", e);
                 }
             }
         }
-        return null;
+
+        throw new IllegalStateException("Unable to determine the current class");
     }
 
     private static <T> Supplier<T> memoize(Supplier<T> original) {
