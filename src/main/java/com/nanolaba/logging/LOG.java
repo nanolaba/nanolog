@@ -6,7 +6,7 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
 
 public class LOG {
 
-    private static ILogger logger = new SimpleConsoleLogger();
+    private static ILogger logger = new ConsoleLogger();
 
     private LOG() {/**/}
 
