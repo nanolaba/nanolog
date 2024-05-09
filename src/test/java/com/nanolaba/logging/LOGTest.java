@@ -5,8 +5,52 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LOGTest {
+
+    @Test
+    public void testTraceLog() {
+
+        Mutable<String> message = new MutableObject<>();
+
+        LOG.init(entry -> message.setValue(entry.toString()));
+
+        assertTrue(LOG.isTraceEnabled());
+
+        LOG.trace(LOGTest.class, new RuntimeException("ex"));
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=null, args=[]}", message.getValue());
+
+        LOG.trace(LOGTest.class, new RuntimeException("ex"), () -> "ex1");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex1, args=[]}", message.getValue());
+
+        LOG.trace(LOGTest.class, new RuntimeException("ex"), "ex2");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex2, args=[]}", message.getValue());
+
+        LOG.trace(LOGTest.class, () -> "ex3");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex3, args=[]}", message.getValue());
+
+        LOG.trace(LOGTest.class, "ex4");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex4, args=[]}", message.getValue());
+
+        LOG.trace(() -> "ex5");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex5, args=[]}", message.getValue());
+
+        LOG.trace("ex6");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex6, args=[]}", message.getValue());
+
+        LOG.trace(new RuntimeException("ex7"), () -> "ex7");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex7, message=ex7, args=[]}", message.getValue());
+
+        LOG.trace(new RuntimeException("ex8"), "ex8");
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex8, message=ex8, args=[]}", message.getValue());
+
+        LOG.trace("ex9 {}", "asd", 123);
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex9 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.trace(LOGTest.class, "ex10 {}", "asd", 123);
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
+    }
 
     @Test
     public void testDebugLog() {
@@ -14,6 +58,11 @@ public class LOGTest {
         Mutable<String> message = new MutableObject<>();
 
         LOG.init(entry -> message.setValue(entry.toString()));
+
+        assertTrue(LOG.isDebugEnabled());
+
+        LOG.debug(LOGTest.class, new RuntimeException("ex"));
+        assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=null, args=[]}", message.getValue());
 
         LOG.debug(LOGTest.class, new RuntimeException("ex"), () -> "ex1");
         assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex1, args=[]}", message.getValue());
@@ -41,6 +90,9 @@ public class LOGTest {
 
         LOG.debug("ex9 {}", "asd", 123);
         assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex9 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.debug(LOGTest.class, "ex10 {}", "asd", 123);
+        assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -50,6 +102,11 @@ public class LOGTest {
         Mutable<String> message = new MutableObject<>();
 
         LOG.init(entry -> message.setValue(entry.toString()));
+
+        assertTrue(LOG.isInfoEnabled());
+
+        LOG.info(LOGTest.class, new RuntimeException("ex"));
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=null, args=[]}", message.getValue());
 
         LOG.info(LOGTest.class, new RuntimeException("ex"), () -> "ex1");
         assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex1, args=[]}", message.getValue());
@@ -77,6 +134,9 @@ public class LOGTest {
 
         LOG.info("ex9 {}", "asd", 123);
         assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex9 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.info(LOGTest.class, "ex10 {}", "asd", 123);
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -86,6 +146,11 @@ public class LOGTest {
         Mutable<String> message = new MutableObject<>();
 
         LOG.init(entry -> message.setValue(entry.toString()));
+
+        assertTrue(LOG.isErrorEnabled());
+
+        LOG.error(LOGTest.class, new RuntimeException("ex"));
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=null, args=[]}", message.getValue());
 
         LOG.error(LOGTest.class, new RuntimeException("ex"), () -> "ex1");
         assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex1, args=[]}", message.getValue());
@@ -113,6 +178,9 @@ public class LOGTest {
 
         LOG.error("ex9 {}", "asd", 123);
         assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex9 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.error(LOGTest.class, "ex10 {}", "asd", 123);
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -122,6 +190,11 @@ public class LOGTest {
         Mutable<String> message = new MutableObject<>();
 
         LOG.init(entry -> message.setValue(entry.toString()));
+
+        assertTrue(LOG.isWarnEnabled());
+
+        LOG.warn(LOGTest.class, new RuntimeException("ex"));
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=null, args=[]}", message.getValue());
 
         LOG.warn(LOGTest.class, new RuntimeException("ex"), () -> "ex1");
         assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex, message=ex1, args=[]}", message.getValue());
@@ -149,6 +222,9 @@ public class LOGTest {
 
         LOG.warn("ex9 {}", "asd", 123);
         assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex9 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.warn(LOGTest.class, "ex10 {}", "asd", 123);
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=ex10 {}, args=[asd, 123]}", message.getValue());
     }
 
 
