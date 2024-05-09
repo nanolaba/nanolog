@@ -45,11 +45,11 @@ public class LogEntry {
     @Override
     public String toString() {
         return "LogEntry{" +
-               "level=" + level +
-               ", sourceClass=" + (sourceClass == null ? null : sourceClass.getCanonicalName()) +
-               ", throwable=" + throwable +
-               ", message=" + message +
-               ", args=" + Arrays.toString(args) +
+               "level=" + getLevel() +
+               ", sourceClass=" + (getSourceClass() == null ? null : getSourceClass().getCanonicalName()) +
+               ", throwable=" + getThrowable() +
+               ", message=" + getMessage() +
+               ", args=" + Arrays.toString(getArgs()) +
                '}';
     }
 }
