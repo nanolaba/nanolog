@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class Slf4jLoggerTest extends AbstractLoggerTest<Slf4jLogger> {
+public class Slf4jLoggerTest extends AbstractLoggerTest {
 
     @BeforeAll
     public static void init() {

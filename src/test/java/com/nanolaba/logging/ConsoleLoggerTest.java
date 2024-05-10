@@ -10,7 +10,7 @@ import java.util.Date;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ConsoleLoggerTest extends AbstractLoggerTest<ConsoleLogger> {
+public class ConsoleLoggerTest extends AbstractLoggerTest {
 
     @Test
     public void testInfoLevel() {

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 
-public abstract class AbstractLoggerTest<T extends ILogger> {
+public abstract class AbstractLoggerTest {
 
     protected final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
     protected final ByteArrayOutputStream errContent = new ByteArrayOutputStream();

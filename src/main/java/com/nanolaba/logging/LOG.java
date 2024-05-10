@@ -6,12 +6,24 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
 
 public class LOG {
 
-    private static ILogger logger = new ConsoleLogger();
+    private static ILogger logger;
+
+    static {
+        init();
+    }
 
     private LOG() {/**/}
 
+    public static void init() {
+        LOG.logger = DefaultLoggerCreator.createDefaultLogger();
+    }
+
     public static void init(ILogger logger) {
         LOG.logger = logger;
+    }
+
+    public static ILogger getLogger() {
+        return logger;
     }
 
     // TRACE
