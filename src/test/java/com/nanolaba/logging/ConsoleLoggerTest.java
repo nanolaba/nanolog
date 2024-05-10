@@ -2,6 +2,8 @@ package com.nanolaba.logging;
 
 import com.nanolaba.logging.util.InfoObject;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -11,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ConsoleLoggerTest extends AbstractLoggerTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ConsoleLoggerTest.class);
 
     @Test
     public void testInfoLevel() {
@@ -78,6 +82,52 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
         assertEquals("ERROR " + currentYear + " [InfoObject]" + System.lineSeparator(), getErrAndClear());
     }
 
+    @Test
+    public void testLevelDisabling() {
+        ConsoleLogger logger = createLogger();
+        LOG.init(logger);
+
+        LOG.trace(InfoObject.class, "");
+        assertEquals("TRACE 01.01.2010 00:00:00 [InfoObject]" + System.lineSeparator(), getOutAndClear());
+
+        logger.setTraceEnabled(false);
+
+        LOG.trace(InfoObject.class, "");
+        assertEquals("", getOutAndClear());
+
+        LOG.debug(InfoObject.class, "");
+        assertEquals("DEBUG 01.01.2010 00:00:00 [InfoObject]" + System.lineSeparator(), getOutAndClear());
+
+        logger.setDebugEnabled(false);
+
+        LOG.debug(InfoObject.class, "");
+        assertEquals("", getOutAndClear());
+
+        LOG.info(InfoObject.class, "");
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject]" + System.lineSeparator(), getOutAndClear());
+
+        logger.setInfoEnabled(false);
+
+        LOG.info(InfoObject.class, "");
+        assertEquals("", getOutAndClear());
+
+        LOG.warn(InfoObject.class, "");
+        assertEquals("WARN 01.01.2010 00:00:00 [InfoObject]" + System.lineSeparator(), getOutAndClear());
+
+        logger.setWarnEnabled(false);
+
+        LOG.warn(InfoObject.class, "");
+        assertEquals("", getOutAndClear());
+
+        LOG.error(InfoObject.class, "");
+        assertEquals("ERROR 01.01.2010 00:00:00 [InfoObject]" + System.lineSeparator(), getErrAndClear());
+
+        logger.setErrorEnabled(false);
+
+        LOG.error(InfoObject.class, "");
+        assertEquals("", getErrAndClear());
+    }
+
     protected ConsoleLogger createLogger() {
         ConsoleLogger logger = new ConsoleLogger() {
             @Override
@@ -95,6 +145,11 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
                 .setShowDate(true)
                 .setShowSource(true)
                 .setShowSourceFullName(false)
-                .setDateFormat(new SimpleDateFormat("dd.MM.yyyy HH:mm:ss"));
+                .setDateFormat(new SimpleDateFormat("dd.MM.yyyy HH:mm:ss"))
+                .setTraceEnabled(true)
+                .setDebugEnabled(true)
+                .setInfoEnabled(true)
+                .setWarnEnabled(true)
+                .setErrorEnabled(true);
     }
 }

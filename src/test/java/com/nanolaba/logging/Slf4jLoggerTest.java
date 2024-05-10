@@ -1,18 +1,12 @@
 package com.nanolaba.logging;
 
 import com.nanolaba.logging.util.InfoObject;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Slf4jLoggerTest extends AbstractLoggerTest {
-
-    @BeforeAll
-    public static void init() {
-        System.setProperty(org.slf4j.simple.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "TRACE");
-    }
 
     @Test
     public void testInfoLevel() {

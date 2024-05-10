@@ -15,9 +15,26 @@ public class ConsoleLogger implements ILogger {
     private boolean showSource = true;
     private boolean showSourceFullName = false;
 
+    private boolean traceEnabled = true;
+    private boolean debugEnabled = true;
+    private boolean infoEnabled = true;
+    private boolean warnEnabled = true;
+    private boolean errorEnabled = true;
+
     @Override
     public void log(LogEntry entry) {
         getOutputStream(entry).println(createLogString(entry));
+    }
+
+    @Override
+    public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+        return switch (level) {
+            case TRACE -> isTraceEnabled();
+            case DEBUG -> isDebugEnabled();
+            case INFO -> isInfoEnabled();
+            case WARN -> isWarnEnabled();
+            case ERROR -> isErrorEnabled();
+        };
     }
 
     protected PrintStream getOutputStream(LogEntry entry) {
@@ -134,6 +151,51 @@ public class ConsoleLogger implements ILogger {
 
     public ConsoleLogger setShowSourceFullName(boolean showSourceFullName) {
         this.showSourceFullName = showSourceFullName;
+        return this;
+    }
+
+    public boolean isTraceEnabled() {
+        return traceEnabled;
+    }
+
+    public ConsoleLogger setTraceEnabled(boolean traceEnabled) {
+        this.traceEnabled = traceEnabled;
+        return this;
+    }
+
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+
+    public ConsoleLogger setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled;
+        return this;
+    }
+
+    public boolean isInfoEnabled() {
+        return infoEnabled;
+    }
+
+    public ConsoleLogger setInfoEnabled(boolean infoEnabled) {
+        this.infoEnabled = infoEnabled;
+        return this;
+    }
+
+    public boolean isWarnEnabled() {
+        return warnEnabled;
+    }
+
+    public ConsoleLogger setWarnEnabled(boolean warnEnabled) {
+        this.warnEnabled = warnEnabled;
+        return this;
+    }
+
+    public boolean isErrorEnabled() {
+        return errorEnabled;
+    }
+
+    public ConsoleLogger setErrorEnabled(boolean errorEnabled) {
+        this.errorEnabled = errorEnabled;
         return this;
     }
 }
