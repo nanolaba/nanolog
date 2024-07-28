@@ -17,11 +17,21 @@ public class Slf4jLogger implements ILogger {
         Logger logger = loggers.computeIfAbsent(entry.getSourceClass(), LoggerFactory::getLogger);
 
         switch (entry.getLevel()) {
-            case TRACE -> logger.trace(entry.getFormattedMessage(), entry.getThrowable());
-            case DEBUG -> logger.debug(entry.getFormattedMessage(), entry.getThrowable());
-            case WARN -> logger.warn(entry.getFormattedMessage(), entry.getThrowable());
-            case ERROR -> logger.error(entry.getFormattedMessage(), entry.getThrowable());
-            default -> logger.info(entry.getFormattedMessage(), entry.getThrowable());
+            case TRACE:
+                logger.trace(entry.getFormattedMessage(), entry.getThrowable());
+                break;
+            case DEBUG:
+                logger.debug(entry.getFormattedMessage(), entry.getThrowable());
+                break;
+            case WARN:
+                logger.warn(entry.getFormattedMessage(), entry.getThrowable());
+                break;
+            case ERROR:
+                logger.error(entry.getFormattedMessage(), entry.getThrowable());
+                break;
+            default:
+                logger.info(entry.getFormattedMessage(), entry.getThrowable());
+                break;
         }
     }
 
@@ -29,12 +39,17 @@ public class Slf4jLogger implements ILogger {
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         Logger logger = loggers.computeIfAbsent(sourceClass, LoggerFactory::getLogger);
 
-        return switch (level) {
-            case TRACE -> logger.isTraceEnabled();
-            case DEBUG -> logger.isDebugEnabled();
-            case WARN -> logger.isWarnEnabled();
-            case ERROR -> logger.isErrorEnabled();
-            default -> logger.isInfoEnabled();
-        };
+        switch (level) {
+            case TRACE:
+                return logger.isTraceEnabled();
+            case DEBUG:
+                return logger.isDebugEnabled();
+            case WARN:
+                return logger.isWarnEnabled();
+            case ERROR:
+                return logger.isErrorEnabled();
+            default:
+                return logger.isInfoEnabled();
+        }
     }
 }

@@ -28,13 +28,19 @@ public class ConsoleLogger implements ILogger {
 
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
-        return switch (level) {
-            case TRACE -> isTraceEnabled();
-            case DEBUG -> isDebugEnabled();
-            case INFO -> isInfoEnabled();
-            case WARN -> isWarnEnabled();
-            case ERROR -> isErrorEnabled();
-        };
+        switch (level) {
+            case TRACE:
+                return isTraceEnabled();
+            case DEBUG:
+                return isDebugEnabled();
+            case INFO:
+                return isInfoEnabled();
+            case WARN:
+                return isWarnEnabled();
+            default:
+//            case ERROR:
+                return isErrorEnabled();
+        }
     }
 
     protected PrintStream getOutputStream(LogEntry entry) {
@@ -73,7 +79,7 @@ public class ConsoleLogger implements ILogger {
     }
 
     protected void writeSource(StringWriter out, LogEntry entry) {
-        var clz = entry.getSourceClass();
+        Class clz = entry.getSourceClass();
         if (isShowSource() && clz != null) {
             addDelimiter(out);
             out.append("[");
@@ -104,7 +110,7 @@ public class ConsoleLogger implements ILogger {
     }
 
     protected void addDelimiter(StringWriter out) {
-        if (!out.getBuffer().isEmpty()) {
+        if (out.getBuffer().length() != 0) {
             out.append(' ');
         }
     }
