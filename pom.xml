@@ -9,7 +9,7 @@
     <name>nanolog</name>
     <url>https://github.com/nanolaba/nanolog</url>
 
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -40,8 +40,11 @@
 
     <distributionManagement>
         <repository>
-            <id>github</id>
+            <id>${github.global.server}</id>
             <url>https://maven.pkg.github.com/nanolaba/public-maven-repo</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
         </repository>
     </distributionManagement>
 
