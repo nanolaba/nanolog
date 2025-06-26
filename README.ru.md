@@ -61,23 +61,16 @@ public class QuickStart {
 			// Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger
 			LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
 
-			LOG.debug("Статическая переменная логгера не нужна");<!--ru-- >
-					LOG.debug("A static logger variable is not needed");<!--en-- >
-					LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");<
-			!--ru-- >
-					LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");<
-			!--en-- >
-					LOG.warn("Это параметризованное сообщение: {}, {}, {} ", < !--ru-- >
-					LOG.warn("This is a parameterized message: {}, {}, {} ", < !--en-- >
+			LOG.debug("Статическая переменная логгера не нужна");
+			LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");
+			LOG.warn("Это параметризованное сообщение: {}, {}, {} ",
 					100, "foo", new Object[]{"foo", "bar"});
 
 			if (LOG.isDebugEnabled()) {
-				LOG.debug("Можно сделать проверку доступности уровня логирования стандартным способом: " + < !--ru-- >
-						LOG.debug("You can check if a log level is enabled in the standard way: " + < !--en-- >
-								hugeComputations());
+				LOG.debug("Можно сделать проверку доступности уровня логирования стандартным способом: " +
+						hugeComputations());
 			}
-			LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());<!--ru-- >
-					LOG.debug(() -> "Alternatively, you can supply a lambda: " + hugeComputations());<!--en-- >
+			LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());
 
 		} catch (Exception e) {
 			LOG.error(e);
