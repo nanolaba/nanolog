@@ -53,7 +53,54 @@ ${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержан
 
 ## ${en:'Quick Start', ru:'Быстрый старт'}
 
-${widget:todo}
+```java
+package com.nanolaba.logging.examples;
+
+import com.nanolaba.logging.*;
+
+public class QuickStart {
+    public static void main(String[] args) {
+        try {
+            // Это логгер, используемый по-умолчанию<!--ru-->
+            // This is the logger used by default<!--en-->
+            LOG.init(new ConsoleLogger());
+
+            // Если вы хотите использовать SLF4J<!--ru-->
+            // If you want to use SLF4J<!--en-->
+            LOG.init(new Slf4jLogger());
+
+            // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger<!--ru-->
+            // If you want to write your own logger, use a lambda function or implement the ILogger interface.<!--en-->
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
+
+            LOG.debug("Статическая переменная логгера не нужна");<!--ru-- >
+                    LOG.debug("A static logger variable is not needed");<!--en-- >
+                    LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");<
+            !--ru-- >
+                    LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");<
+            !--en-- >
+                    LOG.warn("Это параметризованное сообщение: {}, {}, {} ", < !--ru-- >
+                    LOG.warn("This is a parameterized message: {}, {}, {} ", < !--en-- >
+                    100, "foo", new Object[]{"foo", "bar"});
+
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Можно сделать проверку доступности уровня логирования стандартным способом: " + < !--ru-- >
+                        LOG.debug("You can check if a log level is enabled in the standard way: " + < !--en-- >
+                                hugeComputations());
+            }
+            LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());<!--ru-- >
+                    LOG.debug(() -> "Alternatively, you can supply a lambda: " + hugeComputations());<!--en-- >
+
+        } catch (Exception e) {
+            LOG.error(e);
+        }
+    }
+
+    private static String hugeComputations() {
+        return "OK";
+    }
+}
+```
 
 ## ${en:'Usage Guide', ru:'Руководство по использованию'}
 
