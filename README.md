@@ -20,6 +20,7 @@ in other popular logger implementations:
 4. Safe object-to-string conversion
 5. Easy creation of custom logger implementations
 
+
 **Nanolog** is an extremely lightweight library and can be used as a standalone logger. However, it also
 supports integration with **SLF4J**, enabling compatibility with other logging libraries that act as its
 bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.
@@ -27,10 +28,9 @@ bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.
 The latest stable version of the program is **1.0**.
 
 ## Table of contents
-
 1. [Quick Start](#quick-start)
 2. [Usage Guide](#usage-guide)
-    1. [Adding the library to the project](#adding-the-library-to-the-project)
+	1. [Adding the library to the project](#adding-the-library-to-the-project)
 3. [Feedback](#feedback)
 
 ## Quick Start
@@ -67,4 +67,4 @@ Add it to your project's classpath
 <pre>📌 ⌛ Not done yet...</pre>
 
 ---
-*Last updated: 25.06.2025*
+*Last updated: 26.06.2025*
