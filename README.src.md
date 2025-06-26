@@ -31,6 +31,8 @@ ${name} является очень легковесной библиотеко�
 самостоятельного логгера, но также в ней доступна интеграция с **SLF4J**, а следовательно и с другими <!--ru-->
 библиотеками, для которых та выступает мостом — **Logback**, **Log4j**, **JBoss logging** и др.<!--ru-->
 <!--ru-->
+${name} поддерживает версии **Java 8** и выше.<!--ru-->
+<!--ru-->
 Последняя стабильная версия - **${stableVersion}**.<!--ru-->
 
 ${name} provides an advanced API for application logging, offering additional features not found<!--en-->
@@ -46,6 +48,8 @@ in other popular logger implementations:<!--en-->
 ${name} is an extremely lightweight library and can be used as a standalone logger. However, it also<!--en-->
 supports integration with **SLF4J**, enabling compatibility with other logging libraries that act as its<!--en-->
 bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.<!--en-->
+<!--en-->
+${name} compatible with **Java 8+**.<!--en-->
 <!--en-->
 The latest stable version of the program is **${stableVersion}**.<!--en-->
 
@@ -124,10 +128,30 @@ implementation 'com.nanolaba:nanolog:${stableVersion}'
 
 **${en:'Manual download', ru:'Скачивание вручную'}**
 
-Get the JAR from [Maven Central](https://mvnrepository.com/artifact/com.nanolaba/nanolog/${stableVersion}).<!--en-->
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion}).<!--en-->
 Add it to your project's classpath<!--en-->
-Скачайте JAR из [Maven Central](https://mvnrepository.com/artifact/com.nanolaba/nanolog/${stableVersion})<!--ru-->
+Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion})<!--ru-->
 и добавьте его в classpath проекта.<!--ru-->
+
+### ${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}
+
+${widget:todo}
+
+### ${en:'Setting up the logger type', ru:'Настройка типа логгера'}
+
+${widget:todo}
+
+#### ConsoleLogger
+
+${widget:todo}
+
+#### Slf4jLogger
+
+${widget:todo}
+
+#### ${en:'Creating a custom logger implementation', ru:'Написание собственной реализации логгера'}
+
+${widget:todo}
 
 ## ${en:'Feedback', ru:'Обратная связь'}
 

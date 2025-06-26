@@ -25,12 +25,19 @@ in other popular logger implementations:
 supports integration with **SLF4J**, enabling compatibility with other logging libraries that act as its
 bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.
 
+**Nanolog** compatible with **Java 8+**.
+
 The latest stable version of the program is **1.0**.
 
 ## Table of contents
 1. [Quick Start](#quick-start)
 2. [Usage Guide](#usage-guide)
 	1. [Adding the library to the project](#adding-the-library-to-the-project)
+	2. [Using SNAPSHOT versions](#using-snapshot-versions)
+	3. [Setting up the logger type](#setting-up-the-logger-type)
+		1. [ConsoleLogger](#consolelogger)
+		2. [Slf4jLogger](#slf4jlogger)
+		3. [Creating a custom logger implementation](#creating-a-custom-logger-implementation)
 3. [Feedback](#feedback)
 
 
@@ -53,16 +60,23 @@ public class QuickStart {
 			// If you want to write your own logger, use a lambda function or implement the ILogger interface.
 			LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
 
-			LOG.debug("A static logger variable is not needed");
-			LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");
-			LOG.warn("This is a parameterized message: {}, {}, {} ",
+			LOG.debug("Статическая переменная логгера не нужна");<!--ru-- >
+					LOG.debug("A static logger variable is not needed");<!--en-- >
+					LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");<
+			!--ru-- >
+					LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");<
+			!--en-- >
+					LOG.warn("Это параметризованное сообщение: {}, {}, {} ", < !--ru-- >
+					LOG.warn("This is a parameterized message: {}, {}, {} ", < !--en-- >
 					100, "foo", new Object[]{"foo", "bar"});
 
 			if (LOG.isDebugEnabled()) {
-				LOG.debug("You can check if a log level is enabled in the standard way: " +
-						hugeComputations());
+				LOG.debug("Можно сделать проверку доступности уровня логирования стандартным способом: " + < !--ru-- >
+						LOG.debug("You can check if a log level is enabled in the standard way: " + < !--en-- >
+								hugeComputations());
 			}
-			LOG.debug(() -> "Alternatively, you can supply a lambda: " + hugeComputations());
+			LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());<!--ru-- >
+					LOG.debug(() -> "Alternatively, you can supply a lambda: " + hugeComputations());<!--en-- >
 
 		} catch (Exception e) {
 			LOG.error(e);
@@ -97,8 +111,28 @@ implementation 'com.nanolaba:nanolog:1.0'
 
 **Manual download**
 
-Get the JAR from [Maven Central](https://mvnrepository.com/artifact/com.nanolaba/nanolog/1.0).
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.0).
 Add it to your project's classpath
+
+### Using SNAPSHOT versions
+
+<pre>📌 ⌛ Not done yet...</pre>
+
+### Setting up the logger type
+
+<pre>📌 ⌛ Not done yet...</pre>
+
+#### ConsoleLogger
+
+<pre>📌 ⌛ Not done yet...</pre>
+
+#### Slf4jLogger
+
+<pre>📌 ⌛ Not done yet...</pre>
+
+#### Creating a custom logger implementation
+
+<pre>📌 ⌛ Not done yet...</pre>
 
 ## Feedback
 
