@@ -8,6 +8,9 @@
     <artifactId>nanolog</artifactId>
     <name>nanolog</name>
     <url>https://github.com/nanolaba/nanolog</url>
+    <description>Nanolog — is a simple but powerful logger for Java applications, compatible with SLF4J,
+        that removes the need for static logger instances in every class requiring logging
+    </description>
 
     <version>1.0</version>
 
@@ -33,20 +36,29 @@
         <maven-deploy-plugin.version>3.1.1</maven-deploy-plugin.version>
         <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
         <maven-project-info-reports-plugin.version>3.5.0</maven-project-info-reports-plugin.version>
+        <nrg-maven-plugin.version>0.1-SNAPSHOT</nrg-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.8.0</central-publishing-maven-plugin.version>
+        <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>2.9.1</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>1.5</maven-gpg-plugin.version>
 
         <pitest-maven.version>1.15.8</pitest-maven.version>
         <pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
     </properties>
 
-    <distributionManagement>
-        <repository>
-            <id>${github.global.server}</id>
-            <url>https://maven.pkg.github.com/nanolaba/public-maven-repo</url>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>central.sonatype.com-snapshot</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
             <snapshots>
                 <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
             </snapshots>
-        </repository>
-    </distributionManagement>
+        </pluginRepository>
+    </pluginRepositories>
 
     <developers>
         <developer>
@@ -54,6 +66,18 @@
             <name>Alexander Andriishin</name>
         </developer>
     </developers>
+
+    <licenses>
+        <license>
+            <name>Apache 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/nanolaba/readme-generator</url>
+        <connection>scm:git:git://github.com/nanolaba/readme-generator.git</connection>
+    </scm>
 
     <dependencies>
         <dependency>
@@ -148,6 +172,82 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.nanolaba</groupId>
+                <artifactId>nrg-maven-plugin</artifactId>
+                <version>${nrg-maven-plugin.version}</version>
+                <configuration>
+                    <file>
+                        <item>README.src.md</item>
+                    </file>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>create-files</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven-source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>${maven-gpg-plugin.version}</version>
+                <configuration>
+                    <gpgArguments>
+                        <arg>--pinentry-mode</arg>
+                        <arg>loopback</arg>
+                    </gpgArguments>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>${central-publishing-maven-plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                    <waitUntil>published</waitUntil>
+                    <deploymentName>Nanolog ${version}</deploymentName>
+                </configuration>
             </plugin>
         </plugins>
     </build>
