@@ -6,6 +6,8 @@
 
 # Nanolaba logger (Nanolog)
 
+![Maven Central Version](https://img.shields.io/maven-central/v/com.nanolaba/nanolog)
+
 **Nanolog** — is a simple but powerful logger for Java applications, compatible with **SLF4J**,
 that *removes the need for static logger instances* in every class requiring logging.
 
@@ -20,14 +22,13 @@ in other popular logger implementations:
 4. Safe object-to-string conversion
 5. Easy creation of custom logger implementations
 
-
 **Nanolog** is an extremely lightweight library and can be used as a standalone logger. However, it also
 supports integration with **SLF4J**, enabling compatibility with other logging libraries that act as its
 bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.
 
 **Nanolog** compatible with **Java 8+**.
 
-The latest stable version of the program is **1.0**.
+The latest stable version of the library is **1.0**.
 
 ## Table of contents
 1. [Quick Start](#quick-start)
@@ -69,7 +70,7 @@ public class QuickStart {
 				LOG.debug("You can check if a log level is enabled in the standard way: " +
 						hugeComputations());
 			}
-			LOG.debug(() -> "It's also possible to pass a lambda expression: " + hugeComputations());
+			LOG.debug(() -> "It: " + hugeComputations());
 
 		} catch (Exception e) {
 			LOG.error(e);
@@ -132,4 +133,4 @@ Add it to your project's classpath
 <pre>📌 ⌛ Not done yet...</pre>
 
 ---
-*Last updated: 27.06.2025*
+*Last updated: 29.06.2025*
