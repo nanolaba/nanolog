@@ -8,8 +8,6 @@ ${widget:languages}
 
 # Nanolaba logger (Nanolog)
 
-![Maven Central Version](https://img.shields.io/maven-central/v/com.nanolaba/nanolog)
-
 ${name} — это простой, но мощный логгер для Java-приложений, поддерживающий интеграцию с<!--ru-->
 **SLF4J** и *не требующий создания статических экземпляров логгера<!--ru-->
 в каждом классе приложения*, где будет осуществляться логирование.<!--ru-->
@@ -80,7 +78,7 @@ public class QuickStart {
                 LOG.debug("${en:'You can check if a log level is enabled in the standard way', ru:'Можно сделать проверку доступности уровня логирования стандартным способом'}: " +
                                 hugeComputations());
             }
-            LOG.debug(() -> "${en:'It's also possible to pass a lambda expression', ru:'А можно передать лямбда-выражение'}: " + hugeComputations());
+            LOG.debug(() -> "${en:'It''s also possible to pass a lambda expression', ru:'А можно передать лямбда-выражение'}: " + hugeComputations());
 
         } catch (Exception e) {
             LOG.error(e);
