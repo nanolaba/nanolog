@@ -14,7 +14,9 @@ public class QuickStart {
             LOG.init(new Slf4jLogger());
 
             // If you want to write your own logger, use a lambda function or implement the ILogger interface.
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
+                    entry.getSourceClass() + " - " +
+                    entry.getFormattedMessage()));
 
             LOG.debug("A static logger variable is not needed");
             LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");

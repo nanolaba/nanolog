@@ -67,7 +67,9 @@ public class QuickStart {
 
             // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger<!--ru-->
             // If you want to write your own logger, use a lambda function or implement the ILogger interface.<!--en-->
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
+                    entry.getSourceClass() + " - " +
+                    entry.getFormattedMessage()));
 
             LOG.debug("${en:'A static logger variable is not needed', ru:'Статическая переменная логгера не нужна'}");
             LOG.info(String.class, "${en:'But you can explicitly specify which class the logging should belong to', ru:'Но можно явно указать к какому классу должно относиться логирование'}");

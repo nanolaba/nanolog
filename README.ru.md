@@ -58,7 +58,9 @@ public class QuickStart {
             LOG.init(new Slf4jLogger());
 
             // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
+                    entry.getSourceClass() + " - " +
+                    entry.getFormattedMessage()));
 
             LOG.debug("Статическая переменная логгера не нужна");
             LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");
@@ -132,4 +134,4 @@ implementation 'com.nanolaba:nanolog:1.0'
 <pre>📌 ⌛ Not done yet...</pre>
 
 ---
-*Дата последнего обновления: 30.06.2025*
+*Дата последнего обновления: 04.07.2025*

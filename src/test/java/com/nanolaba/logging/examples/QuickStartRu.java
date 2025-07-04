@@ -14,7 +14,9 @@ public class QuickStartRu {
             LOG.init(new Slf4jLogger());
 
             // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " + entry.getFormattedMessage()));
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
+                    entry.getSourceClass() + " - " +
+                    entry.getFormattedMessage()));
 
             LOG.debug("Привет! Статическая переменная логгера не нужна");
             LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");
