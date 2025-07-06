@@ -28,6 +28,8 @@ bridges — such as **Logback**, **Log4j**, **JBoss Logging**, and others.
 
 The latest stable version of the library is **1.0**.
 
+The latest development version is **1.1-SNAPSHOT**.
+
 ## Table of contents
 1. [Quick Start](#quick-start)
 2. [Usage Guide](#usage-guide)
@@ -48,38 +50,40 @@ package com.nanolaba.logging.examples;
 import com.nanolaba.logging.*;
 
 public class QuickStart {
-	public static void main(String[] args) {
-		try {
-			// This is the logger used by default
-			LOG.init(new ConsoleLogger());
+    public static void main(String[] args) {
+        try {
+            // This is the logger used by default
+            LOG.init(new ConsoleLogger());
 
-			// If you want to use SLF4J
-			LOG.init(new Slf4jLogger());
+            // If you want to use SLF4J
+            LOG.init(new Slf4jLogger());
 
-			// If you want to write your own logger, use a lambda function or implement the ILogger interface.
-			LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
-					entry.getSourceClass() + " - " +
-					entry.getFormattedMessage()));
+            // If you want to write your own logger, use a lambda function 
+            // or implement the ILogger interface.
+            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
+                    entry.getSourceClass() + " - " +
+                    entry.getFormattedMessage()));
 
-			LOG.debug("A static logger variable is not needed");
-			LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");
-			LOG.warn("This is a parameterized message: {}, {}, {} ",
-					100, "foo", new Object[]{"foo", "bar"});
+            LOG.debug("A static logger variable is not needed");
+            LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");
+            LOG.warn("This is a parameterized message: {}, {}, {} ",
+                    100, "foo", new Object[]{"foo", "bar"});
 
-			if (LOG.isDebugEnabled()) {
-				LOG.debug("You can check if a log level is enabled in the standard way: " +
-						hugeComputations());
-			}
-			LOG.debug(() -> "It's also possible to pass a lambda expression: " + hugeComputations());
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("You can check if a log level is enabled in the standard way: " +
+                        hugeComputations());
+            }
+            LOG.debug(() -> "It's also possible to pass a lambda expression: " +
+                    hugeComputations());
 
-		} catch (Exception e) {
-			LOG.error(e);
-		}
-	}
+        } catch (Exception e) {
+            LOG.error(e);
+        }
+    }
 
-	private static String hugeComputations() {
-		return "OK";
-	}
+    private static String hugeComputations() {
+        return "OK";
+    }
 }
 ```
 
@@ -90,6 +94,7 @@ public class QuickStart {
 **Maven (pom.xml)**
 
 ```xml
+
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
@@ -100,7 +105,9 @@ public class QuickStart {
 **Gradle (build.gradle)**
 
 ```groovy
-implementation 'com.nanolaba:nanolog:1.0'
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.0'
+}
 ```
 
 **Manual download**
@@ -110,7 +117,44 @@ Add it to your project's classpath
 
 ### Using SNAPSHOT versions
 
-<pre>📌 ⌛ Not done yet...</pre>
+To use the latest development version in your project, you need to specify the snapshot  
+repository URL and then add a dependency with the -SNAPSHOT suffix:
+
+**Maven (pom.xml)**
+
+```xml
+
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.1-SNAPSHOT</version>
+</dependency>  
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://oss.sonatype.org/content/repositories/snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.1-SNAPSHOT'
+}
+```
 
 ### Setting up the logger type
 
@@ -133,4 +177,4 @@ Add it to your project's classpath
 <pre>📌 ⌛ Not done yet...</pre>
 
 ---
-*Last updated: 04.07.2025*
+*Last updated: 07.07.2025*

@@ -29,6 +29,8 @@
 
 Последняя стабильная версия - **1.0**.
 
+Последняя версия разработки - **1.1-SNAPSHOT**.
+
 ## Содержание
 1. [Быстрый старт](#быстрый-старт)
 2. [Руководство по использованию](#руководство-по-использованию)
@@ -57,7 +59,8 @@ public class QuickStart {
             // Если вы хотите использовать SLF4J
             LOG.init(new Slf4jLogger());
 
-            // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger
+			// Если вы хотите написать свой логгер используйте лямбда-функцию 
+			// или реализуйте интерфейс ILogger
             LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
                     entry.getSourceClass() + " - " +
                     entry.getFormattedMessage()));
@@ -69,9 +72,10 @@ public class QuickStart {
 
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Можно сделать проверку доступности уровня логирования стандартным способом: " +
-                                hugeComputations());
+						hugeComputations());
             }
-            LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());
+			LOG.debug(() -> "А можно передать лямбда-выражение: " +
+					hugeComputations());
 
         } catch (Exception e) {
             LOG.error(e);
@@ -91,6 +95,7 @@ public class QuickStart {
 **Maven (pom.xml)**
 
 ```xml
+
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
@@ -101,7 +106,9 @@ public class QuickStart {
 **Gradle (build.gradle)**
 
 ```groovy
-implementation 'com.nanolaba:nanolog:1.0'
+dependencies {
+	implementation 'com.nanolaba:nanolog:1.0'
+}
 ```
 
 **Скачивание вручную**
@@ -111,7 +118,44 @@ implementation 'com.nanolaba:nanolog:1.0'
 
 ### Использование SNAPSHOT-версий
 
-<pre>📌 ⌛ Not done yet...</pre>
+Для того чтобы использовать в своем проекте последнюю разрабатываемую версию необходимо
+указать адрес snapshot-репозитория, а затем добавить зависимость с -SNAPSHOT:
+
+**Maven (pom.xml)**
+
+```xml
+
+<repositories>
+	<repository>
+		<id>central.sonatype.com-snapshot</id>
+		<url>https://central.sonatype.com/repository/maven-snapshots</url>
+		<snapshots>
+			<enabled>true</enabled>
+			<updatePolicy>always</updatePolicy>
+		</snapshots>
+	</repository>
+</repositories>
+
+<dependency>
+<groupId>com.nanolaba</groupId>
+<artifactId>nanolog</artifactId>
+<version>1.1-SNAPSHOT</version>
+</dependency>  
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+	maven {
+		url 'https://oss.sonatype.org/content/repositories/snapshots'
+	}
+}
+
+dependencies {
+	implementation 'com.nanolaba:nanolog:1.1-SNAPSHOT'
+}
+```
 
 ### Настройка типа логгера
 
@@ -134,4 +178,4 @@ implementation 'com.nanolaba:nanolog:1.0'
 <pre>📌 ⌛ Not done yet...</pre>
 
 ---
-*Дата последнего обновления: 04.07.2025*
+*Дата последнего обновления: 07.07.2025*

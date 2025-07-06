@@ -3,6 +3,7 @@
 
 <!--@name=**Nanolog**-->
 <!--@stableVersion=1.0-->
+<!--@devVersion=1.1-SNAPSHOT-->
 
 ${widget:languages}
 
@@ -45,6 +46,9 @@ ${name} compatible with **Java 8+**.<!--en-->
 Последняя стабильная версия - **${stableVersion}**.<!--ru-->
 The latest stable version of the library is **${stableVersion}**.<!--en-->
 
+Последняя версия разработки - **${devVersion}**.<!--ru-->
+The latest development version is **${devVersion}**.<!--en-->
+
 ${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true")}
 
 ## ${en:'Quick Start', ru:'Быстрый старт'}
@@ -65,8 +69,10 @@ public class QuickStart {
             // If you want to use SLF4J<!--en-->
             LOG.init(new Slf4jLogger());
 
-            // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger<!--ru-->
-            // If you want to write your own logger, use a lambda function or implement the ILogger interface.<!--en-->
+            // Если вы хотите написать свой логгер используйте лямбда-функцию <!--ru-->
+            // или реализуйте интерфейс ILogger<!--ru-->
+            // If you want to write your own logger, use a lambda function <!--en-->
+            // or implement the ILogger interface.<!--en-->
             LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
                     entry.getSourceClass() + " - " +
                     entry.getFormattedMessage()));
@@ -78,9 +84,10 @@ public class QuickStart {
 
             if (LOG.isDebugEnabled()) {
                 LOG.debug("${en:'You can check if a log level is enabled in the standard way', ru:'Можно сделать проверку доступности уровня логирования стандартным способом'}: " +
-                                hugeComputations());
+                        hugeComputations());
             }
-            LOG.debug(() -> "${en:'It''s also possible to pass a lambda expression', ru:'А можно передать лямбда-выражение'}: " + hugeComputations());
+            LOG.debug(() -> "${en:'It''s also possible to pass a lambda expression', ru:'А можно передать лямбда-выражение'}: " +
+                    hugeComputations());
 
         } catch (Exception e) {
             LOG.error(e);
@@ -100,6 +107,7 @@ public class QuickStart {
 **Maven (pom.xml)**
 
 ```xml
+
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
@@ -110,7 +118,9 @@ public class QuickStart {
 **Gradle (build.gradle)**
 
 ```groovy
-implementation 'com.nanolaba:nanolog:${stableVersion}'
+dependencies {
+    implementation 'com.nanolaba:nanolog:${stableVersion}'
+}
 ```
 
 **${en:'Manual download', ru:'Скачивание вручную'}**
@@ -122,7 +132,46 @@ Add it to your project's classpath<!--en-->
 
 ### ${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}
 
-${widget:todo}
+Для того чтобы использовать в своем проекте последнюю разрабатываемую версию необходимо <!--ru-->
+указать адрес snapshot-репозитория, а затем добавить зависимость с -SNAPSHOT: <!--ru-->
+To use the latest development version in your project, you need to specify the snapshot <!--en-->
+repository URL and then add a dependency with the -SNAPSHOT suffix: <!--en-->
+
+**Maven (pom.xml)**
+
+```xml
+
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+<groupId>com.nanolaba</groupId>
+<artifactId>nanolog</artifactId>
+<version>${devVersion}</version>
+</dependency>  
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://oss.sonatype.org/content/repositories/snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:${devVersion}'
+}
+```
 
 ### ${en:'Setting up the logger type', ru:'Настройка типа логгера'}
 
