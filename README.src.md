@@ -175,23 +175,188 @@ dependencies {
 
 ### ${en:'Setting up the logger type', ru:'Настройка типа логгера'}
 
-${widget:todo}
+${name} не требует обязательной настройки — сразу после подключения библиотеки можно начинать<!--ru-->
+писать в лог, в качестве реализации по умолчанию будет использоваться `ConsoleLogger`.<!--ru-->
+${name} does not require any mandatory setup — once the library is added to the project,<!--en-->
+logging works out of the box and `ConsoleLogger` is used as the default implementation.<!--en-->
+
+Выбрать другой логгер можно тремя способами:<!--ru-->
+You can pick a different logger in one of three ways:<!--en-->
+
+1. **${en:'Programmatically', ru:'Программно'}** — ${en:'pass any', ru:'передать любую'}
+   `ILogger` ${en:'implementation to', ru:'реализацию в'} `LOG.init(...)`
+   ${en:'at application startup', ru:'при старте приложения'}:
+
+   ```java
+   LOG.init(new Slf4jLogger());
+   ```
+
+2. **${en:'Via a system property', ru:'Через системное свойство'}** — ${en:'set the', ru:'задать'}
+   `nanolog.logger` ${en:'property to the fully qualified class name of an', ru:'свойству полное имя класса, реализующего'}
+   `ILogger` ${en:'implementation (the class must have a public no-arg constructor)', ru:'(у класса должен быть публичный конструктор без параметров)'}:
+
+   ```
+   -Dnanolog.logger=com.nanolaba.logging.Slf4jLogger
+   ```
+
+3. **${en:'Via a configuration file', ru:'Через файл конфигурации'}** — ${en:'place a', ru:'разместить'}
+   `nanolog.properties` ${en:'file on the classpath', ru:'в classpath файл'}.
+   ${en:'On the first call to', ru:'При первом обращении к'} `LOG` ${en:'its entries are copied into system properties (without overwriting values already set via', ru:'его значения копируются в системные свойства (без перезаписи тех, что уже переданы через'}
+   `-D`):
+
+   ```properties
+   nanolog.logger=com.nanolaba.logging.Slf4jLogger
+   ```
+
+   ${en:'The file path can be overridden with the', ru:'Путь к файлу можно переопределить свойством'}
+   `nanolog.config` ${en:'system property', ru:''}.
+
+${en:'If instantiation of the class specified in', ru:'Если инстанциирование класса, указанного в'}
+`nanolog.logger` ${en:'fails,', ru:'не удалось,'}
+${name} ${en:'prints a diagnostic message with the', ru:'выведет в'} `System.err`
+${en:'prefix', ru:'диагностическое сообщение с префиксом'} `[NANOLOG]`
+${en:'and silently falls back to', ru:'и по-тихому переключится на'} `ConsoleLogger`.
 
 #### ConsoleLogger
 
-${widget:todo}
+`ConsoleLogger` — ${en:'the default implementation. Writes', ru:'реализация по умолчанию. Выводит'}
+`ERROR` ${en:'entries to', ru:'в'} `System.err`,
+${en:'and all other levels to', ru:'остальные уровни — в'} `System.out`.
+
+${en:'Format of a log line (components are separated by spaces):', ru:'Формат строки лога (компоненты разделены пробелами):'}
+
+```
+LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] Message
+```
+
+${en:'Each component can be toggled or tuned via fluent setters:', ru:'Каждый компонент можно включать, выключать или настраивать цепочкой сеттеров:'}
+
+```java
+LOG.init(new ConsoleLogger()
+        .setShowLevel(true)
+        .setShowDate(true)
+        .setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"))
+        .setShowSource(true)
+        .setShowSourceFullName(false)
+        .setTraceEnabled(false)
+        .setDebugEnabled(false));
+```
+
+${en:'Available options:', ru:'Доступные настройки:'}
+
+- `showLevel` — ${en:'include the log level name', ru:'выводить имя уровня логирования'} (`TRACE`, `DEBUG`, …).
+- `showDate` + `dateFormat` — ${en:'include the timestamp formatted with the given', ru:'выводить временную метку, отформатированную заданным'} `SimpleDateFormat`.
+- `showSource` — ${en:'include the source class name in square brackets', ru:'выводить имя класса-источника в квадратных скобках'}.
+- `showSourceFullName` — ${en:'use the fully qualified class name instead of the simple name', ru:'использовать полное имя класса вместо короткого'}.
+- `traceEnabled`, `debugEnabled`, `infoEnabled`, `warnEnabled`, `errorEnabled` —<!--en-->
+  per-level switches (all enabled by default). Levels that are disabled are<!--en-->
+  short-circuited before the `LogEntry` is built, so `Supplier`-based lazy<!--en-->
+  messages are not evaluated.<!--en-->
+  переключатели по уровням (по умолчанию все включены). Отключённые уровни<!--ru-->
+  отсекаются ещё до создания `LogEntry`, поэтому ленивые сообщения, переданные<!--ru-->
+  через `Supplier`, не будут вычисляться.<!--ru-->
+
+${en:'For custom rendering (coloured output, JSON, a different layout) extend', ru:'Для собственного рендеринга (цветной вывод, JSON, иная раскладка) унаследуйтесь от'}
+`ConsoleLogger` ${en:'and override', ru:'и переопределите'} `createLogString(LogEntry)` / `getOutputStream(LogEntry)`.
 
 #### Slf4jLogger
 
-${widget:todo}
+`Slf4jLogger` — ${en:'a bridge to', ru:'мост к'} **SLF4J**.
+${en:'Delegates each', ru:'Каждый'} `LogEntry`
+${en:'to the', ru:'передаётся в'} `org.slf4j.Logger`,
+${en:'obtained via', ru:'полученный через'} `LoggerFactory.getLogger(sourceClass)`
+${en:'. Loggers are cached per source class in a', ru:'. Логгеры кешируются по классу-источнику в'}
+`ConcurrentHashMap`.
+
+${en:'Level filtering is delegated to SLF4J (`isTraceEnabled()`, `isDebugEnabled()` and so on), so the actual log configuration — levels, patterns, appenders, files — is taken from whatever SLF4J backend you plug in (Logback, Log4j 2, JBoss Logging, slf4j-simple, etc.).', ru:'Фильтрация уровней делегируется SLF4J (`isTraceEnabled()`, `isDebugEnabled()` и так далее), поэтому реальная конфигурация логирования — уровни, шаблоны, аппендеры, файлы — берётся из того SLF4J-бекенда, который вы подключили (Logback, Log4j 2, JBoss Logging, slf4j-simple и т. д.).'}
+
+${en:'The library declares', ru:'Библиотека объявляет'} `slf4j-api`
+${en:'with', ru:'в области'} `provided` scope,
+${en:'so if you use', ru:'поэтому при использовании'} `Slf4jLogger`
+${en:'you must add', ru:'вам нужно самостоятельно добавить'} `slf4j-api`
+${en:'and a concrete binding to your project yourself. Example (Maven, Logback):', ru:'и конкретный бекенд в свой проект. Пример (Maven, Logback):'}
+
+```xml
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>2.0.12</version>
+</dependency>
+<dependency>
+    <groupId>ch.qos.logback</groupId>
+    <artifactId>logback-classic</artifactId>
+    <version>1.5.6</version>
+</dependency>
+```
+
+${en:'Initialisation:', ru:'Инициализация:'}
+
+```java
+LOG.init(new Slf4jLogger());
+```
+
+${en:'After that, writing through', ru:'После этого запись через'} `LOG.info(...)` / `LOG.debug(...)`
+${en:'ends up in the SLF4J pipeline, and — because caller class detection is already done by', ru:'попадает в конвейер SLF4J, причём — поскольку определение вызывающего класса уже выполнено в'}
+${name} — ${en:'SLF4J receives the real source class rather than', ru:'SLF4J получает реальный класс-источник, а не'}
+`Slf4jLogger` ${en:'or', ru:'или'} `LOG` ${en:'itself.', ru:'.'}
 
 #### ${en:'Creating a custom logger implementation', ru:'Написание собственной реализации логгера'}
 
-${widget:todo}
+${en:'A custom logger is any implementation of', ru:'Собственный логгер — это любая реализация'}
+`ILogger`. ${en:'The interface has a single abstract method, so the simplest implementation is a lambda:', ru:'У интерфейса один абстрактный метод, поэтому самая простая реализация — лямбда:'}
+
+```java
+LOG.init(entry -> System.out.println(
+        entry.getLevel() + " [" + entry.getSourceClass().getSimpleName() + "] "
+                + entry.getFormattedMessage()));
+```
+
+${en:'A full implementation looks like this:', ru:'Полноценная реализация выглядит так:'}
+
+```java
+public class MyLogger implements ILogger {
+
+    @Override
+    public void log(LogEntry entry) {
+        // ${en:'write the entry wherever you need — file, socket, queue, ...', ru:'запись в нужное место — файл, сокет, очередь, ...'}
+    }
+
+    @Override
+    public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+        // ${en:'return false to suppress entries of the given level for the given class', ru:'верните false, чтобы отсечь сообщения указанного уровня для данного класса'}
+        return level != LogEntry.LogEntryLevel.TRACE;
+    }
+}
+```
+
+${en:'Useful things to know about', ru:'Полезно знать о'} `LogEntry`:
+
+- `getLevel()` — ${en:'one of', ru:'одно из значений'} `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`.
+- `getSourceClass()` — ${en:'the detected (or explicitly passed) source class', ru:'определённый (или явно переданный) класс-источник'}.
+- `getThrowable()` — ${en:'the exception, if one was passed; otherwise', ru:'исключение, если оно было передано; иначе'} `null`.
+- `getMessage()` — ${en:'the raw message object (already resolved from the', ru:'исходный объект-сообщение (уже разрешённый из'} `Supplier`,
+  ${en:'if a lambda was used)', ru:'если использовалась лямбда)'}.
+- `getArgs()` — ${en:'substitution arguments for the', ru:'аргументы подстановки для'} `{}`-${en:'placeholders', ru:'шаблонов'}.
+- `getFormattedMessage()` — ${en:'the final string with', ru:'итоговая строка с подставленными'} `{}`
+  ${en:'arguments substituted; arrays are rendered via', ru:'аргументами; массивы рендерятся через'} `Arrays.toString` / `Arrays.deepToString`,
+  ${en:'and a throwing', ru:'а падающий'} `toString()` ${en:'yields', ru:'превращается в'} `"[FAILED toString()]"`,
+  ${en:'so a broken', ru:'поэтому сломанный'} `toString()` ${en:'never breaks logging.', ru:'никогда не ломает логирование.'}
+
+${en:'Two points worth keeping in mind:', ru:'Два момента, которые стоит держать в голове:'}
+
+- `isEnabled(...)` ${en:'is called by', ru:'вызывается'} `LOG.log(...)` ${en:'**before** the', ru:'**до** сборки'}
+  `LogEntry` ${en:'is built and before any', ru:'и до раскрытия любого'} `Supplier` ${en:'is resolved — return', ru:'— возвращайте'} `false`
+  ${en:'to skip expensive message computation.', ru:'чтобы пропустить дорогое вычисление сообщения.'}
+- ${en:'A custom logger class should not itself use', ru:'Пользовательский класс логгера не должен сам использовать'} `LOG`
+  ${en:'for logging without passing an explicit source class — any class that implements', ru:'без явного указания класса-источника: любой класс, реализующий'}
+  `ILogger` ${en:'is skipped by the automatic caller-detection, which would otherwise misattribute the log entry.', ru:'пропускается при автоматическом определении вызывающего класса, иначе запись была бы атрибутирована неверно.'}
 
 ## ${en:'Feedback', ru:'Обратная связь'}
 
-${widget:todo}
+${en:'Questions, bug reports and feature requests are welcome on the issue tracker:', ru:'Вопросы, сообщения об ошибках и пожелания принимаются в трекере задач:'}
+[github.com/nanolaba/nanolog/issues](https://github.com/nanolaba/nanolog/issues).
+
+${en:'Pull requests are also welcome. Please note that the build enforces 100% pitest mutation coverage, so any change to production code must come with tests that catch the corresponding mutants.', ru:'Pull request-ы тоже приветствуются. Обратите внимание, что сборка требует 100% покрытия мутационными тестами pitest, поэтому любое изменение кода библиотеки должно сопровождаться тестами, покрывающими соответствующие мутации.'}
 
 ---
 *${en:'Last updated:', ru:'Дата последнего обновления:'} ${widget:date(pattern= 'dd.MM.yyyy')}*

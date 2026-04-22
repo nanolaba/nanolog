@@ -24,7 +24,7 @@
         <!-- libs-->
         <junit5.version>5.10.2</junit5.version>
         <slf4j.version>2.0.12</slf4j.version>
-        <commons-lang3.version>3.12.0</commons-lang3.version>
+        <commons-lang3.version>3.17.0</commons-lang3.version>
 
         <!-- Maven plugins -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -36,7 +36,7 @@
         <maven-deploy-plugin.version>3.1.1</maven-deploy-plugin.version>
         <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
         <maven-project-info-reports-plugin.version>3.5.0</maven-project-info-reports-plugin.version>
-        <nrg-maven-plugin.version>0.1-SNAPSHOT</nrg-maven-plugin.version>
+        <nrg-maven-plugin.version>0.4-SNAPSHOT</nrg-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.8.0</central-publishing-maven-plugin.version>
         <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
         <maven-javadoc-plugin.version>2.9.1</maven-javadoc-plugin.version>
