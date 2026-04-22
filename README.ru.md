@@ -207,27 +207,13 @@ LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] Message
 
 ```java
 LOG.init(new ConsoleLogger()
-        .
-
-setShowLevel(true)
-        .
-
-setShowDate(true)
-        .
-
-setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"))
-        .
-
-setShowSource(true)
-        .
-
-setShowSourceFullName(false)
-        .
-
-setTraceEnabled(false)
-        .
-
-setDebugEnabled(false));
+        .setShowLevel(true)
+        .setShowDate(true)
+        .setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"))
+        .setShowSource(true)
+        .setShowSourceFullName(false)
+        .setTraceEnabled(false)
+        .setDebugEnabled(false));
 ```
 
 Доступные настройки:
@@ -255,16 +241,15 @@ setDebugEnabled(false));
 и конкретный бекенд в свой проект. Пример (Maven, Logback):
 
 ```xml
-
 <dependency>
     <groupId>org.slf4j</groupId>
     <artifactId>slf4j-api</artifactId>
     <version>2.0.12</version>
 </dependency>
 <dependency>
-<groupId>ch.qos.logback</groupId>
-<artifactId>logback-classic</artifactId>
-<version>1.5.6</version>
+    <groupId>ch.qos.logback</groupId>
+    <artifactId>logback-classic</artifactId>
+    <version>1.5.6</version>
 </dependency>
 ```
 
@@ -285,17 +270,9 @@ LOG.init(new Slf4jLogger());
 `ILogger`. У интерфейса один абстрактный метод, поэтому самая простая реализация — лямбда:
 
 ```java
-LOG.init(entry ->System.out.
-
-println(
-        entry.getLevel() +" ["+entry.
-
-getSourceClass().
-
-getSimpleName() +"] "
-        +entry.
-
-getFormattedMessage()));
+LOG.init(entry -> System.out.println(
+        entry.getLevel() + " [" + entry.getSourceClass().getSimpleName() + "] "
+                + entry.getFormattedMessage()));
 ```
 
 Полноценная реализация выглядит так:
