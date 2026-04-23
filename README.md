@@ -160,38 +160,38 @@ dependencies {
 
 You can pick a different logger in one of three ways:
 
-1. **Programmatically** — pass any
-   `ILogger` implementation to `LOG.init(...)`
-   at application startup:
+1. **Programmatically**
+
+   Pass any `ILogger` implementation to `LOG.init(...)` at application startup:
 
    ```java
    LOG.init(new Slf4jLogger());
    ```
 
-2. **Via a system property** — set the
-   `nanolog.logger` property to the fully qualified class name of an
+2. **Via a system property**
+
+   Set the `nanolog.logger` property to the fully qualified class name of an
    `ILogger` implementation (the class must have a public no-arg constructor):
 
    ```
    -Dnanolog.logger=com.nanolaba.logging.Slf4jLogger
    ```
 
-3. **Via a configuration file** — place a
-   `nanolog.properties` file on the classpath. On the first call to `LOG` its entries are copied into system properties (without overwriting values already set via
-   `-D`):
+3. **Via a configuration file**
+
+   Place a `nanolog.properties` file on the classpath. On the first call to `LOG`
+   its entries are copied into system properties (without overwriting values already set via `-D`):
 
    ```properties
    nanolog.logger=com.nanolaba.logging.Slf4jLogger
    ```
 
-   The file path can be overridden with the
-   `nanolog.config` system property.
+   The file path can be overridden with the `nanolog.config` system property.
 
-If instantiation of the class specified in
-`nanolog.logger` fails,
-**Nanolog** prints a diagnostic message with the `System.err`
-prefix `[NANOLOG]`
-and silently falls back to `ConsoleLogger`.
+To override the choice made via property or file, call `LOG.init(...)` explicitly — each call replaces the current logger.
+
+If instantiation of the class specified in `nanolog.logger` fails, **Nanolog**
+writes a `[NANOLOG]`-prefixed diagnostic to `System.err` and silently falls back to `ConsoleLogger`.
 
 #### ConsoleLogger
 
@@ -226,21 +226,19 @@ Available options:
 - `traceEnabled`, `debugEnabled`, `infoEnabled`, `warnEnabled`, `errorEnabled` — per-level switches (all enabled by default). Levels that are disabled are short-circuited before the `LogEntry` is built, so `Supplier`-based lazy messages are not evaluated.
 
 For custom rendering (coloured output, JSON, a different layout) extend
-`ConsoleLogger` and override `createLogString(LogEntry)` / `getOutputStream(LogEntry)`.
+`ConsoleLogger` and override `getOutputStream(LogEntry)`; for fine-grained formatting tweak `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
+`writeThrowable` or `addDelimiter`.
 
 #### Slf4jLogger
 
-`Slf4jLogger` — a bridge to **SLF4J**. Delegates each `LogEntry`
-to the `org.slf4j.Logger`, obtained via `LoggerFactory.getLogger(sourceClass)`
-. Loggers are cached per source class in a
-`ConcurrentHashMap`.
+`Slf4jLogger` is a bridge to **SLF4J**. Each `LogEntry` is forwarded to the
+`org.slf4j.Logger` returned by `LoggerFactory.getLogger(sourceClass)`. Loggers are cached per source class in a `ConcurrentHashMap` and the cache is never evicted, so in applications with dynamic class reloading it will retain `Class`
+references.
 
 Level filtering is delegated to SLF4J (`isTraceEnabled()`, `isDebugEnabled()` and so on), so the actual log configuration — levels, patterns, appenders, files — is taken from whatever SLF4J backend you plug in (Logback, Log4j 2, JBoss Logging, slf4j-simple, etc.).
 
-The library declares `slf4j-api`
-with `provided` scope, so if you use `Slf4jLogger`
-you must add `slf4j-api`
-and a concrete binding to your project yourself. Example (Maven, Logback):
+The library declares `slf4j-api` with `provided` scope, so if you use
+`Slf4jLogger`, you must add `slf4j-api` and a concrete binding to your project yourself. Example (Maven, Logback):
 
 ```xml
 <dependency>
@@ -261,10 +259,8 @@ Initialisation:
 LOG.init(new Slf4jLogger());
 ```
 
-After that, writing through `LOG.info(...)` / `LOG.debug(...)`
-ends up in the SLF4J pipeline, and — because caller class detection is already done by
-**Nanolog** — SLF4J receives the real source class rather than
-`Slf4jLogger` or `LOG` itself.
+After that, writing through `LOG.info(...)` / `LOG.debug(...)` ends up in the SLF4J pipeline, and — because caller class detection is already done by **Nanolog**
+— SLF4J receives the real source class rather than `Slf4jLogger` or `LOG` itself.
 
 #### Creating a custom logger implementation
 
@@ -302,14 +298,13 @@ Useful things to know about `LogEntry`:
 - `getThrowable()` — the exception, if one was passed; otherwise `null`.
 - `getMessage()` — the raw message object (already resolved from the `Supplier`, if a lambda was used).
 - `getArgs()` — substitution arguments for the `{}`-placeholders.
-- `getFormattedMessage()` — the final string with `{}`
-  arguments substituted; arrays are rendered via `Arrays.toString` / `Arrays.deepToString`, and a throwing `toString()` yields `"[FAILED toString()]"`, so a broken `toString()` never breaks logging.
+- `getFormattedMessage()` — the final string with `{}` arguments substituted; arrays are rendered via `Arrays.toString` / `Arrays.deepToString`, and if
+  `toString()` throws, the result is `"[FAILED toString()]"`, so a broken
+  `toString()` never breaks logging.
 
 Two points worth keeping in mind:
 
-- `isEnabled(...)` is called by `LOG.log(...)` **before** the
-  `LogEntry` is built and before any `Supplier` is resolved — return `false`
-  to skip expensive message computation.
+- `isEnabled(...)` is called from `LOG.log(...)` **before** the `LogEntry` is built and before any `Supplier` is resolved — return `false` to skip expensive message computation.
 - A custom logger class should not itself use `LOG`
   for logging without passing an explicit source class — any class that implements
   `ILogger` is skipped by the automatic caller-detection, which would otherwise misattribute the log entry.
@@ -319,7 +314,7 @@ Two points worth keeping in mind:
 Questions, bug reports and feature requests are welcome on the issue tracker:
 [github.com/nanolaba/nanolog/issues](https://github.com/nanolaba/nanolog/issues).
 
-Pull requests are also welcome. Please note that the build enforces 100% pitest mutation coverage, so any change to production code must come with tests that catch the corresponding mutants.
+Pull requests are also welcome. Note that the build enforces 100% pitest mutation coverage, so any change to production code must come with tests that catch the corresponding mutants.
 
 ---
-*Last updated: 22.04.2026*
+*Generated with [nanolaba/readme-generator](https://github.com/nanolaba/readme-generator) — 23.04.2026*
