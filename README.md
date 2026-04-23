@@ -4,6 +4,11 @@
 
 [ **en** | [ru](README.ru.md) ]
 
+[![CI](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog.svg)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Java](https://img.shields.io/badge/java-8%2B-blue.svg)](https://adoptium.net/)
+
 # Nanolaba logger (Nanolog)
 
 **Nanolog** — is a simple but powerful logger for Java applications, compatible with **SLF4J**, that *removes the need for static logger instances* in every class requiring logging.
