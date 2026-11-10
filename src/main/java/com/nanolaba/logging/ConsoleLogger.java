@@ -93,9 +93,15 @@ public class ConsoleLogger implements ILogger {
     }
 
     protected void writeDate(StringWriter out, LogEntry entry) {
-        if (isShowDate() && getDateFormat() != null) {
+        SimpleDateFormat format = getDateFormat();
+        if (isShowDate() && format != null) {
             addDelimiter(out);
-            out.append(getDateFormat().format(getCurrentDate()));
+            String date;
+            // SimpleDateFormat is not thread-safe and the instance is shared by all logging threads
+            synchronized (format) {
+                date = format.format(getCurrentDate());
+            }
+            out.append(date);
         }
     }
 

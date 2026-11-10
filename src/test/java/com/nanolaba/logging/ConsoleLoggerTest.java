@@ -5,9 +5,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.FieldPosition;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,6 +82,23 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
 
         LOG.error(InfoObject.class, "");
         assertEquals("ERROR " + currentYear + " [InfoObject]" + System.lineSeparator(), getErrAndClear());
+    }
+
+    @Test
+    public void testDateFormatIsGuardedByItsMonitor() {
+        // SimpleDateFormat is not thread-safe; the logger must hold the format's monitor while formatting
+        AtomicBoolean lockHeld = new AtomicBoolean();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy") {
+            @Override
+            public StringBuffer format(Date date, StringBuffer toAppendTo, FieldPosition pos) {
+                lockHeld.set(Thread.holdsLock(this));
+                return super.format(date, toAppendTo, pos);
+            }
+        };
+        LOG.init(new ConsoleLogger().setDateFormat(dateFormat));
+
+        LOG.info(InfoObject.class, "");
+        assertTrue(lockHeld.get(), "ConsoleLogger must synchronize on the shared SimpleDateFormat");
     }
 
     @Test
