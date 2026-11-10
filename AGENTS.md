@@ -25,21 +25,21 @@ The `test` phase is wired to run **pitest-maven** with `mutationThreshold=100`. 
 
 ### README generation
 
-`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.2 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`. Never edit the generated files.
+`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`. Never edit the generated files.
 
 - Edit `README.src.md`, run `mvn compile`, review both outputs, commit all three files together.
 - CI runs the plugin with `-Dcheck=true`: a committed README that differs from what the template generates fails the build. Local verification: `mvn -q compile -Dcheck=true`.
-- Code samples are imported from `src/test/java/com/nanolaba/logging/examples` via `// nrg:begin:NAME` / `// nrg:end:NAME` regions and `${widget:import(... region='NAME', wrap='true')}`. Changing an example changes the README; keep the console output shown in the quick start in sync by hand.
+- Code samples are imported from `src/test/java/com/nanolaba/logging/examples` via `// nrg:begin:NAME` / `// nrg:end:NAME` regions and `${widget:import(... region='NAME', wrap='true')}`. Changing an example changes the README; keep the console output shown in the quick start in sync by hand. An import may sit on an indented line (inside a list item): every line of its output takes the indentation of the widget line.
 - Versions come from `pom.xml` (`${pom.version}`, `${pom.properties.slf4j.version}`, ...). The only hand-maintained version is `<!--@stableVersion=...-->` at the top of the template: bump it after every release.
+- Snapshot-only content (the "Using SNAPSHOT versions" section, the development entry of the changelog, the "version under development" clause) is guarded by `${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}` … `${widget:endIf}` or by the inline `${widget:if(cond='…', text='…')}`, so it disappears from the README of a release commit by itself.
+- Collapsible content uses `${widget:details(summary='…')}` … `${widget:endDetails}`; the inner markdown and language markers keep working.
 - The English and Russian quick-start examples are chosen with the per-language properties `quickStartFile.en` / `quickStartFile.ru`.
 
-Known NRG 1.2 limitations, each reported upstream (readme-generator #55, #56, #57); keep the workarounds until a fixed release is adopted:
+Template conventions that still apply with NRG 1.3:
 
-- Parentheses inside `${widget:if(cond='...')}` are not parsed (so `endsWith(...)` / `startsWith(...)` do not work): the opener is left in the output as text. Use conditions like `${devVersion} != ${stableVersion}`.
-- Never put a language marker (`<!--en-->` / `<!--ru-->`) on an `import` widget line; it breaks the table of contents for every heading that follows. Use a per-language property in the path instead.
-- Never indent a widget call (for example inside a list item); the emitted closing fence lands at column 0.
 - Keep code spans inside the language strings (`${en:'use `LOG`.', ru:'используйте `LOG`.'}`); placing a backticked term outside the construct produces a space before Russian punctuation.
-- `details` and the inline `if(text=...)` form exist only in NRG 1.3-SNAPSHOT; the snapshot plugin repository was deliberately removed from `pom.xml`.
+- Every path the template names (`import`, `fileTree`, output files) must stay inside the repository: since 1.3 a template is confined to its project root, and an escaping path fails the build.
+- Do not downgrade the plugin below 1.3: the template relies on fixes for readme-generator #55 (parentheses in `if` conditions), #56 (language markers on `import` lines broke the table of contents) and #57 (indented widgets). Plugins are resolved from Maven Central only; do not add a snapshot plugin repository.
 
 After regenerating, grep the outputs for leftover `${` and compare the generated table of contents with `grep -n '^#' README.md`.
 

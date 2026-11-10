@@ -52,10 +52,7 @@ ${widget:fileTree(path='src/main/java/com/nanolaba/logging', depth='1')}
 - `ConsoleLogger`, `Slf4jLogger` — ${en:'the bundled implementations', ru:'встроенные реализации'}.
 - `DefaultLoggerCreator` — ${en:'picks the logger at startup from a system property or a properties file', ru:'выбирает логгер при старте по системному свойству или файлу настроек'}.
 
-${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**.
-${widget:if(cond='${devVersion} != ${stableVersion}')}
-${en:'The version under development is', ru:'Версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog)).
-${widget:endIf}
+${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
 
 ${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true", numbering-style = "dotted", max-depth = "3")}
 
@@ -79,10 +76,10 @@ dependencies {
 }
 ```
 
-**${en:'Manual download', ru:'Скачивание вручную'}**
-
+${widget:details(summary="${en:'Manual download', ru:'Скачивание вручную'}")}
 Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion}) and add it to the classpath.<!--en-->
 Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion}) и добавьте его в classpath.<!--ru-->
+${widget:endDetails}
 
 ${en:'Requirements: Java', ru:'Требования: Java'} ${pom.properties.maven.compiler.release}+. ${en:'The jar declares', ru:'В манифесте jar объявлено'} `Automatic-Module-Name: com.nanolaba.nanolog` ${en:'for modular applications', ru:'для модульных приложений'}.
 
@@ -134,9 +131,7 @@ ${en:'The default `ConsoleLogger` can be replaced in three ways:', ru:'Логг�
 
 1. **${en:'Programmatically', ru:'Программно'}** — ${en:'pass any', ru:'передайте любую реализацию'} `ILogger` ${en:'implementation to', ru:'в'} `LOG.init(...)` ${en:'at application startup:', ru:'при старте приложения:'}
 
-   ```java
-   LOG.init(new Slf4jLogger());
-   ```
+   ${widget:import(path='${examples}/LoggerSetup.java', region='slf4j', wrap='true')}
 
 2. **${en:'Via a system property', ru:'Через системное свойство'}** — ${en:'the fully qualified name of a class with a public no-arg constructor:', ru:'полное имя класса с публичным конструктором без параметров:'}
 
@@ -272,7 +267,7 @@ ${en:'`isEnabled(...)` is called before the `LogEntry` is built and before any `
 - `LOG.init(...)` ${en:'and the', ru:'и сеттеры'} `ConsoleLogger` ${en:'setters are meant for startup, not for concurrent reconfiguration.', ru:'рассчитаны на старт приложения, а не на параллельную перенастройку.'}
 - ${en:'A call with a disabled level costs one', ru:'Вызов с отключённым уровнем стоит один'} `isEnabled` ${en:'check plus, without an explicit class, one stack walk. Message formatting and', ru:'плюс, без явного класса, один обход стека. Форматирование сообщения и'} `Supplier` ${en:'evaluation happen only for enabled levels.', ru:'вычисляются только для включённых уровней.'}
 
-${widget:if(cond='${devVersion} != ${stableVersion}')}
+${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 ## ${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}
 
 ${en:'Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:', ru:'Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:'}
@@ -315,7 +310,7 @@ ${widget:endIf}
 
 ## Changelog
 
-${widget:if(cond='${devVersion} != ${stableVersion}')}
+${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 ### ${pom.version}
 
 ${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
