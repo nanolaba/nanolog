@@ -14,12 +14,18 @@ public class LogEntry {
     private final Object message;
     private final String formattedMessage;
     private final Object[] args;
+    private final StackTraceElement caller;
 
     private static final char ESCAPE_CHAR = '\\';
 
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
+        this(level, sourceClass, null, throwable, message, args);
+    }
+
+    private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args) {
         this.level = level;
         this.sourceClass = sourceClass;
+        this.caller = caller;
         this.message = message;
 
         String pattern = message == null ? null : safeToString(message);
@@ -50,6 +56,21 @@ public class LogEntry {
 
     public Object getMessage() {
         return message;
+    }
+
+    /**
+     * The stack frame of the logging call, found while detecting the source class; {@code null} when the source class
+     * was passed explicitly, because then no stack walk takes place.
+     */
+    public StackTraceElement getCaller() {
+        return caller;
+    }
+
+    /**
+     * Creates an entry that also carries the frame of the logging call. Package-private: only {@link LOG} knows it.
+     */
+    static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args) {
+        return new LogEntry(level, sourceClass, caller, throwable, message, args);
     }
 
     public Object[] getArgs() {

@@ -52,31 +52,31 @@ public class LOG {
     }
 
     public static void trace(Throwable t, Supplier<Object> message) {
-        log(TRACE, getCurrentClass(), t, message);
+        logFromCaller(TRACE, findCaller(), t, message);
     }
 
     public static void trace(Throwable t, Object message) {
-        log(TRACE, getCurrentClass(), t, () -> message);
+        logFromCaller(TRACE, findCaller(), t, () -> message);
     }
 
     public static void trace(Throwable t) {
-        log(TRACE, getCurrentClass(), t, null);
+        logFromCaller(TRACE, findCaller(), t, null);
     }
 
     public static void trace(Supplier<Object> message) {
-        log(TRACE, getCurrentClass(), null, message);
+        logFromCaller(TRACE, findCaller(), null, message);
     }
 
     public static void trace(Object message) {
-        log(TRACE, getCurrentClass(), null, () -> message);
+        logFromCaller(TRACE, findCaller(), null, () -> message);
     }
 
     public static void trace(String message, Object... args) {
-        log(TRACE, getCurrentClass(), null, () -> message, args);
+        logFromCaller(TRACE, findCaller(), null, () -> message, args);
     }
 
     public static void trace(Throwable t, String message, Object... args) {
-        log(TRACE, getCurrentClass(), t, () -> message, args);
+        logFromCaller(TRACE, findCaller(), t, () -> message, args);
     }
 
     public static void trace(Class targetClass, Throwable t, String message, Object... args) {
@@ -117,31 +117,31 @@ public class LOG {
     }
 
     public static void debug(Throwable t, Supplier<Object> message) {
-        log(DEBUG, getCurrentClass(), t, message);
+        logFromCaller(DEBUG, findCaller(), t, message);
     }
 
     public static void debug(Throwable t, Object message) {
-        log(DEBUG, getCurrentClass(), t, () -> message);
+        logFromCaller(DEBUG, findCaller(), t, () -> message);
     }
 
     public static void debug(Throwable t) {
-        log(DEBUG, getCurrentClass(), t, null);
+        logFromCaller(DEBUG, findCaller(), t, null);
     }
 
     public static void debug(Supplier<Object> message) {
-        log(DEBUG, getCurrentClass(), null, message);
+        logFromCaller(DEBUG, findCaller(), null, message);
     }
 
     public static void debug(Object message) {
-        log(DEBUG, getCurrentClass(), null, () -> message);
+        logFromCaller(DEBUG, findCaller(), null, () -> message);
     }
 
     public static void debug(String message, Object... args) {
-        log(DEBUG, getCurrentClass(), null, () -> message, args);
+        logFromCaller(DEBUG, findCaller(), null, () -> message, args);
     }
 
     public static void debug(Throwable t, String message, Object... args) {
-        log(DEBUG, getCurrentClass(), t, () -> message, args);
+        logFromCaller(DEBUG, findCaller(), t, () -> message, args);
     }
 
     public static void debug(Class targetClass, Throwable t, String message, Object... args) {
@@ -182,32 +182,32 @@ public class LOG {
     }
 
     public static void info(Throwable t, Supplier<Object> message) {
-        log(INFO, getCurrentClass(), t, message);
+        logFromCaller(INFO, findCaller(), t, message);
     }
 
     public static void info(Throwable t, Object message) {
-        log(INFO, getCurrentClass(), t, () -> message);
+        logFromCaller(INFO, findCaller(), t, () -> message);
     }
 
     public static void info(Throwable t) {
-        log(INFO, getCurrentClass(), t, null);
+        logFromCaller(INFO, findCaller(), t, null);
     }
 
     public static void info(Supplier<Object> message) {
-        log(INFO, getCurrentClass(), null, message);
+        logFromCaller(INFO, findCaller(), null, message);
     }
 
 
     public static void info(Object message) {
-        log(INFO, getCurrentClass(), null, () -> message);
+        logFromCaller(INFO, findCaller(), null, () -> message);
     }
 
     public static void info(String message, Object... args) {
-        log(INFO, getCurrentClass(), null, () -> message, args);
+        logFromCaller(INFO, findCaller(), null, () -> message, args);
     }
 
     public static void info(Throwable t, String message, Object... args) {
-        log(INFO, getCurrentClass(), t, () -> message, args);
+        logFromCaller(INFO, findCaller(), t, () -> message, args);
     }
 
     public static void info(Class targetClass, Throwable t, String message, Object... args) {
@@ -248,31 +248,31 @@ public class LOG {
     }
 
     public static void warn(Throwable t, Supplier<Object> message) {
-        log(WARN, getCurrentClass(), t, message);
+        logFromCaller(WARN, findCaller(), t, message);
     }
 
     public static void warn(Throwable t, Object message) {
-        log(WARN, getCurrentClass(), t, () -> message);
+        logFromCaller(WARN, findCaller(), t, () -> message);
     }
 
     public static void warn(Throwable t) {
-        log(WARN, getCurrentClass(), t, null);
+        logFromCaller(WARN, findCaller(), t, null);
     }
 
     public static void warn(Supplier<Object> message) {
-        log(WARN, getCurrentClass(), null, message);
+        logFromCaller(WARN, findCaller(), null, message);
     }
 
     public static void warn(Object message) {
-        log(WARN, getCurrentClass(), null, () -> message);
+        logFromCaller(WARN, findCaller(), null, () -> message);
     }
 
     public static void warn(String message, Object... args) {
-        log(WARN, getCurrentClass(), null, () -> message, args);
+        logFromCaller(WARN, findCaller(), null, () -> message, args);
     }
 
     public static void warn(Throwable t, String message, Object... args) {
-        log(WARN, getCurrentClass(), t, () -> message, args);
+        logFromCaller(WARN, findCaller(), t, () -> message, args);
     }
 
     public static void warn(Class targetClass, Throwable t, String message, Object... args) {
@@ -313,31 +313,31 @@ public class LOG {
     }
 
     public static void error(Throwable t, Supplier<Object> message) {
-        log(ERROR, getCurrentClass(), t, message);
+        logFromCaller(ERROR, findCaller(), t, message);
     }
 
     public static void error(Throwable t, Object message) {
-        log(ERROR, getCurrentClass(), t, () -> message);
+        logFromCaller(ERROR, findCaller(), t, () -> message);
     }
 
     public static void error(Throwable t) {
-        log(ERROR, getCurrentClass(), t, null);
+        logFromCaller(ERROR, findCaller(), t, null);
     }
 
     public static void error(Supplier<Object> message) {
-        log(ERROR, getCurrentClass(), null, message);
+        logFromCaller(ERROR, findCaller(), null, message);
     }
 
     public static void error(Object message) {
-        log(ERROR, getCurrentClass(), null, () -> message);
+        logFromCaller(ERROR, findCaller(), null, () -> message);
     }
 
     public static void error(String message, Object... args) {
-        log(ERROR, getCurrentClass(), null, () -> message, args);
+        logFromCaller(ERROR, findCaller(), null, () -> message, args);
     }
 
     public static void error(Throwable t, String message, Object... args) {
-        log(ERROR, getCurrentClass(), t, () -> message, args);
+        logFromCaller(ERROR, findCaller(), t, () -> message, args);
     }
 
     public static void error(Class targetClass, Throwable t, String message, Object... args) {
@@ -355,8 +355,16 @@ public class LOG {
     // UNIVERSAL LOG
 
     public static void log(LogEntry.LogEntryLevel level, Class loggedClass, Throwable throwable, Supplier<Object> message, Object... args) {
+        doLog(level, loggedClass, null, throwable, message, args);
+    }
+
+    private static void logFromCaller(LogEntry.LogEntryLevel level, Caller caller, Throwable throwable, Supplier<Object> message, Object... args) {
+        doLog(level, caller.sourceClass, caller.frame, throwable, message, args);
+    }
+
+    private static void doLog(LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (logger.isEnabled(level, loggedClass)) {
-            logger.log(new LogEntry(level, loggedClass, throwable, message == null ? null : message.get(), args));
+            logger.log(LogEntry.create(level, loggedClass, frame, throwable, message == null ? null : message.get(), args));
         }
     }
 
@@ -364,6 +372,14 @@ public class LOG {
 
 
     private static Class getCurrentClass() {
+        return findCaller().sourceClass;
+    }
+
+    /**
+     * Walks the stack to the first frame outside Nanolog: {@code LOG}, {@code LogEntry} and any {@code ILogger}.
+     * The source class is the top-level class of that frame, the frame itself is kept as the call site.
+     */
+    private static Caller findCaller() {
         try {
             throw new Throwable();
         } catch (Throwable t) {
@@ -382,11 +398,22 @@ public class LOG {
                     continue;
                 }
 
-                return result;
+                return new Caller(result, element);
             }
         }
 
         throw new IllegalStateException("Unable to determine the current class");
+    }
+
+    private static final class Caller {
+
+        final Class sourceClass;
+        final StackTraceElement frame;
+
+        Caller(Class sourceClass, StackTraceElement frame) {
+            this.sourceClass = sourceClass;
+            this.frame = frame;
+        }
     }
 
     /**

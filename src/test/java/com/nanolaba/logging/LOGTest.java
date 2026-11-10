@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -348,6 +349,115 @@ public class LOGTest {
         assertArrayEquals(new Object[]{trailing}, entry.getValue().getArgs());
     }
 
+    @Test
+    public void testCallerFrame() {
+        Mutable<LogEntry> entry = new MutableObject<>();
+        LOG.init(entry::setValue);
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.info("where am I");
+
+        StackTraceElement caller = entry.getValue().getCaller();
+        assertEquals(LOGTest.class.getName(), caller.getClassName());
+        assertEquals("testCallerFrame", caller.getMethodName());
+        assertEquals("LOGTest.java", caller.getFileName());
+        assertEquals(line, caller.getLineNumber());
+    }
+
+    @Test
+    public void testCallerAtEveryLevel() {
+        Mutable<LogEntry> entry = new MutableObject<>();
+        LOG.init(entry::setValue);
+        RuntimeException e = new RuntimeException("ex");
+
+        Runnable[] calls = {
+                () -> LOG.trace(e, () -> "m"), () -> LOG.trace(e, "m"), () -> LOG.trace(e), () -> LOG.trace(() -> "m"),
+                () -> LOG.trace("m"), () -> LOG.trace("m {}", 1), () -> LOG.trace(e, "m {}", 1),
+                () -> LOG.debug(e, () -> "m"), () -> LOG.debug(e, "m"), () -> LOG.debug(e), () -> LOG.debug(() -> "m"),
+                () -> LOG.debug("m"), () -> LOG.debug("m {}", 1), () -> LOG.debug(e, "m {}", 1),
+                () -> LOG.info(e, () -> "m"), () -> LOG.info(e, "m"), () -> LOG.info(e), () -> LOG.info(() -> "m"),
+                () -> LOG.info("m"), () -> LOG.info("m {}", 1), () -> LOG.info(e, "m {}", 1),
+                () -> LOG.warn(e, () -> "m"), () -> LOG.warn(e, "m"), () -> LOG.warn(e), () -> LOG.warn(() -> "m"),
+                () -> LOG.warn("m"), () -> LOG.warn("m {}", 1), () -> LOG.warn(e, "m {}", 1),
+                () -> LOG.error(e, () -> "m"), () -> LOG.error(e, "m"), () -> LOG.error(e), () -> LOG.error(() -> "m"),
+                () -> LOG.error("m"), () -> LOG.error("m {}", 1), () -> LOG.error(e, "m {}", 1),
+        };
+        for (Runnable call : calls) {
+            entry.setValue(null);
+            call.run();
+            StackTraceElement caller = entry.getValue().getCaller();
+            assertEquals(LOGTest.class.getName(), caller.getClassName());
+            assertTrue(caller.getMethodName().startsWith("lambda$testCallerAtEveryLevel"), caller.getMethodName());
+            assertEquals("LOGTest.java", caller.getFileName());
+        }
+    }
+
+    @Test
+    public void testLevelChecksWithoutClassUseTheCaller() {
+        java.util.List<Class> checked = new java.util.ArrayList<>();
+        LOG.init(new ILogger() {
+            @Override
+            public void log(LogEntry entry) {
+            }
+
+            @Override
+            public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+                checked.add(sourceClass);
+                return true;
+            }
+        });
+
+        LOG.isTraceEnabled();
+        LOG.isDebugEnabled();
+        LOG.isInfoEnabled();
+        LOG.isWarnEnabled();
+        LOG.isErrorEnabled();
+
+        assertEquals(java.util.Arrays.asList(LOGTest.class, LOGTest.class, LOGTest.class, LOGTest.class, LOGTest.class), checked);
+    }
+
+    @Test
+    public void testNoCallerWithExplicitClass() {
+        Mutable<LogEntry> entry = new MutableObject<>();
+        LOG.init(entry::setValue);
+        RuntimeException e = new RuntimeException("ex");
+
+        Runnable[] calls = {
+                () -> LOG.info(LOGTest.class, e, () -> "m"), () -> LOG.info(LOGTest.class, e, "m"),
+                () -> LOG.info(LOGTest.class, () -> "m"), () -> LOG.info(LOGTest.class, "m"),
+                () -> LOG.info(LOGTest.class, "m {}", 1), () -> LOG.info(LOGTest.class, e),
+                () -> LOG.info(LOGTest.class, e, "m {}", 1),
+                () -> LOG.log(LogEntry.LogEntryLevel.INFO, LOGTest.class, null, () -> "m"),
+        };
+        for (Runnable call : calls) {
+            entry.setValue(null);
+            call.run();
+            assertEquals(LOGTest.class, entry.getValue().getSourceClass());
+            assertNull(entry.getValue().getCaller());
+        }
+    }
+
+    @Test
+    public void testCallerInNestedClasses() {
+        Mutable<LogEntry> entry = new MutableObject<>();
+        LOG.init(entry::setValue);
+
+        new NamedInnerCLass().log("from a named inner class");
+        assertEquals(LOGTest.class, entry.getValue().getSourceClass());
+        assertEquals(NamedInnerCLass.class.getName(), entry.getValue().getCaller().getClassName());
+        assertEquals("log", entry.getValue().getCaller().getMethodName());
+
+        new Runnable() {
+            @Override
+            public void run() {
+                LOG.info("from an anonymous class");
+            }
+        }.run();
+        assertEquals(LOGTest.class, entry.getValue().getSourceClass());
+        assertTrue(entry.getValue().getCaller().getClassName().startsWith(LOGTest.class.getName() + "$"));
+        assertEquals("run", entry.getValue().getCaller().getMethodName());
+    }
+
     @SuppressWarnings({"Convert2Lambda", "TrivialFunctionalExpressionUsage", "AnonymousInnerClass"})
     @Test
     public void testInnerClasses() {
@@ -424,7 +534,11 @@ public class LOGTest {
     @Test
     public void testCallerFromContextClassLoader() throws Exception {
         Mutable<Class> sourceClass = new MutableObject<>();
-        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+        Mutable<StackTraceElement> frame = new MutableObject<>();
+        LOG.init(entry -> {
+            sourceClass.setValue(entry.getSourceClass());
+            frame.setValue(entry.getCaller());
+        });
 
         try (ForeignCaller caller = new ForeignCaller()) {
             ClassLoader original = Thread.currentThread().getContextClassLoader();
@@ -435,6 +549,8 @@ public class LOGTest {
                 Thread.currentThread().setContextClassLoader(original);
             }
             assertSame(caller.callerClass, sourceClass.getValue());
+            assertEquals(ForeignCaller.CLASS_NAME, frame.getValue().getClassName());
+            assertEquals("call", frame.getValue().getMethodName());
         }
     }
 
@@ -445,13 +561,19 @@ public class LOGTest {
     @Test
     public void testCallerFromUnresolvableClassLoader() throws Exception {
         Mutable<Class> sourceClass = new MutableObject<>();
-        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+        Mutable<StackTraceElement> frame = new MutableObject<>();
+        LOG.init(entry -> {
+            sourceClass.setValue(entry.getSourceClass());
+            frame.setValue(entry.getCaller());
+        });
 
         try (ForeignCaller caller = new ForeignCaller()) {
             caller.callLog();
             // the next resolvable frame is a JDK reflection class, which differs between JDK versions
             assertNotNull(sourceClass.getValue());
             assertTrue(sourceClass.getValue() != caller.callerClass);
+            // the reported frame is the one the source class was taken from, not the skipped foreign one
+            assertTrue(frame.getValue().getClassName().startsWith(sourceClass.getValue().getName()), frame.getValue().getClassName());
         }
     }
 

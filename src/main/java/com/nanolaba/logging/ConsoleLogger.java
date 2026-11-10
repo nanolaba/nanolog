@@ -14,6 +14,7 @@ public class ConsoleLogger implements ILogger {
     private boolean showDate = true;
     private boolean showSource = true;
     private boolean showSourceFullName = false;
+    private boolean showLocation = false;
 
     private boolean traceEnabled = true;
     private boolean debugEnabled = true;
@@ -84,12 +85,32 @@ public class ConsoleLogger implements ILogger {
             addDelimiter(out);
             out.append("[");
             out.append(getSourceName(clz));
+            StackTraceElement caller = entry.getCaller();
+            if (isShowLocation() && caller != null) {
+                out.append(getLocation(caller));
+            }
             out.append("]");
         }
     }
 
     protected String getSourceName(Class sourceClass) {
         return isShowSourceFullName() ? sourceClass.getCanonicalName() : sourceClass.getSimpleName();
+    }
+
+    /**
+     * The call site appended to the source name: {@code .method(File.java:line)}, the form stack traces use, so IDEs
+     * and terminals turn it into a link.
+     */
+    protected String getLocation(StackTraceElement caller) {
+        String file;
+        if (caller.getFileName() == null) {
+            file = "Unknown Source";
+        } else if (caller.getLineNumber() >= 0) {
+            file = caller.getFileName() + ":" + caller.getLineNumber();
+        } else {
+            file = caller.getFileName();
+        }
+        return "." + caller.getMethodName() + "(" + file + ")";
     }
 
     protected void writeDate(StringWriter out, LogEntry entry) {
@@ -163,6 +184,19 @@ public class ConsoleLogger implements ILogger {
 
     public ConsoleLogger setShowSourceFullName(boolean showSourceFullName) {
         this.showSourceFullName = showSourceFullName;
+        return this;
+    }
+
+    public boolean isShowLocation() {
+        return showLocation;
+    }
+
+    /**
+     * Appends the call site, {@code .method(File.java:line)}, to the source class. Off by default. Has no effect on
+     * entries logged with an explicit source class, since those carry no caller frame.
+     */
+    public ConsoleLogger setShowLocation(boolean showLocation) {
+        this.showLocation = showLocation;
         return this;
     }
 

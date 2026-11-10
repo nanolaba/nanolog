@@ -19,6 +19,7 @@ public class LoggerSetup {
                 .setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"))
                 .setShowSource(true)
                 .setShowSourceFullName(false)
+                .setShowLocation(false)
                 .setTraceEnabled(false)
                 .setDebugEnabled(false));
         // nrg:end:console

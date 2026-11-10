@@ -140,8 +140,8 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Логирование добавляется одной строкой.** Нет ни поля логгера, ни `getLogger(Foo.class)`, который обязан совпадать с именем класса: один импорт и `LOG.info(...)`. Диф состоит из одной строки, и ничего не устаревает при переносе кода и переименовании класса.<!--ru-->
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.<!--en-->
 - **Вывод с первого запуска.** `ConsoleLogger` работает без настройки и печатает все уровни, включая `TRACE`. `LOG.debug(...)`, добавленный при разборе проблемы, виден уже в следующем запуске, и настраивать бэкенд для этого не нужно.<!--ru-->
-- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources.<!--en-->
-- **Строки, которые легко прочитать обратно.** Одна запись занимает одну строку вида `LEVEL дата [КлассИсточник] сообщение`, за ней идёт трассировка стека, если она есть. Такой вывод легко искать через `grep` и сопоставлять с исходниками.<!--ru-->
+- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.<!--en-->
+- **Строки, которые легко прочитать обратно.** Одна запись занимает одну строку вида `LEVEL дата [КлассИсточник] сообщение`, за ней идёт трассировка стека, если она есть. Такой вывод легко искать через `grep` и сопоставлять с исходниками. С `setShowLocation(true)` каждая строка ещё и называет метод и строку вызова, `[PaymentService.charge(PaymentService.java:87)]`, и агент переходит от вывода прямо к нужному оператору.<!--ru-->
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.<!--en-->
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.<!--ru-->
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.<!--en-->
@@ -157,10 +157,10 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
 Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
-the call site in the output, an in-memory logger for tests, JSON lines, levels set through properties<!--en-->
+an in-memory logger for tests, JSON lines, levels set through properties<!--en-->
 and environment variables, an `llms.txt` and an installable agent skill.<!--en-->
 Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
-место вызова в выводе, логгер в памяти для тестов, JSON-строки, уровни через свойства<!--ru-->
+логгер в памяти для тестов, JSON-строки, уровни через свойства<!--ru-->
 и переменные окружения, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
@@ -220,6 +220,7 @@ ${widget:import(path='${examples}/LoggerSetup.java', region='console', wrap='tru
 - `showLevel` — ${en:'the level name', ru:'имя уровня'}.
 - `showDate` + `dateFormat` — ${en:'the timestamp and its', ru:'временная метка и её'} `SimpleDateFormat`; ${en:'formatting is synchronized, so one shared format is safe', ru:'форматирование синхронизировано, общий экземпляр безопасен'}.
 - `showSource` / `showSourceFullName` — ${en:'the simple or the fully qualified source class name', ru:'короткое или полное имя класса-источника'}.
+- `showLocation` — ${en:'the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.', ru:'место вызова после имени класса в том же виде, что и в трассировках стека, поэтому IDE и терминалы превращают его в ссылку: `[PaymentService.charge(PaymentService.java:87)]`. По умолчанию выключено. У вызова с явным классом-источником места вызова нет, и остаётся обычный `[PaymentService]`.'}
 - `traceEnabled` … `errorEnabled` — ${en:'per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.', ru:'переключатели по уровням; по умолчанию включено всё, поэтому в продакшене отключите `TRACE` и `DEBUG`. Отключённые уровни отсекаются до создания `LogEntry`, поэтому ленивые сообщения не вычисляются.'}
 
 Для своего формата (цвет, JSON, другая раскладка) унаследуйтесь от `ConsoleLogger`<!--ru-->
@@ -275,6 +276,7 @@ When no class is passed explicitly, `LOG` creates a `Throwable`, walks its stack
 and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation.<!--en-->
 
 - ${en:'Nested, anonymous and lambda classes are attributed to their top-level enclosing class.', ru:'Вложенные, анонимные классы и лямбды относятся к своему внешнему классу верхнего уровня.'}
+- ${en:'The frame found by the walk is kept as `LogEntry.getCaller()`: the exact class, method, file and line of the call, including nested classes and lambdas. It costs nothing extra, and it is `null` when the class was passed explicitly.', ru:'Найденный кадр сохраняется в `LogEntry.getCaller()`: точный класс, метод, файл и строка вызова, в том числе для вложенных классов и лямбд. Это ничего не стоит сверх обхода стека; при явно переданном классе значение равно `null`.'}
 - ${en:'Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see is skipped.', ru:'Классы кадров ищутся сначала контекстным загрузчиком потока, затем загрузчиком `LOG`, поэтому определение работает, когда Nanolog лежит в общем загрузчике сервера приложений, а вызывающий код — в веб-приложении. Кадр, невидимый обоим загрузчикам, пропускается.'}
 - ${en:'The stack walk happens on every call without an explicit class, including', ru:'Обход стека происходит при каждом вызове без явного класса, включая'} `LOG.isDebugEnabled()`. ${en:'In hot paths pass the class explicitly:', ru:'В горячих местах передавайте класс явно:'} `LOG.debug(MyClass.class, ...)`.
 - ${en:'Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.', ru:'Любой класс, реализующий `ILogger`, пропускается, поэтому свой логгер, который сам пишет через `LOG`, должен передавать класс-источник явно.'}
@@ -293,6 +295,7 @@ ${en:'What a `LogEntry` carries:', ru:'Что содержит `LogEntry`:'}
 
 - `getLevel()` — `TRACE`, `DEBUG`, `INFO`, `WARN` ${en:'or', ru:'или'} `ERROR`.
 - `getSourceClass()` — ${en:'the detected or explicitly passed class;', ru:'определённый или явно переданный класс;'} `null` ${en:'only if', ru:'только если'} `null` ${en:'was passed', ru:'передали явно'}.
+- `getCaller()` — ${en:'the `StackTraceElement` of the logging call;', ru:'`StackTraceElement` вызова логирования;'} `null` ${en:'when the source class was passed explicitly.', ru:'при явно переданном классе-источнике.'}
 - `getThrowable()` — ${en:'the exception or', ru:'исключение или'} `null`.
 - `getMessage()` — ${en:'the raw message object, already resolved from its', ru:'исходный объект сообщения, уже полученный из'} `Supplier`.
 - `getArgs()` — ${en:'the substitution arguments.', ru:'аргументы подстановки.'}
@@ -355,6 +358,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 ${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
 
 - ${en:'A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.', ru:'`Throwable` в конце списка аргументов, который не занял ни один `{}`, становится исключением записи, как в SLF4J: `LOG.error("Failed", e)` и `LOG.error("Failed {}", id, e)` больше не теряют трассировку стека.'}
+- ${en:'`LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.', ru:'`LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.'}
 ${widget:endIf}
 
 ### 1.1

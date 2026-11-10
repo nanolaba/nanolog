@@ -11,7 +11,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ConsoleLoggerTest extends AbstractLoggerTest {
@@ -80,6 +82,57 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
         LOG.error(InfoObject.class, "Failed to load {}", "order", new Throwable("test"));
         assertTrue(getErrAndClear().startsWith("ERROR 01.01.2010 00:00:00 [InfoObject] Failed to load order java.lang.Throwable: test" + System.lineSeparator() +
                                                "\tat com.nanolaba.logging.ConsoleLoggerTest.testTrailingThrowablePrintsStackTrace"));
+    }
+
+    @Test
+    public void testLocationIsOffByDefault() {
+        assertFalse(new ConsoleLogger().isShowLocation());
+
+        LOG.init(createLogger());
+        LOG.info("plain");
+        assertEquals("INFO 01.01.2010 00:00:00 [ConsoleLoggerTest] plain" + System.lineSeparator(), getOutAndClear());
+    }
+
+    @Test
+    public void testShowLocation() {
+        ConsoleLogger logger = createLogger().setShowLocation(true);
+        assertTrue(logger.isShowLocation());
+        LOG.init(logger);
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.info("located");
+        assertEquals("INFO 01.01.2010 00:00:00 [ConsoleLoggerTest.testShowLocation(ConsoleLoggerTest.java:" + line + ")] located" + System.lineSeparator(),
+                     getOutAndClear());
+
+        logger.setShowSourceFullName(true);
+        line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.info("located");
+        assertEquals("INFO 01.01.2010 00:00:00 [com.nanolaba.logging.ConsoleLoggerTest.testShowLocation(ConsoleLoggerTest.java:" + line + ")] located" +
+                     System.lineSeparator(), getOutAndClear());
+
+        // an explicit source class carries no caller frame, so the line keeps its plain form
+        logger.setShowSourceFullName(false);
+        LOG.info(InfoObject.class, "explicit");
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject] explicit" + System.lineSeparator(), getOutAndClear());
+
+        // the location belongs to the source block
+        logger.setShowSource(false);
+        LOG.info("no source");
+        assertEquals("INFO 01.01.2010 00:00:00 no source" + System.lineSeparator(), getOutAndClear());
+    }
+
+    @Test
+    public void testLocationWithoutFullDebugInformation() {
+        ConsoleLogger logger = createLogger().setShowLocation(true);
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, new StackTraceElement("com.acme.Foo", "bar", null, -1), null, "no file", new Object[0]));
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject.bar(Unknown Source)] no file" + System.lineSeparator(), getOutAndClear());
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, new StackTraceElement("com.acme.Foo", "bar", "Foo.java", -1), null, "no line", new Object[0]));
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject.bar(Foo.java)] no line" + System.lineSeparator(), getOutAndClear());
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, new StackTraceElement("com.acme.Foo", "bar", "Foo.java", 0), null, "line zero", new Object[0]));
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject.bar(Foo.java:0)] line zero" + System.lineSeparator(), getOutAndClear());
     }
 
     @Test
