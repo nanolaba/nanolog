@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.0-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.0)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.1-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.1)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
@@ -45,8 +45,7 @@ logging
 - `ConsoleLogger`, `Slf4jLogger` — the bundled implementations.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
-The latest stable version is **1.0**.
-The version under development is **1.1-SNAPSHOT** (see [Changelog](#changelog)).
+The latest stable version is **1.1**.
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -59,12 +58,11 @@ The version under development is **1.1-SNAPSHOT** (see [Changelog](#changelog)).
 - 5 [Caller detection](#caller-detection)
 - 6 [Writing your own logger](#writing-your-own-logger)
 - 7 [Thread safety and performance](#thread-safety-and-performance)
-- 8 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 9 [Changelog](#changelog)
-	- 9.1 [1.1-SNAPSHOT](#11-snapshot)
-	- 9.2 [1.0](#10)
-- 10 [Contributing](#contributing)
-- 11 [License](#license)
+- 8 [Changelog](#changelog)
+	- 8.1 [1.1](#11)
+	- 8.2 [1.0](#10)
+- 9 [Contributing](#contributing)
+- 10 [License](#license)
 
 
 ## Installation
@@ -75,7 +73,7 @@ The version under development is **1.1-SNAPSHOT** (see [Changelog](#changelog)).
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
 </dependency>
 ```
 
@@ -83,13 +81,13 @@ The version under development is **1.1-SNAPSHOT** (see [Changelog](#changelog)).
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.0'
+    implementation 'com.nanolaba:nanolog:1.1'
 }
 ```
 
 **Manual download**
 
-Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.0) and add it to the classpath.
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.1) and add it to the classpath.
 
 Requirements: Java 8+. The jar declares `Automatic-Module-Name: com.nanolaba.nanolog` for modular applications.
 
@@ -150,7 +148,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
-The full signatures are in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.0).
+The full signatures are in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1).
 
 ## Choosing a logger
 
@@ -327,50 +325,11 @@ What a `LogEntry` carries:
 - `LOG.init(...)` and the `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
 - A call with a disabled level costs one `isEnabled` check plus, without an explicit class, one stack walk. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
-## Using SNAPSHOT versions
-
-Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.1-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.1-SNAPSHOT'
-}
-```
 
 ## Changelog
 
-### 1.1-SNAPSHOT
 
-In development, not released yet.
+### 1.1
 
 - New overloads `LOG.info(throwable, "... {} ...", args)` and `LOG.info(sourceClass, throwable, "... {} ...", args)` for every level: an exception together with a parameterized message.
 - `nanolog.properties`: only `nanolog.` keys are copied into system properties; other keys are ignored.

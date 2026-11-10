@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.0-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.0)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.1-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.1)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
@@ -45,8 +45,7 @@ logging
 - `ConsoleLogger`, `Slf4jLogger` — встроенные реализации.
 - `DefaultLoggerCreator` — выбирает логгер при старте по системному свойству или файлу настроек.
 
-Последняя стабильная версия — **1.0**.
-Версия в разработке — **1.1-SNAPSHOT** (см. [Changelog](#changelog)).
+Последняя стабильная версия — **1.1**.
 
 ## Содержание
 - 1 [Установка](#установка)
@@ -59,12 +58,11 @@ logging
 - 5 [Определение вызывающего класса](#определение-вызывающего-класса)
 - 6 [Собственный логгер](#собственный-логгер)
 - 7 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 8 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
-- 9 [Changelog](#changelog)
-	- 9.1 [1.1-SNAPSHOT](#11-snapshot)
-	- 9.2 [1.0](#10)
-- 10 [Участие в разработке](#участие-в-разработке)
-- 11 [Лицензия](#лицензия)
+- 8 [Changelog](#changelog)
+	- 8.1 [1.1](#11)
+	- 8.2 [1.0](#10)
+- 9 [Участие в разработке](#участие-в-разработке)
+- 10 [Лицензия](#лицензия)
 
 
 ## Установка
@@ -75,7 +73,7 @@ logging
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
 </dependency>
 ```
 
@@ -83,13 +81,13 @@ logging
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.0'
+    implementation 'com.nanolaba:nanolog:1.1'
 }
 ```
 
 **Скачивание вручную**
 
-Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.0) и добавьте его в classpath.
+Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.1) и добавьте его в classpath.
 
 Требования: Java 8+. В манифесте jar объявлено `Automatic-Module-Name: com.nanolaba.nanolog` для модульных приложений.
 
@@ -150,7 +148,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 | `LOG.isInfoEnabled()` | проверка уровня, с явным классом или без |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | универсальная точка входа, к которой сводятся все перегрузки |
 
-Полные сигнатуры — в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.0).
+Полные сигнатуры — в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1).
 
 ## Выбор логгера
 
@@ -327,50 +325,11 @@ public class CustomLogger implements ILogger {
 - `LOG.init(...)` и сеттеры `ConsoleLogger` рассчитаны на старт приложения, а не на параллельную перенастройку.
 - Вызов с отключённым уровнем стоит один `isEnabled` плюс, без явного класса, один обход стека. Форматирование сообщения и `Supplier` вычисляются только для включённых уровней.
 
-## Использование SNAPSHOT-версий
-
-Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.1-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.1-SNAPSHOT'
-}
-```
 
 ## Changelog
 
-### 1.1-SNAPSHOT
 
-В разработке, ещё не выпущена.
+### 1.1
 
 - Новые перегрузки `LOG.info(throwable, "... {} ...", args)` и `LOG.info(sourceClass, throwable, "... {} ...", args)` для каждого уровня: исключение вместе с параметризованным сообщением.
 - `nanolog.properties`: в системные свойства копируются только ключи с префиксом `nanolog.`; остальные игнорируются.

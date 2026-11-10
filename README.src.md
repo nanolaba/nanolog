@@ -2,7 +2,7 @@
 <!--@nrg.defaultLanguage=en-->
 
 <!--@name=**Nanolog**-->
-<!--@stableVersion=1.0-->
+<!--@stableVersion=1.1-->
 <!--@devVersion=${pom.version}-->
 <!--@logbackVersion=1.5.38-->
 <!--@coords=${pom.groupId}:${pom.artifactId}-->
@@ -272,6 +272,7 @@ ${en:'`isEnabled(...)` is called before the `LogEntry` is built and before any `
 - `LOG.init(...)` ${en:'and the', ru:'и сеттеры'} `ConsoleLogger` ${en:'setters are meant for startup, not for concurrent reconfiguration.', ru:'рассчитаны на старт приложения, а не на параллельную перенастройку.'}
 - ${en:'A call with a disabled level costs one', ru:'Вызов с отключённым уровнем стоит один'} `isEnabled` ${en:'check plus, without an explicit class, one stack walk. Message formatting and', ru:'плюс, без явного класса, один обход стека. Форматирование сообщения и'} `Supplier` ${en:'evaluation happen only for enabled levels.', ru:'вычисляются только для включённых уровней.'}
 
+${widget:if(cond='${devVersion} != ${stableVersion}')}
 ## ${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}
 
 ${en:'Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:', ru:'Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:'}
@@ -310,14 +311,17 @@ dependencies {
     implementation '${coords}:${pom.version}'
 }
 ```
+${widget:endIf}
 
 ## Changelog
 
+${widget:if(cond='${devVersion} != ${stableVersion}')}
 ### ${pom.version}
 
-${widget:if(cond='${devVersion} != ${stableVersion}')}
 ${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
 ${widget:endIf}
+
+### 1.1
 
 - ${en:'New overloads `LOG.info(throwable, "... {} ...", args)` and `LOG.info(sourceClass, throwable, "... {} ...", args)` for every level: an exception together with a parameterized message.', ru:'Новые перегрузки `LOG.info(throwable, "... {} ...", args)` и `LOG.info(sourceClass, throwable, "... {} ...", args)` для каждого уровня: исключение вместе с параметризованным сообщением.'}
 - `nanolog.properties`: ${en:'only `nanolog.` keys are copied into system properties; other keys are ignored.', ru:'в системные свойства копируются только ключи с префиксом `nanolog.`; остальные игнорируются.'}
