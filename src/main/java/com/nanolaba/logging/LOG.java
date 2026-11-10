@@ -328,23 +328,44 @@ public class LOG {
             throw new Throwable();
         } catch (Throwable t) {
             for (StackTraceElement element : t.getStackTrace()) {
-                try {
-                    Class result = Class.forName(element.getClassName());
-                    while (result.getEnclosingClass() != null) {
-                        result = result.getEnclosingClass();
-                    }
-
-                    if (result.equals(LOG.class) || result.equals(LogEntry.class) || ILogger.class.isAssignableFrom(result)) {
-                        continue;
-                    }
-
-                    return result;
-                } catch (ClassNotFoundException e) {
-                    throw new IllegalStateException("Unable to determine the current class", e);
+                Class result = resolveClass(element.getClassName());
+                if (result == null) {
+                    // the frame belongs to a class loader we cannot see (e.g. a child loader in an app server): skip it
+                    continue;
                 }
+
+                while (result.getEnclosingClass() != null) {
+                    result = result.getEnclosingClass();
+                }
+
+                if (result.equals(LOG.class) || result.equals(LogEntry.class) || ILogger.class.isAssignableFrom(result)) {
+                    continue;
+                }
+
+                return result;
             }
         }
 
         throw new IllegalStateException("Unable to determine the current class");
+    }
+
+    /**
+     * Resolves a stack frame class, preferring the thread's context class loader (the application's loader in
+     * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see it.
+     */
+    private static Class resolveClass(String className) {
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            try {
+                return Class.forName(className, false, contextClassLoader);
+            } catch (ClassNotFoundException e) {
+                // not visible from the context class loader, try our own
+            }
+        }
+        try {
+            return Class.forName(className, false, LOG.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
     }
 }

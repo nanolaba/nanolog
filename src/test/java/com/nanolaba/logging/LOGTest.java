@@ -4,7 +4,18 @@ import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.junit.jupiter.api.Test;
 
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class LOGTest {
@@ -319,6 +330,111 @@ public class LOGTest {
 
         public void log(String message) {
             LOG.debug(message);
+        }
+    }
+
+    /**
+     * The caller lives in a child class loader (app server, plugin framework) that LOG's own loader cannot see,
+     * but it is the thread's context class loader: the source class must still be detected.
+     */
+    @Test
+    public void testCallerFromContextClassLoader() throws Exception {
+        Mutable<Class> sourceClass = new MutableObject<>();
+        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+
+        try (ForeignCaller caller = new ForeignCaller()) {
+            ClassLoader original = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(caller.loader);
+            try {
+                caller.callLog();
+            } finally {
+                Thread.currentThread().setContextClassLoader(original);
+            }
+            assertSame(caller.callerClass, sourceClass.getValue());
+        }
+    }
+
+    /**
+     * The caller's class loader is neither the context class loader nor LOG's loader: the frame cannot be resolved,
+     * so it is skipped instead of breaking the logging call.
+     */
+    @Test
+    public void testCallerFromUnresolvableClassLoader() throws Exception {
+        Mutable<Class> sourceClass = new MutableObject<>();
+        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+
+        try (ForeignCaller caller = new ForeignCaller()) {
+            caller.callLog();
+            // the next resolvable frame is a JDK reflection class, which differs between JDK versions
+            assertNotNull(sourceClass.getValue());
+            assertTrue(sourceClass.getValue() != caller.callerClass);
+        }
+    }
+
+    /**
+     * The context class loader cannot see the caller (or is absent), but LOG's own loader can: the fallback resolves it.
+     */
+    @Test
+    public void testCallerResolvedByOwnLoaderWhenContextLoaderCannotSeeIt() throws Exception {
+        Mutable<Class> sourceClass = new MutableObject<>();
+        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try (URLClassLoader isolated = new URLClassLoader(new URL[0], null)) {
+            Thread.currentThread().setContextClassLoader(isolated);
+            LOG.info("the context class loader sees nothing");
+            assertEquals(LOGTest.class, sourceClass.getValue());
+
+            Thread.currentThread().setContextClassLoader(null);
+            LOG.info("there is no context class loader at all");
+            assertEquals(LOGTest.class, sourceClass.getValue());
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    /**
+     * Compiles a class that calls {@code LOG.info(...)} into a temporary directory and loads it through a child-first
+     * class loader, so that the class is invisible to the loader that loaded {@link LOG}.
+     */
+    private static class ForeignCaller implements AutoCloseable {
+
+        private static final String CLASS_NAME = "nanolog.foreign.ForeignCaller";
+
+        final Path dir;
+        final URLClassLoader loader;
+        final Class<?> callerClass;
+
+        ForeignCaller() throws Exception {
+            dir = Files.createTempDirectory("nanolog-foreign");
+            Path source = dir.resolve("nanolog/foreign/ForeignCaller.java");
+            Files.createDirectories(source.getParent());
+            Files.write(source, ("package nanolog.foreign;\n" +
+                                 "public class ForeignCaller {\n" +
+                                 "    public static void call() { com.nanolaba.logging.LOG.info(\"from a foreign class loader\"); }\n" +
+                                 "}\n").getBytes(StandardCharsets.UTF_8));
+
+            JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+            assertNotNull(compiler, "the tests must run on a JDK");
+            int rc = compiler.run(null, null, null, "-d", dir.toString(), "-cp", System.getProperty("java.class.path"), source.toString());
+            assertEquals(0, rc, "compilation of the foreign caller failed");
+
+            loader = new URLClassLoader(new URL[]{dir.toUri().toURL()}, LOGTest.class.getClassLoader());
+            callerClass = loader.loadClass(CLASS_NAME);
+            assertSame(loader, callerClass.getClassLoader());
+        }
+
+        void callLog() throws Exception {
+            callerClass.getMethod("call").invoke(null);
+        }
+
+        @Override
+        public void close() throws Exception {
+            loader.close();
+            Files.walk(dir)
+                 .sorted(java.util.Comparator.reverseOrder())
+                 .map(Path::toFile)
+                 .forEach(File::delete);
         }
     }
 }
