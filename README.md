@@ -151,6 +151,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info(throwable)` | stack trace without a message |
 | `LOG.info(throwable, message)` | message plus stack trace; the message may also be a `Supplier` |
 | `LOG.info(throwable, "... {} ...", args)` | exception plus a parameterized message |
+| `LOG.info("... {} ...", args, throwable)` | the SLF4J order: a trailing exception that no `{}` consumes becomes the exception of the entry |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
@@ -166,6 +167,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources.
+- **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
 - **The whole library fits in a context window.** Six classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one method reference.** `ILogger` has a single abstract method, so what was logged can be asserted without a mocking framework:
@@ -187,9 +189,6 @@ one short loop repeats many times: edit, run, read the output, edit again.
   ```
 
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
-
-> [!WARNING]
-> One SLF4J habit does not carry over: the exception goes **first**, as in `LOG.error(e, "Failed to load {}", id)`. In `LOG.error("Failed", e)` the exception is an unused `{}` argument, so the message is printed without the stack trace. Tracked in [#1](https://github.com/nanolaba/nanolog/issues/1).
 
 Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
 the call site in the output, an in-memory logger for tests, JSON lines, levels set through properties
@@ -307,9 +306,12 @@ LOG.info("Escaped backslash: \\\\{}", 1);                  // Escaped backslash:
 LOG.info("Arrays: {} and {}", new int[]{1, 2}, new String[][]{{"a"}, {"b"}}); // Arrays: [1, 2] and [[a], [b]]
 LOG.info("Null is fine: {}", (Object) null);                 // Null is fine: null
 LOG.info("Broken toString(): {}", new BrokenToString());     // Broken toString(): [FAILED toString()]
+LOG.error("Failed to load {}", "order", new IOException("timeout")); // Failed to load order, then the stack trace
+LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.IOException: timeout
 ```
 
 - `{}` is replaced by the next argument; `\{}` is a literal `{}` and consumes no argument; `\\{}` is a literal backslash followed by a substitution.
+- A `Throwable` in the last position that no `{}` consumes is not an argument: it becomes the exception of the entry, and its stack trace is logged, as in SLF4J. In `LOG.error("Cause: {}", e)` the placeholder takes the exception, so only `e.toString()` is printed. An exception passed first always wins; a trailing one then stays an ordinary argument.
 - Primitive arrays are rendered with `Arrays.toString`, object arrays with `Arrays.deepToString`.
 - Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller.
 - The message object itself may be anything, not only a `String`; it is converted with the same guarded `toString()`.
@@ -414,6 +416,8 @@ dependencies {
 ### 1.2-SNAPSHOT
 
 In development, not released yet.
+
+- A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.
 
 ### 1.1
 

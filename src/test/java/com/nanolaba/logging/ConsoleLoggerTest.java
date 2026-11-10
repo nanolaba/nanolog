@@ -74,6 +74,15 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTrailingThrowablePrintsStackTrace() {
+        LOG.init(createLogger());
+
+        LOG.error(InfoObject.class, "Failed to load {}", "order", new Throwable("test"));
+        assertTrue(getErrAndClear().startsWith("ERROR 01.01.2010 00:00:00 [InfoObject] Failed to load order java.lang.Throwable: test" + System.lineSeparator() +
+                                               "\tat com.nanolaba.logging.ConsoleLoggerTest.testTrailingThrowablePrintsStackTrace"));
+    }
+
+    @Test
     public void testGetCurrentDate() {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy");
         String currentYear = dateFormat.format(new Date());

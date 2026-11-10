@@ -2,6 +2,8 @@ package com.nanolaba.logging.examples;
 
 import com.nanolaba.logging.LOG;
 
+import java.io.IOException;
+
 /**
  * Message formatting rules. Each line is followed by the message that reaches the logger.
  */
@@ -17,6 +19,8 @@ public class Formatting {
         LOG.info("Arrays: {} and {}", new int[]{1, 2}, new String[][]{{"a"}, {"b"}}); // Arrays: [1, 2] and [[a], [b]]
         LOG.info("Null is fine: {}", (Object) null);                 // Null is fine: null
         LOG.info("Broken toString(): {}", new BrokenToString());     // Broken toString(): [FAILED toString()]
+        LOG.error("Failed to load {}", "order", new IOException("timeout")); // Failed to load order, then the stack trace
+        LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.IOException: timeout
         // nrg:end:formatting
     }
 

@@ -20,10 +20,20 @@ public class LogEntry {
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
         this.level = level;
         this.sourceClass = sourceClass;
-        this.throwable = throwable;
         this.message = message;
-        this.args = args;
-        this.formattedMessage = formatMessage();
+
+        String pattern = message == null ? null : safeToString(message);
+        // formatted with the original arguments: an unused trailing throwable changes nothing in the text
+        this.formattedMessage = formatMessage(pattern, args);
+
+        if (throwable == null && endsWithUnusedThrowable(pattern, args)) {
+            // the SLF4J convention: LOG.error("Failed to load {}", id, e) keeps the stack trace of e
+            this.throwable = (Throwable) args[args.length - 1];
+            this.args = Arrays.copyOf(args, args.length - 1);
+        } else {
+            this.throwable = throwable;
+            this.args = args;
+        }
     }
 
     public LogEntryLevel getLevel() {
@@ -61,14 +71,13 @@ public class LogEntry {
                '}';
     }
 
-    private String formatMessage() {
-        if (message == null) {
+    private static String formatMessage(String msg, Object[] args) {
+        if (msg == null) {
             return "null";
         } else if (args == null || args.length == 0) {
-            return safeToString(message);
+            return msg;
         } else {
 
-            String msg = safeToString(message);
             int currentDelimiterIndex = 0;
             int nextDelimiterIndex;
 
@@ -105,6 +114,33 @@ public class LogEntry {
 
             return result.toString();
         }
+    }
+
+    private static boolean endsWithUnusedThrowable(String pattern, Object[] args) {
+        return args != null
+               && args.length > 0
+               && args[args.length - 1] instanceof Throwable
+               && countPlaceholders(pattern) < args.length;
+    }
+
+    /**
+     * Counts the {@code {}} placeholders that consume an argument, with the same escaping rules as the formatter:
+     * {@code \{}} is a literal and consumes nothing, {@code \\{}} is a literal backslash followed by a placeholder.
+     */
+    static int countPlaceholders(String msg) {
+        int count = 0;
+        if (msg != null) {
+            int index = msg.indexOf("{}");
+            while (index != -1) {
+                if (isEscapedDelimiter(msg, index) && !isDoubleEscaped(msg, index)) {
+                    index = msg.indexOf("{}", index + 1);
+                } else {
+                    count++;
+                    index = msg.indexOf("{}", index + 2);
+                }
+            }
+        }
+        return count;
     }
 
     private static boolean isEscapedDelimiter(String msg, int delimiterStartIndex) {

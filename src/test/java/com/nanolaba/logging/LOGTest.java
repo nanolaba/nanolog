@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -293,6 +294,59 @@ public class LOGTest {
         assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=null, message=hello {}, args=[asd, 123, null]}", message.getValue());
     }
 
+
+    /**
+     * The SLF4J habit of passing the exception last must keep the stack trace at every level and in every form.
+     */
+    @Test
+    public void testTrailingThrowableAtEveryLevel() {
+        Mutable<LogEntry> entry = new MutableObject<>();
+        LOG.init(entry::setValue);
+        RuntimeException e = new RuntimeException("ex");
+
+        Runnable[] withArgument = {
+                () -> LOG.trace("a {}", 1, e),
+                () -> LOG.debug("a {}", 1, e),
+                () -> LOG.info("a {}", 1, e),
+                () -> LOG.warn("a {}", 1, e),
+                () -> LOG.error("a {}", 1, e),
+                () -> LOG.trace(LOGTest.class, "a {}", 1, e),
+                () -> LOG.debug(LOGTest.class, "a {}", 1, e),
+                () -> LOG.info(LOGTest.class, "a {}", 1, e),
+                () -> LOG.warn(LOGTest.class, "a {}", 1, e),
+                () -> LOG.error(LOGTest.class, "a {}", 1, e),
+                () -> LOG.log(LogEntry.LogEntryLevel.INFO, LOGTest.class, null, () -> "a {}", 1, e),
+        };
+        for (Runnable call : withArgument) {
+            entry.setValue(null);
+            call.run();
+            assertSame(e, entry.getValue().getThrowable());
+            assertArrayEquals(new Object[]{1}, entry.getValue().getArgs());
+            assertEquals("a 1", entry.getValue().getFormattedMessage());
+            assertEquals(LOGTest.class, entry.getValue().getSourceClass());
+        }
+
+        Runnable[] withoutArguments = {
+                () -> LOG.trace("Failed", e),
+                () -> LOG.debug("Failed", e),
+                () -> LOG.info("Failed", e),
+                () -> LOG.warn("Failed", e),
+                () -> LOG.error("Failed", e),
+        };
+        for (Runnable call : withoutArguments) {
+            entry.setValue(null);
+            call.run();
+            assertSame(e, entry.getValue().getThrowable());
+            assertArrayEquals(new Object[0], entry.getValue().getArgs());
+            assertEquals("Failed", entry.getValue().getFormattedMessage());
+        }
+
+        // an explicit exception keeps its place, the trailing one stays an ordinary argument
+        RuntimeException trailing = new RuntimeException("trailing");
+        LOG.error(e, "text", trailing);
+        assertSame(e, entry.getValue().getThrowable());
+        assertArrayEquals(new Object[]{trailing}, entry.getValue().getArgs());
+    }
 
     @SuppressWarnings({"Convert2Lambda", "TrivialFunctionalExpressionUsage", "AnonymousInnerClass"})
     @Test

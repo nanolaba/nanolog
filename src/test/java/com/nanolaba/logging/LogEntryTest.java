@@ -2,8 +2,13 @@ package com.nanolaba.logging;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.ERROR;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class LogEntryTest {
 
@@ -60,6 +65,123 @@ class LogEntryTest {
 
         assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LogEntryTest, throwable=[FAILED toString()], message=[FAILED toString()], " +
                      "args=[A, [FAILED toString()], [B, [FAILED toString()]]]}", entry.toString());
+    }
+
+    @Test
+    public void testTrailingThrowableAfterSubstitutedArguments() {
+        IOException e = new IOException("timeout");
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "Failed to load {}", "order", e);
+
+        assertSame(e, entry.getThrowable());
+        assertArrayEquals(new Object[]{"order"}, entry.getArgs());
+        assertEquals("Failed to load order", entry.getFormattedMessage());
+    }
+
+    @Test
+    public void testTrailingThrowableWithoutPlaceholders() {
+        IOException e = new IOException("timeout");
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "Failed", e);
+
+        assertSame(e, entry.getThrowable());
+        assertArrayEquals(new Object[0], entry.getArgs());
+        assertEquals("Failed", entry.getFormattedMessage());
+    }
+
+    @Test
+    public void testTrailingThrowableConsumedByPlaceholderStaysAnArgument() {
+        IOException e = new IOException("timeout");
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "Cause: {}", e);
+
+        assertNull(entry.getThrowable());
+        assertArrayEquals(new Object[]{e}, entry.getArgs());
+        assertEquals("Cause: java.io.IOException: timeout", entry.getFormattedMessage());
+    }
+
+    @Test
+    public void testExplicitThrowableWinsOverTrailingOne() {
+        IOException explicit = new IOException("explicit");
+        IOException trailing = new IOException("trailing");
+        LogEntry entry = new LogEntry(ERROR, getClass(), explicit, "text", trailing);
+
+        assertSame(explicit, entry.getThrowable());
+        assertArrayEquals(new Object[]{trailing}, entry.getArgs());
+    }
+
+    @Test
+    public void testEscapedPlaceholderDoesNotConsumeTrailingThrowable() {
+        IOException e = new IOException("timeout");
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "Literal \\{} and {}", 1, e);
+
+        assertSame(e, entry.getThrowable());
+        assertArrayEquals(new Object[]{1}, entry.getArgs());
+        // the escape is processed exactly as it was before the throwable was taken out of the arguments
+        assertEquals("Literal {} and 1", entry.getFormattedMessage());
+
+        LogEntry onlyEscaped = new LogEntry(ERROR, getClass(), null, "Literal \\{}", e);
+        assertSame(e, onlyEscaped.getThrowable());
+        assertEquals("Literal {}", onlyEscaped.getFormattedMessage());
+    }
+
+    @Test
+    public void testDoubleEscapedPlaceholderConsumesTrailingThrowable() {
+        IOException e = new IOException("timeout");
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "Path \\\\{}", e);
+
+        assertNull(entry.getThrowable());
+        assertArrayEquals(new Object[]{e}, entry.getArgs());
+        assertEquals("Path \\java.io.IOException: timeout", entry.getFormattedMessage());
+    }
+
+    @Test
+    public void testTrailingThrowableEdgeCases() {
+        IOException e = new IOException("timeout");
+
+        // a non-throwable last argument is never taken out
+        LogEntry notThrowable = new LogEntry(ERROR, getClass(), null, "a {}", 1, "extra");
+        assertNull(notThrowable.getThrowable());
+        assertArrayEquals(new Object[]{1, "extra"}, notThrowable.getArgs());
+
+        // a throwable that is not the last argument is never taken out
+        LogEntry notLast = new LogEntry(ERROR, getClass(), null, "a", e, "extra");
+        assertNull(notLast.getThrowable());
+        assertArrayEquals(new Object[]{e, "extra"}, notLast.getArgs());
+
+        LogEntry noArgs = new LogEntry(ERROR, getClass(), null, "a");
+        assertNull(noArgs.getThrowable());
+        assertArrayEquals(new Object[0], noArgs.getArgs());
+
+        LogEntry nullArgs = new LogEntry(ERROR, getClass(), null, "a", (Object[]) null);
+        assertNull(nullArgs.getThrowable());
+        assertNull(nullArgs.getArgs());
+
+        LogEntry nullMessage = new LogEntry(ERROR, getClass(), null, null, e);
+        assertSame(e, nullMessage.getThrowable());
+        assertArrayEquals(new Object[0], nullMessage.getArgs());
+        assertEquals("null", nullMessage.getFormattedMessage());
+
+        // the placeholders are counted in the string form of any message object
+        LogEntry builderMessage = new LogEntry(ERROR, getClass(), null, new StringBuilder("a {} b {}"), 1, 2, e);
+        assertSame(e, builderMessage.getThrowable());
+        assertArrayEquals(new Object[]{1, 2}, builderMessage.getArgs());
+        assertEquals("a 1 b 2", builderMessage.getFormattedMessage());
+
+        LogEntry brokenMessage = new LogEntry(ERROR, getClass(), null, new BrokenToString(), e);
+        assertSame(e, brokenMessage.getThrowable());
+        assertEquals("[FAILED toString()]", brokenMessage.getFormattedMessage());
+    }
+
+    @Test
+    public void testCountPlaceholders() {
+        assertEquals(0, LogEntry.countPlaceholders(null));
+        assertEquals(0, LogEntry.countPlaceholders(""));
+        assertEquals(0, LogEntry.countPlaceholders("no placeholders"));
+        assertEquals(1, LogEntry.countPlaceholders("{}"));
+        assertEquals(2, LogEntry.countPlaceholders("a {} b {}"));
+        assertEquals(2, LogEntry.countPlaceholders("{}{}"));
+        assertEquals(1, LogEntry.countPlaceholders("\\{} {}"));
+        assertEquals(0, LogEntry.countPlaceholders("\\{}\\{}"));
+        assertEquals(1, LogEntry.countPlaceholders("\\\\{}"));
+        assertEquals(1, LogEntry.countPlaceholders("{{}}"));
     }
 
     private String getFormattedMessage(Object message, Object... args) {

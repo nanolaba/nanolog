@@ -34,6 +34,16 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTrailingThrowableIsPassedToSlf4j() {
+        LOG.init(createLogger());
+
+        LOG.error(InfoObject.class, "Failed to load {}", "order", new Throwable("test"));
+        assertTrue(getErrAndClear().startsWith("[main] ERROR com.nanolaba.logging.util.InfoObject - Failed to load order" + System.lineSeparator() +
+                                               "java.lang.Throwable: test" + System.lineSeparator() +
+                                               "\tat com.nanolaba.logging.Slf4jLoggerTest.testTrailingThrowableIsPassedToSlf4j"));
+    }
+
+    @Test
     public void testNullSourceClass() {
         LOG.init(createLogger());
 
