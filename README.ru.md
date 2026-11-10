@@ -46,6 +46,7 @@ logging
 - `DefaultLoggerCreator` — выбирает логгер при старте по системному свойству или файлу настроек.
 
 Последняя стабильная версия — **1.1**.
+Версия в разработке — **1.2-SNAPSHOT** (см. [Changelog](#changelog)).
 
 ## Содержание
 - 1 [Установка](#установка)
@@ -58,11 +59,13 @@ logging
 - 5 [Определение вызывающего класса](#определение-вызывающего-класса)
 - 6 [Собственный логгер](#собственный-логгер)
 - 7 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 8 [Changelog](#changelog)
-	- 8.1 [1.1](#11)
-	- 8.2 [1.0](#10)
-- 9 [Участие в разработке](#участие-в-разработке)
-- 10 [Лицензия](#лицензия)
+- 8 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
+- 9 [Changelog](#changelog)
+	- 9.1 [1.2-SNAPSHOT](#12-snapshot)
+	- 9.2 [1.1](#11)
+	- 9.3 [1.0](#10)
+- 10 [Участие в разработке](#участие-в-разработке)
+- 11 [Лицензия](#лицензия)
 
 
 ## Установка
@@ -325,9 +328,50 @@ public class CustomLogger implements ILogger {
 - `LOG.init(...)` и сеттеры `ConsoleLogger` рассчитаны на старт приложения, а не на параллельную перенастройку.
 - Вызов с отключённым уровнем стоит один `isEnabled` плюс, без явного класса, один обход стека. Форматирование сообщения и `Supplier` вычисляются только для включённых уровней.
 
+## Использование SNAPSHOT-версий
+
+Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.2-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.2-SNAPSHOT'
+}
+```
 
 ## Changelog
 
+### 1.2-SNAPSHOT
+
+В разработке, ещё не выпущена.
 
 ### 1.1
 

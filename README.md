@@ -46,6 +46,7 @@ logging
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
 The latest stable version is **1.1**.
+The version under development is **1.2-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -58,11 +59,13 @@ The latest stable version is **1.1**.
 - 5 [Caller detection](#caller-detection)
 - 6 [Writing your own logger](#writing-your-own-logger)
 - 7 [Thread safety and performance](#thread-safety-and-performance)
-- 8 [Changelog](#changelog)
-	- 8.1 [1.1](#11)
-	- 8.2 [1.0](#10)
-- 9 [Contributing](#contributing)
-- 10 [License](#license)
+- 8 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 9 [Changelog](#changelog)
+	- 9.1 [1.2-SNAPSHOT](#12-snapshot)
+	- 9.2 [1.1](#11)
+	- 9.3 [1.0](#10)
+- 10 [Contributing](#contributing)
+- 11 [License](#license)
 
 
 ## Installation
@@ -325,9 +328,50 @@ What a `LogEntry` carries:
 - `LOG.init(...)` and the `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
 - A call with a disabled level costs one `isEnabled` check plus, without an explicit class, one stack walk. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
+## Using SNAPSHOT versions
+
+Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.2-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.2-SNAPSHOT'
+}
+```
 
 ## Changelog
 
+### 1.2-SNAPSHOT
+
+In development, not released yet.
 
 ### 1.1
 
