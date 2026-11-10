@@ -20,8 +20,9 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         LOG.info(InfoObject.class, "some message {} next {}", "abc", "123");
         assertEquals("[main] INFO com.nanolaba.logging.util.InfoObject - some message abc next 123" + System.lineSeparator(), getErrAndClear());
 
+        // an entry without a message must not log the literal word "null"
         LOG.info(InfoObject.class, new Throwable("test"));
-        assertTrue(getErrAndClear().startsWith("[main] INFO com.nanolaba.logging.util.InfoObject - null" + System.lineSeparator() +
+        assertTrue(getErrAndClear().startsWith("[main] INFO com.nanolaba.logging.util.InfoObject - " + System.lineSeparator() +
                                                "java.lang.Throwable: test" + System.lineSeparator() +
                                                "\tat com.nanolaba.logging.Slf4jLoggerTest.testInfoLevel"));
 

@@ -15,22 +15,24 @@ public class Slf4jLogger implements ILogger {
     public void log(LogEntry entry) {
 
         Logger logger = getLogger(entry.getSourceClass());
+        // an entry may carry only a throwable; SLF4J backends would print the literal word "null" otherwise
+        String message = entry.getMessage() == null ? "" : entry.getFormattedMessage();
 
         switch (entry.getLevel()) {
             case TRACE:
-                logger.trace(entry.getFormattedMessage(), entry.getThrowable());
+                logger.trace(message, entry.getThrowable());
                 break;
             case DEBUG:
-                logger.debug(entry.getFormattedMessage(), entry.getThrowable());
+                logger.debug(message, entry.getThrowable());
                 break;
             case WARN:
-                logger.warn(entry.getFormattedMessage(), entry.getThrowable());
+                logger.warn(message, entry.getThrowable());
                 break;
             case ERROR:
-                logger.error(entry.getFormattedMessage(), entry.getThrowable());
+                logger.error(message, entry.getThrowable());
                 break;
             default:
-                logger.info(entry.getFormattedMessage(), entry.getThrowable());
+                logger.info(message, entry.getThrowable());
                 break;
         }
     }
