@@ -41,6 +41,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of<!--en--
 - **${en:'Logging never throws.', ru:'Логирование никогда не падает.'}** ${en:'A broken', ru:'Сломанный'} `toString()` ${en:'becomes', ru:'превращается в'} `[FAILED toString()]` ${en:'instead of an exception in your code', ru:'вместо исключения в вашем коде'}.
 - **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'Six classes, no transitive libraries;', ru:'Шесть классов, никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
+- **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
 ${en:'The whole library:', ru:'Вся библиотека целиком:'}
 
@@ -124,6 +125,44 @@ ${en:'Every level has the same set of overloads;', ru:'У каждого уро�
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | ${en:'the universal entry point every overload delegates to', ru:'универсальная точка входа, к которой сводятся все перегрузки'} |
 
 ${en:'The full signatures are in the', ru:'Полные сигнатуры — в'} [Javadoc](${javadoc}/${stableVersion}).
+
+## ${en:'Agent-driven development', ru:'Агентная разработка'}
+
+When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs the code,<!--en-->
+one short loop repeats many times: edit, run, read the output, edit again.<!--en-->
+${name} keeps every step of that loop cheap.<!--en-->
+Когда код пишет и отлаживает кодовый агент (Claude Code, Codex, Copilot и другие),<!--ru-->
+много раз повторяется один короткий цикл: правка, запуск, чтение вывода, снова правка.<!--ru-->
+${name} делает каждый шаг этого цикла дешёвым.<!--ru-->
+
+- **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.<!--en-->
+- **Логирование добавляется одной строкой.** Нет ни поля логгера, ни `getLogger(Foo.class)`, который обязан совпадать с именем класса: один импорт и `LOG.info(...)`. Диф состоит из одной строки, и ничего не устаревает при переносе кода и переименовании класса.<!--ru-->
+- **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.<!--en-->
+- **Вывод с первого запуска.** `ConsoleLogger` работает без настройки и печатает все уровни, включая `TRACE`. `LOG.debug(...)`, добавленный при разборе проблемы, виден уже в следующем запуске, и настраивать бэкенд для этого не нужно.<!--ru-->
+- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources.<!--en-->
+- **Строки, которые легко прочитать обратно.** Одна запись занимает одну строку вида `LEVEL дата [КлассИсточник] сообщение`, за ней идёт трассировка стека, если она есть. Такой вывод легко искать через `grep` и сопоставлять с исходниками.<!--ru-->
+- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.<!--en-->
+- **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста.<!--ru-->
+- **The whole library fits in a context window.** Six classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
+- **Вся библиотека помещается в контекстное окно.** Шесть классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
+- **Capturing the log in a test takes one method reference.** `ILogger` has a single abstract method, so what was logged can be asserted without a mocking framework:<!--en-->
+- **Для перехвата лога в тесте хватает одной ссылки на метод.** У `ILogger` один абстрактный метод, поэтому записанное в лог проверяется без mock-фреймворка:<!--ru-->
+
+  ${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='true')}
+
+- **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend ${name}, not only use it.<!--en-->
+- **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
+
+> [!WARNING]
+> One SLF4J habit does not carry over: the exception goes **first**, as in `LOG.error(e, "Failed to load {}", id)`. In `LOG.error("Failed", e)` the exception is an unused `{}` argument, so the message is printed without the stack trace. Tracked in [#1](${repo}/issues/1).<!--en-->
+> Одна привычка из SLF4J здесь не работает: исключение передаётся **первым**, как в `LOG.error(e, "Failed to load {}", id)`. В вызове `LOG.error("Failed", e)` исключение становится лишним аргументом для `{}`, и сообщение печатается без трассировки стека. Исправление отслеживается в [#1](${repo}/issues/1).<!--ru-->
+
+Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
+the call site in the output, an in-memory logger for tests, JSON lines, levels set through properties<!--en-->
+and environment variables, an `llms.txt` and an installable agent skill.<!--en-->
+Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
+место вызова в выводе, логгер в памяти для тестов, JSON-строки, уровни через свойства<!--ru-->
+и переменные окружения, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
 

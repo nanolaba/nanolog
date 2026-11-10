@@ -26,6 +26,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of
 - **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
 - **Zero dependencies.** Six classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
+- **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
 The whole library:
 
@@ -51,20 +52,21 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 - 1 [Installation](#installation)
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
-- 3 [Choosing a logger](#choosing-a-logger)
-	- 3.1 [ConsoleLogger](#consolelogger)
-	- 3.2 [Slf4jLogger](#slf4jlogger)
-- 4 [Message formatting](#message-formatting)
-- 5 [Caller detection](#caller-detection)
-- 6 [Writing your own logger](#writing-your-own-logger)
-- 7 [Thread safety and performance](#thread-safety-and-performance)
-- 8 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 9 [Changelog](#changelog)
-	- 9.1 [1.2-SNAPSHOT](#12-snapshot)
-	- 9.2 [1.1](#11)
-	- 9.3 [1.0](#10)
-- 10 [Contributing](#contributing)
-- 11 [License](#license)
+- 3 [Agent-driven development](#agent-driven-development)
+- 4 [Choosing a logger](#choosing-a-logger)
+	- 4.1 [ConsoleLogger](#consolelogger)
+	- 4.2 [Slf4jLogger](#slf4jlogger)
+- 5 [Message formatting](#message-formatting)
+- 6 [Caller detection](#caller-detection)
+- 7 [Writing your own logger](#writing-your-own-logger)
+- 8 [Thread safety and performance](#thread-safety-and-performance)
+- 9 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 10 [Changelog](#changelog)
+	- 10.1 [1.2-SNAPSHOT](#12-snapshot)
+	- 10.2 [1.1](#11)
+	- 10.3 [1.0](#10)
+- 11 [Contributing](#contributing)
+- 12 [License](#license)
 
 
 ## Installation
@@ -154,6 +156,44 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 The full signatures are in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1).
+
+## Agent-driven development
+
+When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs the code,
+one short loop repeats many times: edit, run, read the output, edit again.
+**Nanolog** keeps every step of that loop cheap.
+
+- **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
+- **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
+- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources.
+- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
+- **The whole library fits in a context window.** Six classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
+- **Capturing the log in a test takes one method reference.** `ILogger` has a single abstract method, so what was logged can be asserted without a mocking framework:
+
+  ```java
+  void chargeIsRetried() {
+      List<LogEntry> entries = new CopyOnWriteArrayList<>();
+      LOG.init(entries::add); // keep every entry in memory instead of printing it
+      try {
+          new PaymentService().charge(42); // the code under test
+
+          assertTrue(entries.stream().anyMatch(entry ->
+                  entry.getLevel() == LogEntry.LogEntryLevel.WARN
+                  && entry.getFormattedMessage().equals("Charge of 42 failed, retrying")));
+      } finally {
+          LOG.init(); // LOG.init is JVM-wide: put the default logger back for the other tests
+      }
+  }
+  ```
+
+- **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
+
+> [!WARNING]
+> One SLF4J habit does not carry over: the exception goes **first**, as in `LOG.error(e, "Failed to load {}", id)`. In `LOG.error("Failed", e)` the exception is an unused `{}` argument, so the message is printed without the stack trace. Tracked in [#1](https://github.com/nanolaba/nanolog/issues/1).
+
+Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
+the call site in the output, an in-memory logger for tests, JSON lines, levels set through properties
+and environment variables, an `llms.txt` and an installable agent skill.
 
 ## Choosing a logger
 
