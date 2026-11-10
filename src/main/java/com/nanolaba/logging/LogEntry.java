@@ -55,9 +55,9 @@ public class LogEntry {
         return "LogEntry{" +
                "level=" + getLevel() +
                ", sourceClass=" + (getSourceClass() == null ? null : getSourceClass().getCanonicalName()) +
-               ", throwable=" + getThrowable() +
+               ", throwable=" + safeToString(getThrowable()) +
                ", message=" + safeToString(getMessage()) +
-               ", args=" + Arrays.toString(getArgs()) +
+               ", args=" + arrayToString(getArgs()) +
                '}';
     }
 
@@ -137,7 +137,23 @@ public class LogEntry {
         } else if (o instanceof double[]) {
             return Arrays.toString((double[]) o);
         } else {
-            return Arrays.deepToString((Object[]) o);
+            return arrayToString((Object[]) o);
+        }
+    }
+
+    private static String arrayToString(Object[] array) {
+        try {
+            return Arrays.deepToString(array);
+        } catch (Throwable t) {
+            // some element has a broken toString(): render element by element, so only that element is replaced
+            StringBuilder result = new StringBuilder("[");
+            for (int i = 0; i < array.length; i++) {
+                if (i > 0) {
+                    result.append(", ");
+                }
+                result.append(argToString(array[i]));
+            }
+            return result.append(']').toString();
         }
     }
 

@@ -45,16 +45,38 @@ class LogEntryTest {
 
         assertEquals("test {} [1.0, 2.0, 3.0] [A, B, [AA, BB]] 123", getFormattedMessage("test \\{} {} {} {}", new double[]{1, 2, 3}, new Object[]{"A", "B", new Object[]{"AA", "BB"}}, "123"));
 
-        assertEquals("test [FAILED toString()]", getFormattedMessage("test {}", new Object() {
-            @Override
-            public String toString() {
-                throw new RuntimeException();
-            }
-        }));
+        assertEquals("test [FAILED toString()]", getFormattedMessage("test {}", new BrokenToString()));
+    }
+
+    @Test
+    public void testBrokenToStringInsideObjectArray() {
+        assertEquals("test [A, [FAILED toString()], [B, [FAILED toString()]], [1, 2]]",
+                     getFormattedMessage("test {}", (Object) new Object[]{"A", new BrokenToString(), new Object[]{"B", new BrokenToString()}, new int[]{1, 2}}));
+    }
+
+    @Test
+    public void testToStringNeverThrows() {
+        LogEntry entry = new LogEntry(ERROR, getClass(), new BrokenThrowable(), new BrokenToString(), "A", new BrokenToString(), new Object[]{"B", new BrokenToString()});
+
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LogEntryTest, throwable=[FAILED toString()], message=[FAILED toString()], " +
+                     "args=[A, [FAILED toString()], [B, [FAILED toString()]]]}", entry.toString());
     }
 
     private String getFormattedMessage(Object message, Object... args) {
         return new LogEntry(ERROR, getClass(), null, message, args).getFormattedMessage();
     }
 
+    private static class BrokenToString {
+        @Override
+        public String toString() {
+            throw new RuntimeException();
+        }
+    }
+
+    private static class BrokenThrowable extends RuntimeException {
+        @Override
+        public String toString() {
+            throw new RuntimeException();
+        }
+    }
 }
