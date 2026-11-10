@@ -14,7 +14,7 @@ public class Slf4jLogger implements ILogger {
     @Override
     public void log(LogEntry entry) {
 
-        Logger logger = loggers.computeIfAbsent(entry.getSourceClass(), LoggerFactory::getLogger);
+        Logger logger = getLogger(entry.getSourceClass());
 
         switch (entry.getLevel()) {
             case TRACE:
@@ -37,7 +37,7 @@ public class Slf4jLogger implements ILogger {
 
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
-        Logger logger = loggers.computeIfAbsent(sourceClass, LoggerFactory::getLogger);
+        Logger logger = getLogger(sourceClass);
 
         switch (level) {
             case TRACE:
@@ -51,5 +51,11 @@ public class Slf4jLogger implements ILogger {
             default:
                 return logger.isInfoEnabled();
         }
+    }
+
+    private Logger getLogger(Class sourceClass) {
+        return sourceClass == null
+               ? LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)
+               : loggers.computeIfAbsent(sourceClass, LoggerFactory::getLogger);
     }
 }

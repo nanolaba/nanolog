@@ -32,6 +32,14 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         }
     }
 
+    @Test
+    public void testNullSourceClass() {
+        LOG.init(createLogger());
+
+        LOG.info((Class) null, "no source class");
+        assertEquals("[main] INFO ROOT - no source class" + System.lineSeparator(), getErrAndClear());
+    }
+
     protected Slf4jLogger createLogger() {
         return new Slf4jLogger();
     }
