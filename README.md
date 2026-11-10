@@ -24,7 +24,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of
 - **Lazy messages.** `LOG.debug(() -> ...)` is evaluated only when the level is enabled.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
 - **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
-- **Zero dependencies.** Six classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
+- **Zero dependencies.** Eight classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
@@ -32,11 +32,13 @@ The whole library:
 
 ```
 logging
+├── CompositeLogger.java
 ├── ConsoleLogger.java
 ├── DefaultLoggerCreator.java
 ├── ILogger.java
 ├── LOG.java
 ├── LogEntry.java
+├── MemoryLogger.java
 └── Slf4jLogger.java
 ```
 
@@ -44,6 +46,7 @@ logging
 - `ILogger` — the extension point: one abstract method plus an optional level filter.
 - `LogEntry` — one log record and the message formatter.
 - `ConsoleLogger`, `Slf4jLogger` — the bundled implementations.
+- `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
 The latest stable version is **1.1**; the version under development is **1.2-SNAPSHOT** (see [Changelog](#changelog)).
@@ -56,6 +59,7 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 - 4 [Choosing a logger](#choosing-a-logger)
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Slf4jLogger](#slf4jlogger)
+	- 4.3 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 - 6 [Caller detection](#caller-detection)
 - 7 [Writing your own logger](#writing-your-own-logger)
@@ -169,29 +173,12 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
-- **The whole library fits in a context window.** Six classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
-- **Capturing the log in a test takes one method reference.** `ILogger` has a single abstract method, so what was logged can be asserted without a mocking framework:
-
-  ```java
-  void chargeIsRetried() {
-      List<LogEntry> entries = new CopyOnWriteArrayList<>();
-      LOG.init(entries::add); // keep every entry in memory instead of printing it
-      try {
-          new PaymentService().charge(42); // the code under test
-
-          assertTrue(entries.stream().anyMatch(entry ->
-                  entry.getLevel() == LogEntry.LogEntryLevel.WARN
-                  && entry.getFormattedMessage().equals("Charge of 42 failed, retrying")));
-      } finally {
-          LOG.init(); // LOG.init is JVM-wide: put the default logger back for the other tests
-      }
-  }
-  ```
-
+- **The whole library fits in a context window.** Eight small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
+- **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
 Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
-an in-memory logger for tests, JSON lines, levels set through properties
+JSON lines, levels set through properties
 and environment variables, an `llms.txt` and an installable agent skill.
 
 ## Choosing a logger
@@ -296,6 +283,32 @@ Things to know:
 - An entry without a message is passed with an empty message, not the word `null`.
 - An entry without a source class goes to the SLF4J `ROOT` logger.
 - Loggers are cached per source class in a `ConcurrentHashMap` and never evicted, so with dynamic class reloading the cache retains `Class` references.
+
+### MemoryLogger and CompositeLogger
+
+`MemoryLogger` keeps entries in memory for tests. Every level is enabled, so entries are captured whatever the production configuration says, and nothing is printed.
+
+```java
+void chargeIsRetried() {
+    try (MemoryLogger log = MemoryLogger.install()) { // close() puts the previous logger back
+        new PaymentService().charge(42); // the code under test
+
+        assertTrue(log.contains(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying"));
+    }
+}
+```
+
+- `install()` replaces the logger of `LOG` and remembers the previous one; `close()` puts it back, also when the test fails. `installForwarding()` does the same but still passes every entry to the previous logger, so the usual output stays visible.
+- `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)`, `clear()` — snapshots and short assertions; the logger is thread-safe.
+- `new MemoryLogger(capacity)` keeps only the newest entries.
+- `LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.
+
+`CompositeLogger` sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it:
+
+```java
+MemoryLogger memory = new MemoryLogger(1000); // keeps the newest 1000 entries
+LOG.init(new CompositeLogger(memory, new ConsoleLogger()));
+```
 
 ## Message formatting
 
@@ -423,6 +436,7 @@ In development, not released yet.
 
 - A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.
 - `LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.
+- `MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.
 
 ### 1.1
 

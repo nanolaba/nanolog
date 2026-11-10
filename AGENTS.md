@@ -45,7 +45,7 @@ After regenerating, grep the outputs for leftover `${` and compare the generated
 
 ## Architecture
 
-Nanolog is a tiny SLF4J-compatible logging facade: six source files, no runtime dependencies. The whole public API is static methods on one class; there are no per-class logger fields.
+Nanolog is a tiny SLF4J-compatible logging facade: a handful of source files in one package, no runtime dependencies. The whole public API is static methods on one class; there are no per-class logger fields.
 
 ### The single entry point: `LOG` (`src/main/java/com/nanolaba/logging/LOG.java`)
 
@@ -61,7 +61,7 @@ Frame classes are resolved by `LOG.resolveClass(...)`: the thread's context clas
 
 ### Extension point: `ILogger`
 
-Implementations: `ConsoleLogger` (default) and `Slf4jLogger` (bridge to SLF4J). Custom loggers can be a lambda (`LOG.init(entry -> ...)`) because `ILogger` is effectively single-abstract-method. `isEnabled(level, sourceClass)` defaults to `true`; override it for level filtering. `LOG.log(...)` short-circuits on `isEnabled` before constructing the `LogEntry`, and `Supplier<Object>` messages are only resolved past that check, so lazy-message semantics depend on this order (`NoUnnecessaryCallsTest`, `MemoizingMessageTest`).
+Implementations: `ConsoleLogger` (default), `Slf4jLogger` (bridge to SLF4J), `MemoryLogger` (keeps entries for tests; `install()` / `close()` swap the logger of `LOG` and restore the previous one) and `CompositeLogger` (fan-out: enabled if any delegate is, each delegate receives only the levels it has enabled). Custom loggers can be a lambda (`LOG.init(entry -> ...)`) because `ILogger` is effectively single-abstract-method. `isEnabled(level, sourceClass)` defaults to `true`; override it for level filtering. `LOG.log(...)` short-circuits on `isEnabled` before constructing the `LogEntry`, and `Supplier<Object>` messages are only resolved past that check, so lazy-message semantics depend on this order (`NoUnnecessaryCallsTest`, `MemoizingMessageTest`).
 
 - `ConsoleLogger` writes `ERROR` to `System.err`, everything else to `System.out`. Its single `SimpleDateFormat` is shared by all threads, so `writeDate` reads it once and formats inside `synchronized (format)`; keep that when touching the date code.
 - `Slf4jLogger` caches one `org.slf4j.Logger` per source class in a `ConcurrentHashMap`. A `null` source class maps to the SLF4J `ROOT` logger (`ConcurrentHashMap` rejects `null` keys). An entry without a message is passed as an empty string, not `"null"`. The formatted message is passed as a plain string, so SLF4J never sees the `{}` arguments; markers are unsupported.

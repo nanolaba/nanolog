@@ -39,7 +39,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of<!--en--
 - **${en:'Lazy messages.', ru:'Ленивые сообщения.'}** `LOG.debug(() -> ...)` ${en:'is evaluated only when the level is enabled', ru:'вычисляется только при включённом уровне'}.
 - **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
 - **${en:'Logging never throws.', ru:'Логирование никогда не падает.'}** ${en:'A broken', ru:'Сломанный'} `toString()` ${en:'becomes', ru:'превращается в'} `[FAILED toString()]` ${en:'instead of an exception in your code', ru:'вместо исключения в вашем коде'}.
-- **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'Six classes, no transitive libraries;', ru:'Шесть классов, никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
+- **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'Eight classes, no transitive libraries;', ru:'Восемь классов, никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
 - **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
@@ -51,6 +51,7 @@ ${widget:fileTree(path='src/main/java/com/nanolaba/logging', depth='1')}
 - `ILogger` — ${en:'the extension point: one abstract method plus an optional level filter', ru:'точка расширения: один абстрактный метод и необязательный фильтр уровней'}.
 - `LogEntry` — ${en:'one log record and the message formatter', ru:'одна запись лога и форматирование сообщения'}.
 - `ConsoleLogger`, `Slf4jLogger` — ${en:'the bundled implementations', ru:'встроенные реализации'}.
+- `MemoryLogger`, `CompositeLogger` — ${en:'capturing entries in tests and sending them to several loggers', ru:'перехват записей в тестах и отправка записей в несколько логгеров'}.
 - `DefaultLoggerCreator` — ${en:'picks the logger at startup from a system property or a properties file', ru:'выбирает логгер при старте по системному свойству или файлу настроек'}.
 
 ${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
@@ -146,21 +147,18 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.<!--ru-->
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.<!--en-->
 - **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста.<!--ru-->
-- **The whole library fits in a context window.** Six classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
-- **Вся библиотека помещается в контекстное окно.** Шесть классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
-- **Capturing the log in a test takes one method reference.** `ILogger` has a single abstract method, so what was logged can be asserted without a mocking framework:<!--en-->
-- **Для перехвата лога в тесте хватает одной ссылки на метод.** У `ILogger` один абстрактный метод, поэтому записанное в лог проверяется без mock-фреймворка:<!--ru-->
-
-  ${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='true')}
-
+- **The whole library fits in a context window.** Eight small classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
+- **Вся библиотека помещается в контекстное окно.** Восемь небольших классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
+- **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).<!--en-->
+- **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).<!--ru-->
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend ${name}, not only use it.<!--en-->
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
 Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
-an in-memory logger for tests, JSON lines, levels set through properties<!--en-->
+JSON lines, levels set through properties<!--en-->
 and environment variables, an `llms.txt` and an installable agent skill.<!--en-->
 Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
-логгер в памяти для тестов, JSON-строки, уровни через свойства<!--ru-->
+JSON-строки, уровни через свойства<!--ru-->
 и переменные окружения, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
@@ -257,6 +255,21 @@ ${en:'Things to know:', ru:'Что нужно знать:'}
 - ${en:'An entry without a message is passed with an empty message, not the word `null`.', ru:'Запись без сообщения передаётся с пустым сообщением, а не со словом `null`.'}
 - ${en:'An entry without a source class goes to the SLF4J `ROOT` logger.', ru:'Запись без класса-источника уходит в `ROOT`-логгер SLF4J.'}
 - ${en:'Loggers are cached per source class in a `ConcurrentHashMap` and never evicted, so with dynamic class reloading the cache retains `Class` references.', ru:'Логгеры кешируются по классу-источнику в `ConcurrentHashMap` и не вытесняются, поэтому при динамической перезагрузке классов кеш удерживает ссылки на `Class`.'}
+
+### MemoryLogger ${en:'and', ru:'и'} CompositeLogger
+
+`MemoryLogger` ${en:'keeps entries in memory for tests. Every level is enabled, so entries are captured whatever the production configuration says, and nothing is printed.', ru:'хранит записи в памяти для тестов. Включены все уровни, поэтому записи перехватываются при любой боевой конфигурации, и ничего не печатается.'}
+
+${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='true')}
+
+- `install()` ${en:'replaces the logger of `LOG` and remembers the previous one; `close()` puts it back, also when the test fails. `installForwarding()` does the same but still passes every entry to the previous logger, so the usual output stays visible.', ru:'заменяет логгер `LOG` и запоминает прежний; `close()` возвращает его, даже если тест упал. `installForwarding()` делает то же самое, но продолжает передавать каждую запись прежнему логгеру, и обычный вывод остаётся на месте.'}
+- `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)`, `clear()` — ${en:'snapshots and short assertions; the logger is thread-safe.', ru:'снимки и короткие проверки; логгер потокобезопасен.'}
+- `new MemoryLogger(capacity)` ${en:'keeps only the newest entries.', ru:'хранит только самые новые записи.'}
+- ${en:'`LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.', ru:'`LOG.init` действует на всю JVM, поэтому тесты, устанавливающие логгер, нельзя запускать параллельно друг с другом.'}
+
+`CompositeLogger` ${en:'sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it:', ru:'отправляет каждую запись в несколько логгеров. Каждый получает только включённые у него уровни, а ленивое сообщение вычисляется, только если оно нужно хотя бы одному из них:'}
+
+${widget:import(path='${examples}/CapturingLogs.java', region='composite', wrap='true')}
 
 ## ${en:'Message formatting', ru:'Форматирование сообщений'}
 
@@ -359,6 +372,7 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 
 - ${en:'A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.', ru:'`Throwable` в конце списка аргументов, который не занял ни один `{}`, становится исключением записи, как в SLF4J: `LOG.error("Failed", e)` и `LOG.error("Failed {}", id, e)` больше не теряют трассировку стека.'}
 - ${en:'`LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.', ru:'`LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.'}
+- ${en:'`MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.', ru:'`MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.'}
 ${widget:endIf}
 
 ### 1.1
