@@ -105,7 +105,12 @@ Primitive arrays are rendered via `Arrays.toString`, object arrays via `Arrays.d
 
 The default build signs artifacts with GPG (`maven-gpg-plugin` 3.x, through gpg-agent) and publishes via `central-publishing-maven-plugin` with `autoPublish=true`. For local development use `mvn test` / `mvn compile` / `mvn verify -Dgpg.skip=true`; avoid `mvn deploy` unless you are actually cutting a release. Plugins are resolved from Maven Central only; do not reintroduce snapshot plugin repositories.
 
-Release checklist: set the version in `pom.xml`, update `<!--@stableVersion=...-->` and the changelog section in `README.src.md`, run `mvn compile`, commit the regenerated README files, then deploy.
+Release checklist:
+
+1. Set the release version in `pom.xml`, update `<!--@stableVersion=...-->` and the changelog section in `README.src.md`, run `mvn compile`, commit the regenerated README files together with the sources.
+2. `mvn clean deploy` (signs the artifacts and publishes them to Maven Central), then tag the release commit (`git tag -a vX.Y -m "Nanolog X.Y"`) and push the branch and the tag.
+3. **Create a GitHub release for the tag.** Every published version must have one: `gh release create vX.Y --verify-tag --title "vX.Y" --notes-file notes.md`. The notes are the `### X.Y` changelog section from `README.src.md` (English), grouped into "New" / "Fixes" / "Documentation and build", followed by the Maven coordinates and a `compare/vPREV...vX.Y` link; the `v1.1` release is the reference layout. Do not publish it as a draft or pre-release.
+4. Bump `pom.xml` to the next `-SNAPSHOT`, run `mvn compile`, commit the regenerated README files.
 
 ## Conventions
 
