@@ -48,7 +48,7 @@ public class DefaultLoggerCreator {
                 throw new RuntimeException(e);
             }
         } else if (!config.equals(DEFAULT_CONFIGURATION_FILE)) {
-            System.err.printf("[NANOLOG] Property \"%s\" has been defined, but the file \"%s\" cannot be found %n", DEFAULT_CONFIGURATION_FILE, config);
+            System.err.printf("[NANOLOG] Property \"%s\" has been defined, but the file \"%s\" cannot be found %n", PROPERTY_LOGGER_CONFIG_FILE, config);
         }
     }
 }

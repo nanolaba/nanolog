@@ -67,6 +67,6 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
         LOG.init();
 
         assertEquals(LOG.getLogger().getClass(), ConsoleLogger.class);
-        assertTrue(getErrAndClear().contains("[NANOLOG] Property \"nanolog.properties\" has been defined, but the file \"unexisted.properties\" cannot be found"));
+        assertTrue(getErrAndClear().contains("[NANOLOG] Property \"nanolog.config\" has been defined, but the file \"unexisted.properties\" cannot be found"));
     }
 }
