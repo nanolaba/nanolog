@@ -18,11 +18,12 @@ public class QuickStartRu {
         // Класс-источник можно указать и явно
         LOG.warn(QuickStartRu.class, "Мало места на диске");
 
+        String input = "not a number";
         try {
-            Integer.parseInt("not a number");
+            Integer.parseInt(input);
         } catch (NumberFormatException e) {
-            // Трассировка стека печатается после сообщения
-            LOG.error(e, "Не удалось разобрать входные данные");
+            // Исключение и параметризованное сообщение; трассировка стека печатается после сообщения
+            LOG.error(e, "Не удалось разобрать \"{}\"", input);
         }
     }
     // nrg:end:quickstart

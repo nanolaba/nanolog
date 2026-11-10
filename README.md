@@ -111,11 +111,12 @@ public static void main(String[] args) {
     // The source class can also be passed explicitly
     LOG.warn(QuickStart.class, "Disk space is low");
 
+    String input = "not a number";
     try {
-        Integer.parseInt("not a number");
+        Integer.parseInt(input);
     } catch (NumberFormatException e) {
-        // The stack trace is printed after the message
-        LOG.error(e, "Failed to parse the input");
+        // Exception plus a parameterized message; the stack trace follows the message
+        LOG.error(e, "Failed to parse \"{}\"", input);
     }
 }
 ```
@@ -127,7 +128,7 @@ INFO 10.11.2026 21:30:00 [QuickStart] Application started
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low
-ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse the input
+ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number"
 java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
@@ -144,6 +145,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info(() -> message)` | lazy message, evaluated only if the level is enabled |
 | `LOG.info(throwable)` | stack trace without a message |
 | `LOG.info(throwable, message)` | message plus stack trace; the message may also be a `Supplier` |
+| `LOG.info(throwable, "... {} ...", args)` | exception plus a parameterized message |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
@@ -370,6 +372,7 @@ dependencies {
 
 In development, not released yet.
 
+- New overloads `LOG.info(throwable, "... {} ...", args)` and `LOG.info(sourceClass, throwable, "... {} ...", args)` for every level: an exception together with a parameterized message.
 - `nanolog.properties`: only `nanolog.` keys are copied into system properties; other keys are ignored.
 - `Slf4jLogger`: a `null` source class goes to the `ROOT` logger instead of throwing; an entry without a message no longer logs the word `null`.
 - Caller detection resolves classes through the context class loader first and skips frames it cannot see, instead of failing in application servers and plugin frameworks.

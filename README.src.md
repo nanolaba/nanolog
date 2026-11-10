@@ -99,12 +99,12 @@ INFO 10.11.2026 21:30:00 [QuickStart] Application started<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...<!--en-->
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low<!--en-->
-ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse the input<!--en-->
+ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number"<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...<!--ru-->
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске<!--ru-->
-ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать входные данные<!--ru-->
+ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number"<!--ru-->
 java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
@@ -120,7 +120,8 @@ ${en:'Every level has the same set of overloads;', ru:'У каждого уро�
 | `LOG.info("... {} ...", args)` | ${en:'parameterized message, see', ru:'параметризованное сообщение, см.'} [${en:'Message formatting', ru:'Форматирование сообщений'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) |
 | `LOG.info(() -> message)` | ${en:'lazy message, evaluated only if the level is enabled', ru:'ленивое сообщение, вычисляется только при включённом уровне'} |
 | `LOG.info(throwable)` | ${en:'stack trace without a message', ru:'трассировка стека без сообщения'} |
-| `LOG.info(throwable, message)` | ${en:'message plus stack trace; the message may also be a', ru:'сообщение и трассировка; сообщение может быть и'} `Supplier` |
+| `LOG.info(throwable, message)` | ${en:'message plus stack trace; the message may also be a `Supplier`', ru:'сообщение и трассировка; сообщение может быть и `Supplier`'} |
+| `LOG.info(throwable, "... {} ...", args)` | ${en:'exception plus a parameterized message', ru:'исключение и параметризованное сообщение'} |
 | `LOG.info(SomeClass.class, ...)` | ${en:'any form above with an explicit source class', ru:'любая форма выше с явным классом-источником'} |
 | `LOG.isInfoEnabled()` | ${en:'level check, with or without an explicit class', ru:'проверка уровня, с явным классом или без'} |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | ${en:'the universal entry point every overload delegates to', ru:'универсальная точка входа, к которой сводятся все перегрузки'} |
@@ -318,6 +319,7 @@ ${widget:if(cond='${devVersion} != ${stableVersion}')}
 ${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
 ${widget:endIf}
 
+- ${en:'New overloads `LOG.info(throwable, "... {} ...", args)` and `LOG.info(sourceClass, throwable, "... {} ...", args)` for every level: an exception together with a parameterized message.', ru:'Новые перегрузки `LOG.info(throwable, "... {} ...", args)` и `LOG.info(sourceClass, throwable, "... {} ...", args)` для каждого уровня: исключение вместе с параметризованным сообщением.'}
 - `nanolog.properties`: ${en:'only `nanolog.` keys are copied into system properties; other keys are ignored.', ru:'в системные свойства копируются только ключи с префиксом `nanolog.`; остальные игнорируются.'}
 - `Slf4jLogger`: ${en:'a `null` source class goes to the `ROOT` logger instead of throwing; an entry without a message no longer logs the word `null`.', ru:'`null` в качестве класса-источника уходит в `ROOT`-логгер вместо исключения; запись без сообщения больше не пишет слово `null`.'}
 - ${en:'Caller detection resolves classes through the context class loader first and skips frames it cannot see, instead of failing in application servers and plugin frameworks.', ru:'Определение вызывающего класса сначала использует контекстный загрузчик и пропускает невидимые кадры вместо падения в серверах приложений и плагинных фреймворках.'}

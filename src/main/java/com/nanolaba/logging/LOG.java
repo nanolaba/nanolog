@@ -75,6 +75,14 @@ public class LOG {
         log(TRACE, getCurrentClass(), null, () -> message, args);
     }
 
+    public static void trace(Throwable t, String message, Object... args) {
+        log(TRACE, getCurrentClass(), t, () -> message, args);
+    }
+
+    public static void trace(Class targetClass, Throwable t, String message, Object... args) {
+        log(TRACE, targetClass, t, () -> message, args);
+    }
+
     public static boolean isTraceEnabled(Class targetClass) {
         return logger.isEnabled(TRACE, targetClass);
     }
@@ -130,6 +138,14 @@ public class LOG {
 
     public static void debug(String message, Object... args) {
         log(DEBUG, getCurrentClass(), null, () -> message, args);
+    }
+
+    public static void debug(Throwable t, String message, Object... args) {
+        log(DEBUG, getCurrentClass(), t, () -> message, args);
+    }
+
+    public static void debug(Class targetClass, Throwable t, String message, Object... args) {
+        log(DEBUG, targetClass, t, () -> message, args);
     }
 
     public static boolean isDebugEnabled(Class targetClass) {
@@ -190,6 +206,14 @@ public class LOG {
         log(INFO, getCurrentClass(), null, () -> message, args);
     }
 
+    public static void info(Throwable t, String message, Object... args) {
+        log(INFO, getCurrentClass(), t, () -> message, args);
+    }
+
+    public static void info(Class targetClass, Throwable t, String message, Object... args) {
+        log(INFO, targetClass, t, () -> message, args);
+    }
+
     public static boolean isInfoEnabled(Class targetClass) {
         return logger.isEnabled(INFO, targetClass);
     }
@@ -247,6 +271,14 @@ public class LOG {
         log(WARN, getCurrentClass(), null, () -> message, args);
     }
 
+    public static void warn(Throwable t, String message, Object... args) {
+        log(WARN, getCurrentClass(), t, () -> message, args);
+    }
+
+    public static void warn(Class targetClass, Throwable t, String message, Object... args) {
+        log(WARN, targetClass, t, () -> message, args);
+    }
+
     public static boolean isWarnEnabled(Class targetClass) {
         return logger.isEnabled(WARN, targetClass);
     }
@@ -302,6 +334,14 @@ public class LOG {
 
     public static void error(String message, Object... args) {
         log(ERROR, getCurrentClass(), null, () -> message, args);
+    }
+
+    public static void error(Throwable t, String message, Object... args) {
+        log(ERROR, getCurrentClass(), t, () -> message, args);
+    }
+
+    public static void error(Class targetClass, Throwable t, String message, Object... args) {
+        log(ERROR, targetClass, t, () -> message, args);
     }
 
     public static boolean isErrorEnabled(Class targetClass) {

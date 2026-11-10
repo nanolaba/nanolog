@@ -111,11 +111,12 @@ public static void main(String[] args) {
     // Класс-источник можно указать и явно
     LOG.warn(QuickStartRu.class, "Мало места на диске");
 
+    String input = "not a number";
     try {
-        Integer.parseInt("not a number");
+        Integer.parseInt(input);
     } catch (NumberFormatException e) {
-        // Трассировка стека печатается после сообщения
-        LOG.error(e, "Не удалось разобрать входные данные");
+        // Исключение и параметризованное сообщение; трассировка стека печатается после сообщения
+        LOG.error(e, "Не удалось разобрать \"{}\"", input);
     }
 }
 ```
@@ -127,7 +128,7 @@ INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске
-ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать входные данные
+ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number"
 java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
@@ -144,6 +145,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 | `LOG.info(() -> message)` | ленивое сообщение, вычисляется только при включённом уровне |
 | `LOG.info(throwable)` | трассировка стека без сообщения |
 | `LOG.info(throwable, message)` | сообщение и трассировка; сообщение может быть и `Supplier` |
+| `LOG.info(throwable, "... {} ...", args)` | исключение и параметризованное сообщение |
 | `LOG.info(SomeClass.class, ...)` | любая форма выше с явным классом-источником |
 | `LOG.isInfoEnabled()` | проверка уровня, с явным классом или без |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | универсальная точка входа, к которой сводятся все перегрузки |
@@ -370,6 +372,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
+- Новые перегрузки `LOG.info(throwable, "... {} ...", args)` и `LOG.info(sourceClass, throwable, "... {} ...", args)` для каждого уровня: исключение вместе с параметризованным сообщением.
 - `nanolog.properties`: в системные свойства копируются только ключи с префиксом `nanolog.`; остальные игнорируются.
 - `Slf4jLogger`: `null` в качестве класса-источника уходит в `ROOT`-логгер вместо исключения; запись без сообщения больше не пишет слово `null`.
 - Определение вызывающего класса сначала использует контекстный загрузчик и пропускает невидимые кадры вместо падения в серверах приложений и плагинных фреймворках.

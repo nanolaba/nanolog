@@ -18,11 +18,12 @@ public class QuickStart {
         // The source class can also be passed explicitly
         LOG.warn(QuickStart.class, "Disk space is low");
 
+        String input = "not a number";
         try {
-            Integer.parseInt("not a number");
+            Integer.parseInt(input);
         } catch (NumberFormatException e) {
-            // The stack trace is printed after the message
-            LOG.error(e, "Failed to parse the input");
+            // Exception plus a parameterized message; the stack trace follows the message
+            LOG.error(e, "Failed to parse \"{}\"", input);
         }
     }
     // nrg:end:quickstart

@@ -64,6 +64,12 @@ public class LOGTest {
 
         LOG.trace(new RuntimeException("ex11"));
         assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
+
+        LOG.trace(new RuntimeException("ex12"), "ex12 {}", "asd", 123);
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex12, message=ex12 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.trace(LOGTest.class, new RuntimeException("ex13"), "ex13 {}", "asd", 123);
+        assertEquals("LogEntry{level=TRACE, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex13, message=ex13 {}, args=[asd, 123]}", message.getValue());
     }
 
     @Test
@@ -110,6 +116,12 @@ public class LOGTest {
 
         LOG.debug(new RuntimeException("ex11"));
         assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
+
+        LOG.debug(new RuntimeException("ex12"), "ex12 {}", "asd", 123);
+        assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex12, message=ex12 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.debug(LOGTest.class, new RuntimeException("ex13"), "ex13 {}", "asd", 123);
+        assertEquals("LogEntry{level=DEBUG, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex13, message=ex13 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -157,6 +169,12 @@ public class LOGTest {
 
         LOG.info(new RuntimeException("ex11"));
         assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
+
+        LOG.info(new RuntimeException("ex12"), "ex12 {}", "asd", 123);
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex12, message=ex12 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.info(LOGTest.class, new RuntimeException("ex13"), "ex13 {}", "asd", 123);
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex13, message=ex13 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -204,6 +222,12 @@ public class LOGTest {
 
         LOG.error(new RuntimeException("ex11"));
         assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
+
+        LOG.error(new RuntimeException("ex12"), "ex12 {}", "asd", 123);
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex12, message=ex12 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.error(LOGTest.class, new RuntimeException("ex13"), "ex13 {}", "asd", 123);
+        assertEquals("LogEntry{level=ERROR, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex13, message=ex13 {}, args=[asd, 123]}", message.getValue());
     }
 
 
@@ -251,6 +275,12 @@ public class LOGTest {
 
         LOG.warn(new RuntimeException("ex11"));
         assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex11, message=null, args=[]}", message.getValue());
+
+        LOG.warn(new RuntimeException("ex12"), "ex12 {}", "asd", 123);
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex12, message=ex12 {}, args=[asd, 123]}", message.getValue());
+
+        LOG.warn(LOGTest.class, new RuntimeException("ex13"), "ex13 {}", "asd", 123);
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LOGTest, throwable=java.lang.RuntimeException: ex13, message=ex13 {}, args=[asd, 123]}", message.getValue());
     }
 
 
