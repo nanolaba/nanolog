@@ -29,4 +29,6 @@ jobs:
           cache: maven
 
       - name: Build and test
-        run: mvn -B --no-transfer-progress -Dgpg.skip=true verify
+        # -Dcheck=true makes nrg-maven-plugin fail the build when README.md / README.ru.md
+        # are out of date with README.src.md instead of silently regenerating them
+        run: mvn -B --no-transfer-progress -Dgpg.skip=true -Dcheck=true verify

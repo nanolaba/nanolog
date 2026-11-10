@@ -1,39 +1,33 @@
 package com.nanolaba.logging.examples;
 
-import com.nanolaba.logging.ConsoleLogger;
 import com.nanolaba.logging.LOG;
-import com.nanolaba.logging.Slf4jLogger;
 
 public class QuickStartRu {
+
+    // nrg:begin:quickstart
     public static void main(String[] args) {
+        // Поле логгера не нужно: класс-источник определяется автоматически
+        LOG.info("Приложение запущено");
+
+        // Подстановка {} в стиле SLF4J
+        LOG.debug("Загружено {} элементов за {} мс", 42, 17);
+
+        // Ленивое сообщение: лямбда выполнится, только если уровень DEBUG включён
+        LOG.debug(() -> "Дорогой отчёт: " + buildReport());
+
+        // Класс-источник можно указать и явно
+        LOG.warn(QuickStartRu.class, "Мало места на диске");
+
         try {
-            // Это логгер, используемый по-умолчанию
-            LOG.init(new ConsoleLogger());
-
-            // Если вы хотите использовать SLF4J
-            LOG.init(new Slf4jLogger());
-
-            // Если вы хотите написать свой логгер используйте лямбда-функцию или реализуйте интерфейс ILogger
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
-                    entry.getSourceClass() + " - " +
-                    entry.getFormattedMessage()));
-
-            LOG.debug("Привет! Статическая переменная логгера не нужна");
-            LOG.info(String.class, "Но можно явно указать к какому классу должно относиться логирование");
-            LOG.warn("Это параметризованное сообщение: {}, {}, {} ",
-                    100, "foo", new Object[]{"массив", "параметров"});
-
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Можно сделать проверку уровня логирования стандартным способом: " + hugeComputations());
-            }
-            LOG.debug(() -> "А можно передать лямбда-выражение: " + hugeComputations());
-
-        } catch (Exception e) {
-            LOG.error(e);
+            Integer.parseInt("not a number");
+        } catch (NumberFormatException e) {
+            // Трассировка стека печатается после сообщения
+            LOG.error(e, "Не удалось разобрать входные данные");
         }
     }
+    // nrg:end:quickstart
 
-    private static String hugeComputations() {
-        return "OK";
+    private static String buildReport() {
+        return "...";
     }
 }

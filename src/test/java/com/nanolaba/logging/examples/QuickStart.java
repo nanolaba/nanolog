@@ -1,40 +1,33 @@
 package com.nanolaba.logging.examples;
 
-import com.nanolaba.logging.ConsoleLogger;
 import com.nanolaba.logging.LOG;
-import com.nanolaba.logging.Slf4jLogger;
 
 public class QuickStart {
+
+    // nrg:begin:quickstart
     public static void main(String[] args) {
+        // No logger field: the source class is detected automatically
+        LOG.info("Application started");
+
+        // SLF4J-style {} placeholders
+        LOG.debug("Loaded {} items in {} ms", 42, 17);
+
+        // Lazy message: the lambda runs only if DEBUG is enabled
+        LOG.debug(() -> "Expensive report: " + buildReport());
+
+        // The source class can also be passed explicitly
+        LOG.warn(QuickStart.class, "Disk space is low");
+
         try {
-            // This is the logger used by default
-            LOG.init(new ConsoleLogger());
-
-            // If you want to use SLF4J
-            LOG.init(new Slf4jLogger());
-
-            // If you want to write your own logger, use a lambda function or implement the ILogger interface.
-            LOG.init(entry -> System.err.println(entry.getLevel() + " - " +
-                    entry.getSourceClass() + " - " +
-                    entry.getFormattedMessage()));
-
-            LOG.debug("A static logger variable is not needed");
-            LOG.info(String.class, "But you can explicitly specify which class the logging should belong to");
-            LOG.warn("This is a parameterized message: {}, {}, {} ",
-                    100, "foo", new Object[]{"foo", "bar"});
-
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("You can check if a log level is enabled in the standard way: " +
-                        hugeComputations());
-            }
-            LOG.debug(() -> "Alternatively, you can supply a lambda: " + hugeComputations());
-
-        } catch (Exception e) {
-            LOG.error(e);
+            Integer.parseInt("not a number");
+        } catch (NumberFormatException e) {
+            // The stack trace is printed after the message
+            LOG.error(e, "Failed to parse the input");
         }
     }
+    // nrg:end:quickstart
 
-    private static String hugeComputations() {
-        return "OK";
+    private static String buildReport() {
+        return "...";
     }
 }
