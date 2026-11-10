@@ -6,8 +6,9 @@ import java.util.Properties;
 
 public class DefaultLoggerCreator {
 
-    public static final String PROPERTY_LOGGER_CLASS = "nanolog.logger";
-    public static final String PROPERTY_LOGGER_CONFIG_FILE = "nanolog.config";
+    public static final String PROPERTY_PREFIX = "nanolog.";
+    public static final String PROPERTY_LOGGER_CLASS = PROPERTY_PREFIX + "logger";
+    public static final String PROPERTY_LOGGER_CONFIG_FILE = PROPERTY_PREFIX + "config";
 
     public static final String DEFAULT_CONFIGURATION_FILE = "nanolog.properties";
 
@@ -43,8 +44,10 @@ public class DefaultLoggerCreator {
                 Properties props = new Properties();
                 props.load(stream);
                 props.forEach((name, value) -> {
-                    if (System.getProperty((String) name) == null) {
-                        System.setProperty((String) name, (String) value);
+                    String key = (String) name;
+                    // only our own namespace: a config file must not be able to alter arbitrary JVM-wide settings
+                    if (key.startsWith(PROPERTY_PREFIX) && System.getProperty(key) == null) {
+                        System.setProperty(key, (String) value);
                     }
                 });
             } catch (IOException e) {

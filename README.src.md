@@ -211,11 +211,11 @@ You can pick a different logger in one of three ways:<!--en-->
 3. **${en:'Via a configuration file', ru:'Через файл конфигурации'}**
 
    Разместите в classpath файл `nanolog.properties`. При первом обращении к `LOG`<!--ru-->
-   его значения копируются в системные свойства (без перезаписи тех, что уже<!--ru-->
-   переданы через `-D`):<!--ru-->
+   его ключи с префиксом `nanolog.` копируются в системные свойства (без перезаписи<!--ru-->
+   тех, что уже переданы через `-D`); остальные ключи игнорируются:<!--ru-->
    Place a `nanolog.properties` file on the classpath. On the first call to `LOG`<!--en-->
-   its entries are copied into system properties (without overwriting values<!--en-->
-   already set via `-D`):<!--en-->
+   its `nanolog.*` entries are copied into system properties (without overwriting<!--en-->
+   values already set via `-D`); any other keys are ignored:<!--en-->
 
    ```properties
    nanolog.logger=com.nanolaba.logging.Slf4jLogger

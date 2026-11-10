@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CLASS;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CONFIG_FILE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultLoggerCreatorTest extends AbstractLoggerTest {
@@ -21,6 +22,16 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
     public void clearProperties() {
         System.clearProperty(PROPERTY_LOGGER_CONFIG_FILE);
         System.clearProperty(PROPERTY_LOGGER_CLASS);
+        System.clearProperty("other.property");
+    }
+
+    @Test
+    public void onlyNanologKeysAreCopiedFromTheFileTest() {
+        System.setProperty(PROPERTY_LOGGER_CONFIG_FILE, "mixed.properties");
+        LOG.init();
+
+        assertEquals(Slf4jLogger.class, LOG.getLogger().getClass());
+        assertNull(System.getProperty("other.property"), "keys outside the nanolog.* namespace must not leak into system properties");
     }
 
     @Test
