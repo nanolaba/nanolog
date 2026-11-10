@@ -3,6 +3,13 @@ package com.nanolaba.logging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CLASS;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CONFIG_FILE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,5 +75,37 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
 
         assertEquals(LOG.getLogger().getClass(), ConsoleLogger.class);
         assertTrue(getErrAndClear().contains("[NANOLOG] Property \"nanolog.config\" has been defined, but the file \"unexisted.properties\" cannot be found"));
+    }
+
+    @Test
+    public void nullContextClassLoaderTest() {
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(null);
+        try {
+            System.setProperty(PROPERTY_LOGGER_CONFIG_FILE, "test.properties");
+            LOG.init();
+            assertEquals(Slf4jLogger.class, LOG.getLogger().getClass());
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    @Test
+    public void contextClassLoaderIsPreferredTest() throws IOException {
+        Path dir = Files.createTempDirectory("nanolog");
+        Path file = dir.resolve("custom-nanolog.properties");
+        Files.write(file, (PROPERTY_LOGGER_CLASS + "=" + Slf4jLogger.class.getName()).getBytes(StandardCharsets.ISO_8859_1));
+
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try (URLClassLoader isolated = new URLClassLoader(new URL[]{dir.toUri().toURL()}, null)) {
+            Thread.currentThread().setContextClassLoader(isolated);
+            System.setProperty(PROPERTY_LOGGER_CONFIG_FILE, "custom-nanolog.properties");
+            LOG.init();
+            assertEquals(Slf4jLogger.class, LOG.getLogger().getClass());
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+            Files.deleteIfExists(file);
+            Files.deleteIfExists(dir);
+        }
     }
 }

@@ -35,6 +35,9 @@ public class DefaultLoggerCreator {
     private static void loadPropertiesFromFile() {
         String config = System.getProperty(PROPERTY_LOGGER_CONFIG_FILE, DEFAULT_CONFIGURATION_FILE);
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            classLoader = DefaultLoggerCreator.class.getClassLoader();
+        }
         if (classLoader.getResource(config) != null) {
             try (InputStream stream = classLoader.getResourceAsStream(config)) {
                 Properties props = new Properties();
