@@ -36,7 +36,7 @@
         <maven-deploy-plugin.version>3.1.1</maven-deploy-plugin.version>
         <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
         <maven-project-info-reports-plugin.version>3.5.0</maven-project-info-reports-plugin.version>
-        <nrg-maven-plugin.version>0.4-SNAPSHOT</nrg-maven-plugin.version>
+        <nrg-maven-plugin.version>1.0</nrg-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.8.0</central-publishing-maven-plugin.version>
         <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
         <maven-javadoc-plugin.version>2.9.1</maven-javadoc-plugin.version>
@@ -45,20 +45,6 @@
         <pitest-maven.version>1.15.8</pitest-maven.version>
         <pitest-junit5-plugin.version>1.2.1</pitest-junit5-plugin.version>
     </properties>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>central.sonatype.com-snapshot</id>
-            <url>https://central.sonatype.com/repository/maven-snapshots</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-        </pluginRepository>
-    </pluginRepositories>
 
     <developers>
         <developer>
@@ -75,8 +61,9 @@
     </licenses>
 
     <scm>
-        <url>https://github.com/nanolaba/readme-generator</url>
-        <connection>scm:git:git://github.com/nanolaba/readme-generator.git</connection>
+        <url>https://github.com/nanolaba/nanolog</url>
+        <connection>scm:git:git://github.com/nanolaba/nanolog.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/nanolaba/nanolog.git</developerConnection>
     </scm>
 
     <dependencies>
