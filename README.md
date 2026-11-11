@@ -58,6 +58,7 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
 - 3 [Agent-driven development](#agent-driven-development)
+	- 3.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 4 [Choosing a logger](#choosing-a-logger)
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Levels and options without code](#levels-and-options-without-code)
@@ -184,8 +185,32 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
-Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
-an `llms.txt` and an installable agent skill.
+### Using Nanolog from a coding agent
+
+Two files give an agent the rules of the library in a few hundred lines, without the explanations of this README:
+
+- [`llms.txt`](llms.txt) — a cheat sheet in the [llms.txt](https://llmstxt.org/) format: coordinates, call shapes, the rules that differ from SLF4J, settings without code changes and the test recipe.
+- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. For Claude Code, put it into the project:
+
+  ```
+  mkdir -p .claude/skills/nanolog
+  curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
+  ```
+
+  Other agents that support the Agent Skills format read the same file from their own skills directory.
+
+Without installing anything, one paragraph in `AGENTS.md` (or `CLAUDE.md`) of the project is enough:
+
+```markdown
+## Logging
+
+This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
+read https://raw.githubusercontent.com/nanolaba/nanolog/main/llms.txt
+```
+
+Both files are generated from `agent-guide.src.md` on every build: the versions come from `pom.xml`, the code
+from the compiled examples, and CI fails when they are stale. Ideas for making the library easier for agents
+are collected under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents).
 
 ## Choosing a logger
 
@@ -530,6 +555,7 @@ In development, not released yet.
 - `MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.
 - `nanolog.strict=true` reports calls whose `{}` placeholders and arguments do not match, once per template, with the call site.
 - The whole public API has Javadoc, and the build fails on a missing comment.
+- [`llms.txt`](llms.txt) and the agent skill [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) give coding agents the rules of the library; both are generated with the README.
 - `ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.
 - `JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.
 - `ConsoleLogger`: a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.

@@ -2,7 +2,7 @@
 <!--@nrg.defaultLanguage=en-->
 
 <!--@name=**Nanolog**-->
-<!--@stableVersion=1.1-->
+<!--@stableVersion=${pom.properties.nanolog.stableVersion}-->
 <!--@devVersion=${pom.version}-->
 <!--@logbackVersion=1.5.38-->
 <!--@coords=${pom.groupId}:${pom.artifactId}-->
@@ -11,7 +11,7 @@
 <!--@examples=src/test/java/com/nanolaba/logging/examples-->
 <!--@quickStartFile.en=QuickStart.java-->
 <!--@quickStartFile.ru=QuickStartRu.java-->
-Maintainer note: bump stableVersion after every release. The development version is read from pom.xml.<!--nrg.ignore-->
+Maintainer note: the stable version is the nanolog.stableVersion property in pom.xml, bump it after every release. The development version is the project version.<!--nrg.ignore-->
 
 ${widget:languages}
 
@@ -158,10 +158,37 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend ${name}, not only use it.<!--en-->
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
-Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
-an `llms.txt` and an installable agent skill.<!--en-->
-Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
-`llms.txt` и устанавливаемый навык для агентов.<!--ru-->
+### ${en:'Using Nanolog from a coding agent', ru:'Nanolog в работе кодового агента'}
+
+Два файла дают агенту правила работы с библиотекой в нескольких сотнях строк, без пояснений этого README:<!--ru-->
+Two files give an agent the rules of the library in a few hundred lines, without the explanations of this README:<!--en-->
+
+- [`llms.txt`](llms.txt) — ${en:'a cheat sheet in the [llms.txt](https://llmstxt.org/) format: coordinates, call shapes, the rules that differ from SLF4J, settings without code changes and the test recipe.', ru:'шпаргалка в формате [llms.txt](https://llmstxt.org/): координаты, формы вызова, правила, отличающиеся от SLF4J, настройки без правки кода и рецепт для тестов.'}
+- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — ${en:'the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. For Claude Code, put it into the project:', ru:'то же руководство в виде навыка агента, который агент сам подгружает, когда работает с кодом, пишущим в лог через Nanolog. Для Claude Code положите его в проект:'}
+
+  ```
+  mkdir -p .claude/skills/nanolog
+  curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
+  ```
+
+  ${en:'Other agents that support the Agent Skills format read the same file from their own skills directory.', ru:'Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.'}
+
+Можно ничего не устанавливать: достаточно одного абзаца в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:<!--ru-->
+Without installing anything, one paragraph in `AGENTS.md` (or `CLAUDE.md`) of the project is enough:<!--en-->
+
+```markdown
+## Logging
+
+This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
+read https://raw.githubusercontent.com/nanolaba/nanolog/main/llms.txt
+```
+
+Оба файла генерируются из `agent-guide.src.md` при каждой сборке: версии берутся из `pom.xml`, примеры кода —<!--ru-->
+из компилируемых примеров, а CI падает, если файлы устарели. Идеи о том, что ещё облегчило бы работу агентов,<!--ru-->
+собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents).<!--ru-->
+Both files are generated from `agent-guide.src.md` on every build: the versions come from `pom.xml`, the code<!--en-->
+from the compiled examples, and CI fails when they are stale. Ideas for making the library easier for agents<!--en-->
+are collected under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents).<!--en-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
 
@@ -466,6 +493,7 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 - ${en:'`MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.', ru:'`MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.'}
 - ${en:'`nanolog.strict=true` reports calls whose `{}` placeholders and arguments do not match, once per template, with the call site.', ru:'`nanolog.strict=true` сообщает о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, по разу на шаблон и с местом вызова.'}
 - ${en:'The whole public API has Javadoc, and the build fails on a missing comment.', ru:'У всего публичного API есть Javadoc, и сборка падает, если комментария не хватает.'}
+- ${en:'[`llms.txt`](llms.txt) and the agent skill [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) give coding agents the rules of the library; both are generated with the README.', ru:'[`llms.txt`](llms.txt) и навык агента [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) дают кодовым агентам правила работы с библиотекой; оба генерируются вместе с README.'}
 - ${en:'`ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.', ru:'`ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.'}
 - ${en:'`JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.', ru:'`JsonLogger` пишет один JSON-объект в строке. `LogEntry.getTimestamp()` и `LogEntry.getThreadName()` сообщают, когда и где создана запись.'}
 - `ConsoleLogger`: ${en:'a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.', ru:'исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.'}

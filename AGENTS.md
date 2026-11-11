@@ -29,12 +29,13 @@ The `test` phase is wired to run **pitest-maven** with `mutationThreshold=100`. 
 
 ### README generation
 
-`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`. Never edit the generated files.
+`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, and `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`. Never edit the generated files.
 
 - Edit `README.src.md`, run `mvn compile`, review both outputs, commit all three files together.
 - CI runs the plugin with `-Dcheck=true`: a committed README that differs from what the template generates fails the build. Local verification: `mvn -q compile -Dcheck=true`.
 - Code samples are imported from `src/test/java/com/nanolaba/logging/examples` via `// nrg:begin:NAME` / `// nrg:end:NAME` regions and `${widget:import(... region='NAME', wrap='true')}`. Changing an example changes the README; keep the console output shown in the quick start in sync by hand. An import may sit on an indented line (inside a list item): every line of its output takes the indentation of the widget line.
-- Versions come from `pom.xml` (`${pom.version}`, `${pom.properties.slf4j.version}`, ...). The only hand-maintained version is `<!--@stableVersion=...-->` at the top of the template: bump it after every release.
+- Versions come from `pom.xml` (`${pom.version}`, `${pom.properties.slf4j.version}`, ...). The only hand-maintained version is the `nanolog.stableVersion` property in `pom.xml`, read by both templates: bump it after every release.
+- `agent-guide.src.md` is a single-language template that uses two NRG "languages", `llms` and `skill`, as output variants: untagged lines go to both files, lines tagged `<!--llms-->` or `<!--skill-->` to one, and `nrg.fileNamePattern.<variant>` names the outputs. `nrg.noHeader=true` keeps the YAML front matter on the first line of `SKILL.md`; keep the `description:` value free of `": "`. It is English only, a cheat sheet rather than a second README: when a feature changes, update its rule there too. Mark features newer than the stable version with *X.Y+*.
 - Snapshot-only content (the "Using SNAPSHOT versions" section, the development entry of the changelog, the "version under development" clause) is guarded by `${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}` … `${widget:endIf}` or by the inline `${widget:if(cond='…', text='…')}`, so it disappears from the README of a release commit by itself.
 - Collapsible content uses `${widget:details(summary='…')}` … `${widget:endDetails}`; the inner markdown and language markers keep working.
 - The English and Russian quick-start examples are chosen with the per-language properties `quickStartFile.en` / `quickStartFile.ru`.
@@ -114,7 +115,7 @@ The default build signs artifacts with GPG (`maven-gpg-plugin` 3.x, through gpg-
 
 Release checklist:
 
-1. Set the release version in `pom.xml`, update `<!--@stableVersion=...-->` and the changelog section in `README.src.md`, run `mvn compile`, commit the regenerated README files together with the sources.
+1. Set the release version in `pom.xml` and the `nanolog.stableVersion` property to the same value, update the changelog section in `README.src.md`, run `mvn compile`, commit the regenerated README files, `llms.txt` and `SKILL.md` together with the sources.
 2. `mvn clean deploy` (signs the artifacts and publishes them to Maven Central), then tag the release commit (`git tag -a vX.Y -m "Nanolog X.Y"`) and push the branch and the tag.
 3. **Create a GitHub release for the tag.** Every published version must have one: `gh release create vX.Y --verify-tag --title "vX.Y" --notes-file notes.md`. The notes are the `### X.Y` changelog section from `README.src.md` (English), grouped into "New" / "Fixes" / "Documentation and build", followed by the Maven coordinates and a `compare/vPREV...vX.Y` link; the `v1.1` release is the reference layout. Do not publish it as a draft or pre-release.
 4. Bump `pom.xml` to the next `-SNAPSHOT`, run `mvn compile`, commit the regenerated README files.
