@@ -149,8 +149,8 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Вывод, который разбирается скриптом.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` переключает вывод на один JSON-объект в строке, где время, поток, место вызова и трассировка стека — отдельные поля. Такой вывод готов для `jq` или скрипта, который агент напишет на ходу. См. [JsonLogger](#jsonlogger).<!--ru-->
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.<!--en-->
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.<!--ru-->
-- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.<!--en-->
-- **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста.<!--ru-->
+- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.<!--en-->
+- **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста. При этом в тестовых запусках `-Dnanolog.strict=true` сообщает о таких несовпадениях вместе с местом вызова, чтобы их исправили, а не оставили незамеченными.<!--ru-->
 - **The whole library fits in a context window.** Nine small classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
 - **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).<!--en-->
@@ -198,6 +198,7 @@ ${en:'A no-argument', ru:'Вызов'} `LOG.init()` ${en:'re-reads the property 
 |---|---|---|
 | `nanolog.logger` | ${en:'class name of the `ILogger` implementation', ru:'имя класса реализации `ILogger`'} | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | ${en:'classpath resource with the configuration', ru:'ресурс в classpath с конфигурацией'} | `nanolog.properties` |
+| `nanolog.strict` | ${en:'report calls whose `{}` placeholders and arguments do not match, see', ru:'сообщать о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, см.'} [${en:'Message formatting', ru:'Форматирование сообщений'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `false` |
 
 Если класс из `nanolog.logger` не удалось создать, ${name} печатает в `System.err`<!--ru-->
 диагностику с префиксом `[NANOLOG]` и продолжает работу с `ConsoleLogger`.<!--ru-->
@@ -331,6 +332,45 @@ ${widget:import(path='${examples}/Formatting.java', region='formatting', wrap='t
 - ${en:'Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller. A throwable whose stack trace cannot be printed becomes `[FAILED printStackTrace()]`.', ru:'Каждый `toString()` защищён: если он бросает исключение, значение превращается в `[FAILED toString()]`, и наружу ничего не вылетает. Исключение, трассировку которого не удаётся напечатать, превращается в `[FAILED printStackTrace()]`.'}
 - ${en:'The message object itself may be anything, not only a', ru:'Сам объект сообщения может быть любым, не только'} `String`; ${en:'it is converted with the same guarded', ru:'он преобразуется тем же защищённым'} `toString()`.
 
+### ${en:'Checking placeholders in tests', ru:'Проверка плейсхолдеров в тестах'}
+
+Нестрогость к `{}` правильна в продакшене, но в разработке она скрывает ошибки: потерянный аргумент<!--ru-->
+не оставляет в выводе никакого следа. С `nanolog.strict=true` (или `NANOLOG_STRICT=true`) каждый<!--ru-->
+вызов с аргументами, у которого число плейсхолдеров `{}` не совпадает с числом аргументов,<!--ru-->
+дополнительно печатает в `System.err` одну строку с местом вызова:<!--ru-->
+Leniency about `{}` is right in production, but during development it hides mistakes: a dropped argument<!--en-->
+leaves no trace in the output at all. With `nanolog.strict=true` (or `NANOLOG_STRICT=true`), every call<!--en-->
+with arguments whose number of `{}` placeholders differs from the number of arguments additionally<!--en-->
+prints one line with the call site to `System.err`:<!--en-->
+
+```
+[NANOLOG] com.acme.PaymentService.charge(PaymentService.java:87): 2 placeholders, 1 argument in "Charge of {} for {}"
+```
+
+- ${en:'The entry itself is logged exactly as without the check, and nothing is thrown.', ru:'Сама запись логируется так же, как без проверки, и ничего не бросается.'}
+- ${en:'Each template is reported once; the 1000 most recent reported templates are remembered.', ru:'О каждом шаблоне сообщается один раз; запоминаются 1000 последних шаблонов, о которых уже сообщено.'}
+- ${en:'Only calls with arguments and enabled levels are checked. Escaped `\{}` does not count, and a trailing exception taken as the exception of the entry is not an argument.', ru:'Проверяются только вызовы с аргументами на включённых уровнях. Экранированный `\{}` не считается, а исключение в конце, ставшее исключением записи, не считается аргументом.'}
+- ${en:'When the check is off, it costs one boolean test per call. The setting is read by `LOG.init()`.', ru:'Выключенная проверка стоит одной проверки флага на вызов. Настройка читается в `LOG.init()`.'}
+
+${en:'Turn it on for test runs, so mismatches show up in the output that is read anyway:', ru:'Включайте её для тестовых запусков, чтобы несовпадения появлялись в выводе, который и так читают:'}
+
+```xml
+<plugin>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <configuration>
+        <systemPropertyVariables>
+            <nanolog.strict>true</nanolog.strict>
+        </systemPropertyVariables>
+    </configuration>
+</plugin>
+```
+
+```groovy
+test {
+    systemProperty 'nanolog.strict', 'true'
+}
+```
+
 ## ${en:'Caller detection', ru:'Определение вызывающего класса'}
 
 Когда класс не передан явно, `LOG` создаёт `Throwable`, проходит по его стеку<!--ru-->
@@ -424,6 +464,7 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 - ${en:'A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.', ru:'`Throwable` в конце списка аргументов, который не занял ни один `{}`, становится исключением записи, как в SLF4J: `LOG.error("Failed", e)` и `LOG.error("Failed {}", id, e)` больше не теряют трассировку стека.'}
 - ${en:'`LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.', ru:'`LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.'}
 - ${en:'`MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.', ru:'`MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.'}
+- ${en:'`nanolog.strict=true` reports calls whose `{}` placeholders and arguments do not match, once per template, with the call site.', ru:'`nanolog.strict=true` сообщает о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, по разу на шаблон и с местом вызова.'}
 - ${en:'`ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.', ru:'`ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.'}
 - ${en:'`JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.', ru:'`JsonLogger` пишет один JSON-объект в строке. `LogEntry.getTimestamp()` и `LogEntry.getThreadName()` сообщают, когда и где создана запись.'}
 - `ConsoleLogger`: ${en:'a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.', ru:'исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.'}

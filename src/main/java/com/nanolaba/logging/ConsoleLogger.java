@@ -13,6 +13,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVELS;
 import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
 import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
+import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
 
 public class ConsoleLogger implements ILogger {
 
@@ -129,19 +130,6 @@ public class ConsoleLogger implements ILogger {
         }
         printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF");
         return NO_RULE;
-    }
-
-    private static boolean readBoolean(String property, boolean defaultValue) {
-        String value = getProperty(property);
-        if (value == null) {
-            return defaultValue;
-        } else if ("true".equalsIgnoreCase(value.trim())) {
-            return true;
-        } else if ("false".equalsIgnoreCase(value.trim())) {
-            return false;
-        }
-        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected true or false");
-        return defaultValue;
     }
 
     private static boolean isAtLeast(LogEntry.LogEntryLevel level, int threshold) {

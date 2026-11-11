@@ -64,6 +64,7 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 	- 4.4 [Slf4jLogger](#slf4jlogger)
 	- 4.5 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
+	- 5.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
 - 6 [Caller detection](#caller-detection)
 - 7 [Writing your own logger](#writing-your-own-logger)
 - 8 [Thread safety and performance](#thread-safety-and-performance)
@@ -177,7 +178,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement. Through SLF4J, the backend's own `%file:%line` reports the same call site.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
-- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
+- **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
 - **The whole library fits in a context window.** Nine small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
@@ -219,6 +220,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 |---|---|---|
 | `nanolog.logger` | class name of the `ILogger` implementation | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
+| `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
 `[NANOLOG]`-prefixed diagnostic to `System.err` and carries on with `ConsoleLogger`.
@@ -383,6 +385,41 @@ LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.I
 - Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller. A throwable whose stack trace cannot be printed becomes `[FAILED printStackTrace()]`.
 - The message object itself may be anything, not only a `String`; it is converted with the same guarded `toString()`.
 
+### Checking placeholders in tests
+
+Leniency about `{}` is right in production, but during development it hides mistakes: a dropped argument
+leaves no trace in the output at all. With `nanolog.strict=true` (or `NANOLOG_STRICT=true`), every call
+with arguments whose number of `{}` placeholders differs from the number of arguments additionally
+prints one line with the call site to `System.err`:
+
+```
+[NANOLOG] com.acme.PaymentService.charge(PaymentService.java:87): 2 placeholders, 1 argument in "Charge of {} for {}"
+```
+
+- The entry itself is logged exactly as without the check, and nothing is thrown.
+- Each template is reported once; the 1000 most recent reported templates are remembered.
+- Only calls with arguments and enabled levels are checked. Escaped `\{}` does not count, and a trailing exception taken as the exception of the entry is not an argument.
+- When the check is off, it costs one boolean test per call. The setting is read by `LOG.init()`.
+
+Turn it on for test runs, so mismatches show up in the output that is read anyway:
+
+```xml
+<plugin>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <configuration>
+        <systemPropertyVariables>
+            <nanolog.strict>true</nanolog.strict>
+        </systemPropertyVariables>
+    </configuration>
+</plugin>
+```
+
+```groovy
+test {
+    systemProperty 'nanolog.strict', 'true'
+}
+```
+
 ## Caller detection
 
 When no class is passed explicitly, `LOG` creates a `Throwable`, walks its stack trace
@@ -490,6 +527,7 @@ In development, not released yet.
 - A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.
 - `LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.
 - `MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.
+- `nanolog.strict=true` reports calls whose `{}` placeholders and arguments do not match, once per template, with the call site.
 - `ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.
 - `JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.
 - `ConsoleLogger`: a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.

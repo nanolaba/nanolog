@@ -1,5 +1,8 @@
 package com.nanolaba.logging;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
@@ -7,6 +10,24 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
 public class LOG {
 
     private static ILogger logger;
+
+    /**
+     * {@code nanolog.strict}: report calls whose placeholders and arguments do not match. Read by {@link #init()}.
+     */
+    private static boolean strict;
+
+    private static final int REPORTED_TEMPLATES_LIMIT = 1000;
+
+    /**
+     * Templates already reported in strict mode, so a loop does not flood the output; the oldest are forgotten
+     * beyond the limit.
+     */
+    private static final Map<String, Boolean> REPORTED_TEMPLATES = Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+            return size() > REPORTED_TEMPLATES_LIMIT;
+        }
+    });
 
     static {
         init();
@@ -16,10 +37,19 @@ public class LOG {
 
     public static void init() {
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
+        // after the logger: creating it loads nanolog.properties, which may set nanolog.strict
+        LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
     }
 
     public static void init(ILogger logger) {
         LOG.logger = logger;
+    }
+
+    /**
+     * Forgets the templates reported in strict mode; for tests.
+     */
+    static void clearReportedTemplates() {
+        REPORTED_TEMPLATES.clear();
     }
 
     public static ILogger getLogger() {
@@ -364,11 +394,47 @@ public class LOG {
 
     private static void doLog(LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (logger.isEnabled(level, loggedClass)) {
-            logger.log(LogEntry.create(level, loggedClass, frame, throwable, message == null ? null : message.get(), args));
+            LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, message == null ? null : message.get(), args);
+            if (strict) {
+                checkPlaceholders(entry);
+            }
+            logger.log(entry);
         }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Strict mode: prints one {@code [NANOLOG]} line when the {@code {}} placeholders of a parameterized message do
+     * not match its arguments. Only calls with arguments are checked, so a plain message that happens to contain
+     * {@code {}} is never reported. The entry itself is logged unchanged, and nothing is thrown.
+     */
+    private static void checkPlaceholders(LogEntry entry) {
+        Object[] args = entry.getArgs();
+        if (args == null || args.length == 0) {
+            return;
+        }
+        String template = LogEntry.safeToString(entry.getMessage());
+        int placeholders = LogEntry.countPlaceholders(template);
+        if (placeholders != args.length && REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null) {
+            DefaultLoggerCreator.printDiagnostic(describeSource(entry) + ": " +
+                                                 count(placeholders, "placeholder") + ", " + count(args.length, "argument") +
+                                                 " in \"" + template + "\"");
+        }
+    }
+
+    private static String describeSource(LogEntry entry) {
+        if (entry.getCaller() != null) {
+            return entry.getCaller().toString();
+        } else if (entry.getSourceClass() != null) {
+            return entry.getSourceClass().getName();
+        }
+        return "unknown source";
+    }
+
+    private static String count(int number, String noun) {
+        return number + " " + noun + (number == 1 ? "" : "s");
+    }
 
 
     private static Class getCurrentClass() {

@@ -13,6 +13,7 @@ public class DefaultLoggerCreator {
     public static final String PROPERTY_LOGGER_CONFIG_FILE = PROPERTY_PREFIX + "config";
     public static final String PROPERTY_LEVEL = PROPERTY_PREFIX + "level";
     public static final String PROPERTY_LEVELS = PROPERTY_PREFIX + "levels";
+    public static final String PROPERTY_STRICT = PROPERTY_PREFIX + "strict";
 
     public static final String DEFAULT_CONFIGURATION_FILE = "nanolog.properties";
 
@@ -39,6 +40,23 @@ public class DefaultLoggerCreator {
      */
     static String toEnvironmentName(String property) {
         return property.toUpperCase(Locale.ROOT).replace('.', '_');
+    }
+
+    /**
+     * Reads a {@code true} / {@code false} setting, ignoring case and surrounding spaces. A missing setting gives the
+     * default; an invalid one prints a diagnostic and gives the default as well.
+     */
+    static boolean readBoolean(String property, boolean defaultValue) {
+        String value = getProperty(property);
+        if (value == null) {
+            return defaultValue;
+        } else if ("true".equalsIgnoreCase(value.trim())) {
+            return true;
+        } else if ("false".equalsIgnoreCase(value.trim())) {
+            return false;
+        }
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected true or false");
+        return defaultValue;
     }
 
     /**
