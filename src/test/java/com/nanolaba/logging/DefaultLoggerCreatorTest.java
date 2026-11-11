@@ -9,6 +9,8 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CLASS;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CONFIG_FILE;
@@ -18,8 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultLoggerCreatorTest extends AbstractLoggerTest {
 
+    private final Map<String, String> environment = new HashMap<>();
+
     @AfterEach
     public void clearProperties() {
+        DefaultLoggerCreator.environment = System::getenv;
         System.clearProperty(PROPERTY_LOGGER_CONFIG_FILE);
         System.clearProperty(PROPERTY_LOGGER_CLASS);
         System.clearProperty("other.property");
@@ -117,6 +122,60 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
             Thread.currentThread().setContextClassLoader(original);
             Files.deleteIfExists(file);
             Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
+    public void environmentNamesTest() {
+        assertEquals("NANOLOG_LOGGER", DefaultLoggerCreator.toEnvironmentName("nanolog.logger"));
+        assertEquals("NANOLOG_CONSOLE_SHOWDATE", DefaultLoggerCreator.toEnvironmentName("nanolog.console.showDate"));
+    }
+
+    @Test
+    public void loggerFromEnvironmentTest() {
+        DefaultLoggerCreator.environment = environment::get;
+        environment.put("NANOLOG_LOGGER", Slf4jLogger.class.getName());
+        LOG.init();
+        assertEquals(Slf4jLogger.class, LOG.getLogger().getClass());
+
+        // a system property beats the environment
+        System.setProperty(PROPERTY_LOGGER_CLASS, ConsoleLogger.class.getName());
+        LOG.init();
+        assertEquals(ConsoleLogger.class, LOG.getLogger().getClass());
+    }
+
+    @Test
+    public void configFileFromEnvironmentTest() {
+        DefaultLoggerCreator.environment = environment::get;
+        environment.put("NANOLOG_CONFIG", "test.properties");
+        LOG.init();
+        assertEquals(Slf4jLogger.class, LOG.getLogger().getClass());
+    }
+
+    @Test
+    public void environmentBeatsTheFileTest() {
+        DefaultLoggerCreator.environment = environment::get;
+        environment.put("NANOLOG_LOGGER", ConsoleLogger.class.getName());
+        System.setProperty(PROPERTY_LOGGER_CONFIG_FILE, "test.properties");
+        LOG.init();
+
+        assertEquals(ConsoleLogger.class, LOG.getLogger().getClass());
+        assertNull(System.getProperty(PROPERTY_LOGGER_CLASS), "a key set in the environment is not copied from the file");
+    }
+
+    @Test
+    public void getPropertyTest() {
+        DefaultLoggerCreator.environment = environment::get;
+        assertNull(DefaultLoggerCreator.getProperty("nanolog.test"));
+
+        environment.put("NANOLOG_TEST", "from the environment");
+        assertEquals("from the environment", DefaultLoggerCreator.getProperty("nanolog.test"));
+
+        System.setProperty("nanolog.test", "from a system property");
+        try {
+            assertEquals("from a system property", DefaultLoggerCreator.getProperty("nanolog.test"));
+        } finally {
+            System.clearProperty("nanolog.test");
         }
     }
 }

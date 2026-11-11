@@ -63,6 +63,7 @@ Frame classes are resolved by `LOG.resolveClass(...)`: the thread's context clas
 
 Implementations: `ConsoleLogger` (default), `Slf4jLogger` (bridge to SLF4J), `MemoryLogger` (keeps entries for tests; `install()` / `close()` swap the logger of `LOG` and restore the previous one) and `CompositeLogger` (fan-out: enabled if any delegate is, each delegate receives only the levels it has enabled). Custom loggers can be a lambda (`LOG.init(entry -> ...)`) because `ILogger` is effectively single-abstract-method. `isEnabled(level, sourceClass)` defaults to `true`; override it for level filtering. `LOG.log(...)` short-circuits on `isEnabled` before constructing the `LogEntry`, and `Supplier<Object>` messages are only resolved past that check, so lazy-message semantics depend on this order (`NoUnnecessaryCallsTest`, `MemoizingMessageTest`).
 
+- `ConsoleLogger` reads its configuration in the no-arg constructor: `nanolog.level`, `nanolog.levels`, `nanolog.level.<package or class>` and `nanolog.console.*`. Setters called afterwards override what it read, but package and class rules are checked first in `isEnabled` and beat the five boolean switches. Resolved thresholds are cached per `Class` (`findThreshold` walks from the class name outwards through `$` and `.`). An invalid value goes through `DefaultLoggerCreator.printDiagnostic` and is ignored; configuration must never throw.
 - `ConsoleLogger` writes `ERROR` to `System.err`, everything else to `System.out`. Its single `SimpleDateFormat` is shared by all threads, so `writeDate` reads it once and formats inside `synchronized (format)`; keep that when touching the date code.
 - `Slf4jLogger` caches one `org.slf4j.Logger` per source class in a `ConcurrentHashMap`. A `null` source class maps to the SLF4J `ROOT` logger (`ConcurrentHashMap` rejects `null` keys). An entry without a message is passed as an empty string, not `"null"`. The formatted message is passed as a plain string, so SLF4J never sees the `{}` arguments; markers are unsupported.
 
@@ -70,13 +71,15 @@ Implementations: `ConsoleLogger` (default), `Slf4jLogger` (bridge to SLF4J), `Me
 
 On `LOG` class init (and on any `LOG.init()` with no args), a default `ILogger` is resolved as follows:
 
-1. Load `nanolog.properties` from the classpath (or the resource named by system property `nanolog.config`) through the thread's context class loader, falling back to the class's own loader when the context loader is `null`. Copy **only keys with the `nanolog.` prefix** (`DefaultLoggerCreator.PROPERTY_PREFIX`) into `System` properties, and only where not already set, so CLI `-D` overrides win over the file and the file cannot alter unrelated JVM settings.
-2. If system property `nanolog.logger` is set, `Class.forName(...).getConstructor().newInstance()` that class.
+Settings are looked up by `DefaultLoggerCreator.getProperty(name)`: the system property first, then the environment variable of the same name in upper case with dots replaced by underscores (`nanolog.logger` → `NANOLOG_LOGGER`). Tests replace the package-private `DefaultLoggerCreator.environment` function instead of the real environment and must restore it in `@AfterEach`.
+
+1. Load `nanolog.properties` from the classpath (or the resource named by `nanolog.config` / `NANOLOG_CONFIG`) through the thread's context class loader, falling back to the class's own loader when the context loader is `null`. Copy **only keys with the `nanolog.` prefix** (`DefaultLoggerCreator.PROPERTY_PREFIX`) into `System` properties, and only where neither a system property nor the environment variable is set, so the precedence is `-D`, environment, file, and the file cannot alter unrelated JVM settings.
+2. If `nanolog.logger` (or `NANOLOG_LOGGER`) is set, `Class.forName(...).getConstructor().newInstance()` that class.
 3. Otherwise, return `new ConsoleLogger()`.
 
 Failures in step 2, and a missing file named by `nanolog.config`, are printed to `System.err` with a `[NANOLOG]` prefix and fall through to `ConsoleLogger`. An `IOException` while reading the file is rethrown as `RuntimeException` and would break `LOG`'s static initializer.
 
-Do not add a `nanolog.properties` to `src/test/resources`: it would be picked up by every test's `LOG` initialization. Tests use `nanolog.config` pointing at `test.properties` / `mixed.properties` instead.
+Do not add a `nanolog.properties` to `src/test/resources`: it would be picked up by every test's `LOG` initialization. Tests use `nanolog.config` pointing at `test.properties` / `mixed.properties` / `levels.properties` instead, and clear every `nanolog.*` system property they or the file set.
 
 ### Message formatting: `LogEntry.formatMessage()`
 

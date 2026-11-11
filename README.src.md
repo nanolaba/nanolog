@@ -141,6 +141,8 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Логирование добавляется одной строкой.** Нет ни поля логгера, ни `getLogger(Foo.class)`, который обязан совпадать с именем класса: один импорт и `LOG.info(...)`. Диф состоит из одной строки, и ничего не устаревает при переносе кода и переименовании класса.<!--ru-->
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.<!--en-->
 - **Вывод с первого запуска.** `ConsoleLogger` работает без настройки и печатает все уровни, включая `TRACE`. `LOG.debug(...)`, добавленный при разборе проблемы, виден уже в следующем запуске, и настраивать бэкенд для этого не нужно.<!--ru-->
+- **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. See [Levels and options without code](#levels-and-options-without-code).<!--en-->
+- **Уровни на один запуск, без правки кода.** `NANOLOG_LEVEL=INFO` убирает лишнее, когда первый запуск уже прочитан, а `-Dnanolog.level.com.acme.payments=DEBUG` добавляет подробностей для одного пакета, даже если код при старте выключил `DEBUG`. Переменную окружения агент может задать в любой песочнице и в CI, а временная правка кода обычно попадает в коммит. См. [Уровни и настройки без кода](#уровни-и-настройки-без-кода).<!--ru-->
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.<!--en-->
 - **Строки, которые легко прочитать обратно.** Одна запись занимает одну строку вида `LEVEL дата [КлассИсточник] сообщение`, за ней идёт трассировка стека, если она есть. Такой вывод легко искать через `grep` и сопоставлять с исходниками. С `setShowLocation(true)` каждая строка ещё и называет метод и строку вызова, `[PaymentService.charge(PaymentService.java:87)]`, и агент переходит от вывода прямо к нужному оператору.<!--ru-->
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.<!--en-->
@@ -155,11 +157,9 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
 Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
-JSON lines, levels set through properties<!--en-->
-and environment variables, an `llms.txt` and an installable agent skill.<!--en-->
+JSON lines, an `llms.txt` and an installable agent skill.<!--en-->
 Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
-JSON-строки, уровни через свойства<!--ru-->
-и переменные окружения, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
+JSON-строки, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
 
@@ -182,13 +182,14 @@ ${en:'The default `ConsoleLogger` can be replaced in three ways:', ru:'Логг�
    ```
 
    При первой инициализации `LOG` ключи файла с префиксом `nanolog.` копируются<!--ru-->
-   в системные свойства, не перезаписывая те, что уже заданы через `-D`.<!--ru-->
+   в системные свойства, не перезаписывая те, что уже заданы через `-D` или переменную окружения.<!--ru-->
    Остальные ключи игнорируются. Путь к файлу переопределяется свойством `nanolog.config`.<!--ru-->
    When `LOG` initialises, the keys of the file with the `nanolog.` prefix are copied<!--en-->
-   into system properties without overwriting the ones already set via `-D`.<!--en-->
+   into system properties without overwriting the ones already set via `-D` or an environment variable.<!--en-->
    Other keys are ignored. The file path can be overridden with the `nanolog.config` property.<!--en-->
 
-${en:'Precedence, highest first:', ru:'Приоритет, от высшего:'} `LOG.init(logger)` → `-Dnanolog.logger` → `nanolog.properties` → `ConsoleLogger`.
+${en:'Every property can also be set as an environment variable: upper case, dots replaced by underscores, so', ru:'Любое свойство можно задать и переменной окружения: верхний регистр, точки заменены подчёркиваниями, то есть'} `nanolog.logger` ${en:'becomes', ru:'превращается в'} `NANOLOG_LOGGER`.
+${en:'Precedence, highest first:', ru:'Приоритет, от высшего:'} `LOG.init(logger)` → `-Dnanolog.logger` → `NANOLOG_LOGGER` → `nanolog.properties` → `ConsoleLogger`.
 ${en:'A no-argument', ru:'Вызов'} `LOG.init()` ${en:'re-reads the property and the file.', ru:'без аргументов перечитывает свойство и файл.'}
 
 | ${en:'Property', ru:'Свойство'} | ${en:'Meaning', ru:'Назначение'} | ${en:'Default', ru:'По умолчанию'} |
@@ -219,7 +220,7 @@ ${widget:import(path='${examples}/LoggerSetup.java', region='console', wrap='tru
 - `showDate` + `dateFormat` — ${en:'the timestamp and its', ru:'временная метка и её'} `SimpleDateFormat`; ${en:'formatting is synchronized, so one shared format is safe', ru:'форматирование синхронизировано, общий экземпляр безопасен'}.
 - `showSource` / `showSourceFullName` — ${en:'the simple or the fully qualified source class name', ru:'короткое или полное имя класса-источника'}.
 - `showLocation` — ${en:'the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.', ru:'место вызова после имени класса в том же виде, что и в трассировках стека, поэтому IDE и терминалы превращают его в ссылку: `[PaymentService.charge(PaymentService.java:87)]`. По умолчанию выключено. У вызова с явным классом-источником места вызова нет, и остаётся обычный `[PaymentService]`.'}
-- `traceEnabled` … `errorEnabled` — ${en:'per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.', ru:'переключатели по уровням; по умолчанию включено всё, поэтому в продакшене отключите `TRACE` и `DEBUG`. Отключённые уровни отсекаются до создания `LogEntry`, поэтому ленивые сообщения не вычисляются.'}
+- `traceEnabled` … `errorEnabled` — ${en:'per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.', ru:'переключатели по уровням; по умолчанию включено всё, поэтому в продакшене отключите `TRACE` и `DEBUG` в коде или через `nanolog.level=INFO`. Отключённые уровни отсекаются до создания `LogEntry`, поэтому ленивые сообщения не вычисляются.'}
 
 Для своего формата (цвет, JSON, другая раскладка) унаследуйтесь от `ConsoleLogger`<!--ru-->
 и переопределите `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`,<!--ru-->
@@ -227,6 +228,34 @@ ${widget:import(path='${examples}/LoggerSetup.java', region='console', wrap='tru
 For a custom layout (colours, JSON, a different order) extend `ConsoleLogger` and<!--en-->
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,<!--en-->
 `writeThrowable` or `addDelimiter`.<!--en-->
+
+### ${en:'Levels and options without code', ru:'Уровни и настройки без кода'}
+
+${en:'The constructor of `ConsoleLogger` reads these settings from system properties, environment variables and `nanolog.properties`, in this order of precedence:', ru:'Конструктор `ConsoleLogger` читает эти настройки из системных свойств, переменных окружения и `nanolog.properties`, именно в таком порядке приоритета:'}
+
+| ${en:'Property', ru:'Свойство'} | ${en:'Environment variable', ru:'Переменная окружения'} | ${en:'Meaning', ru:'Назначение'} |
+|---|---|---|
+| `nanolog.level` | `NANOLOG_LEVEL` | ${en:'the lowest enabled level:', ru:'самый низкий включённый уровень:'} `TRACE` (${en:'default', ru:'по умолчанию'}), `DEBUG`, `INFO`, `WARN`, `ERROR`, `OFF` |
+| `nanolog.level.<${en:'package or class', ru:'пакет или класс'}>` | — | ${en:'the level for one package or class', ru:'уровень для одного пакета или класса'} |
+| `nanolog.levels` | `NANOLOG_LEVELS` | ${en:'several such rules in one value:', ru:'несколько таких правил в одном значении:'} `com.acme.payments=DEBUG,com.acme.db=TRACE` |
+| `nanolog.console.showLevel` | `NANOLOG_CONSOLE_SHOWLEVEL` | `true` ${en:'or', ru:'или'} `false`, ${en:'like the setter', ru:'как одноимённый сеттер'} |
+| `nanolog.console.showDate` | `NANOLOG_CONSOLE_SHOWDATE` | ${en:'the same', ru:'то же'} |
+| `nanolog.console.showSource` | `NANOLOG_CONSOLE_SHOWSOURCE` | ${en:'the same', ru:'то же'} |
+| `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | ${en:'the same', ru:'то же'} |
+| `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | ${en:'the same', ru:'то же'} |
+| `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | ${en:'a `SimpleDateFormat` pattern', ru:'шаблон `SimpleDateFormat`'} |
+
+```
+java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
+NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
+```
+
+- ${en:'A package or class rule beats the global level, however that level was set, setters included. Turning `DEBUG` on for one package therefore needs no code change.', ru:'Правило для пакета или класса главнее глобального уровня, как бы тот ни был задан, в том числе сеттерами. Поэтому включение `DEBUG` для одного пакета не требует правки кода.'}
+- ${en:'The most specific rule wins: the class itself, then its enclosing classes, then its packages from the innermost outwards. A rule matches whole name segments only, so `com.acme.pay` does not cover `com.acme.payments`.', ru:'Действует самое точное правило: сам класс, затем внешние классы, затем пакеты от ближайшего к дальнему. Правило совпадает только с целыми частями имени, поэтому `com.acme.pay` не распространяется на `com.acme.payments`.'}
+- ${en:'`nanolog.level.<name>` beats an item for the same name in `nanolog.levels`.', ru:'`nanolog.level.<имя>` главнее элемента с тем же именем в `nanolog.levels`.'}
+- ${en:'Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.', ru:'Сеттеры, вызванные после конструктора, главнее прочитанных им значений, поэтому `new ConsoleLogger().setDebugEnabled(false)` в коде главнее `nanolog.level`; правила для пакетов и классов при этом продолжают действовать.'}
+- ${en:'An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.', ru:'Неверное значение печатает в `System.err` диагностику с префиксом `[NANOLOG]` и игнорируется; логирование продолжается.'}
+- ${en:'`nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.', ru:'`nanolog.properties` читается при инициализации `LOG`, поэтому `ConsoleLogger`, созданный раньше, видит только `-D` и переменные окружения.'}
 
 ### Slf4jLogger
 
@@ -373,6 +402,7 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 - ${en:'A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.', ru:'`Throwable` в конце списка аргументов, который не занял ни один `{}`, становится исключением записи, как в SLF4J: `LOG.error("Failed", e)` и `LOG.error("Failed {}", id, e)` больше не теряют трассировку стека.'}
 - ${en:'`LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.', ru:'`LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.'}
 - ${en:'`MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.', ru:'`MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.'}
+- ${en:'`ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.', ru:'`ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.'}
 ${widget:endIf}
 
 ### 1.1

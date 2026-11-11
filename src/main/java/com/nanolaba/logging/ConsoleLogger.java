@@ -5,8 +5,27 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
+import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVELS;
+import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
+import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
 
 public class ConsoleLogger implements ILogger {
+
+    public static final String PROPERTY_SHOW_LEVEL = "nanolog.console.showLevel";
+    public static final String PROPERTY_SHOW_DATE = "nanolog.console.showDate";
+    public static final String PROPERTY_SHOW_SOURCE = "nanolog.console.showSource";
+    public static final String PROPERTY_SHOW_SOURCE_FULL_NAME = "nanolog.console.showSourceFullName";
+    public static final String PROPERTY_SHOW_LOCATION = "nanolog.console.showLocation";
+    public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
+
+    private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
+    private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
+    private static final int NO_RULE = -1;
 
     private SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
 
@@ -22,6 +41,132 @@ public class ConsoleLogger implements ILogger {
     private boolean warnEnabled = true;
     private boolean errorEnabled = true;
 
+    /**
+     * Thresholds by package or class name, from {@code nanolog.levels} and {@code nanolog.level.<name>}; fixed at
+     * construction. The value is the ordinal of the lowest enabled level, {@code 5} for {@code OFF}.
+     */
+    private final Map<String, Integer> levelRules = new HashMap<>();
+    private final Map<Class, Integer> thresholdCache = new ConcurrentHashMap<>();
+
+    /**
+     * Creates a logger configured from system properties, environment variables and {@code nanolog.properties}
+     * (in this order of precedence); everything not configured keeps its default. Setters called afterwards override
+     * the configuration, except that a package or class rule always beats the global level switches.
+     */
+    public ConsoleLogger() {
+        applyGlobalLevel();
+        showLevel = readBoolean(PROPERTY_SHOW_LEVEL, showLevel);
+        showDate = readBoolean(PROPERTY_SHOW_DATE, showDate);
+        showSource = readBoolean(PROPERTY_SHOW_SOURCE, showSource);
+        showSourceFullName = readBoolean(PROPERTY_SHOW_SOURCE_FULL_NAME, showSourceFullName);
+        showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
+        applyDateFormat();
+        readLevelRules();
+    }
+
+    private void applyGlobalLevel() {
+        String value = getProperty(PROPERTY_LEVEL);
+        if (value != null) {
+            int threshold = parseThreshold(PROPERTY_LEVEL, value);
+            if (threshold != NO_RULE) {
+                traceEnabled = isAtLeast(LogEntry.LogEntryLevel.TRACE, threshold);
+                debugEnabled = isAtLeast(LogEntry.LogEntryLevel.DEBUG, threshold);
+                infoEnabled = isAtLeast(LogEntry.LogEntryLevel.INFO, threshold);
+                warnEnabled = isAtLeast(LogEntry.LogEntryLevel.WARN, threshold);
+                errorEnabled = isAtLeast(LogEntry.LogEntryLevel.ERROR, threshold);
+            }
+        }
+    }
+
+    private void applyDateFormat() {
+        String pattern = getProperty(PROPERTY_DATE_FORMAT);
+        if (pattern != null) {
+            try {
+                dateFormat = new SimpleDateFormat(pattern);
+            } catch (IllegalArgumentException e) {
+                printDiagnostic("Invalid value \"" + pattern + "\" of \"" + PROPERTY_DATE_FORMAT + "\": " + e.getMessage());
+            }
+        }
+    }
+
+    private void readLevelRules() {
+        String list = getProperty(PROPERTY_LEVELS);
+        if (list != null) {
+            for (String item : list.split(",")) {
+                String rule = item.trim();
+                if (rule.isEmpty()) {
+                    continue;
+                }
+                int separator = rule.indexOf('=');
+                if (separator <= 0) {
+                    printDiagnostic("Invalid item \"" + rule + "\" of \"" + PROPERTY_LEVELS + "\": expected <package or class>=<level>");
+                    continue;
+                }
+                addLevelRule(rule.substring(0, separator).trim(), PROPERTY_LEVELS, rule.substring(separator + 1));
+            }
+        }
+        // single properties come last, so they override an entry of the list for the same name
+        for (String key : System.getProperties().stringPropertyNames()) {
+            if (key.startsWith(LEVEL_RULE_PREFIX)) {
+                addLevelRule(key.substring(LEVEL_RULE_PREFIX.length()), key, System.getProperty(key));
+            }
+        }
+    }
+
+    private void addLevelRule(String name, String property, String value) {
+        int threshold = parseThreshold(property, value);
+        if (threshold != NO_RULE) {
+            levelRules.put(name, threshold);
+        }
+    }
+
+    private static int parseThreshold(String property, String value) {
+        String name = value.trim();
+        for (int i = 0; i < THRESHOLDS.length; i++) {
+            if (THRESHOLDS[i].equalsIgnoreCase(name)) {
+                return i;
+            }
+        }
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF");
+        return NO_RULE;
+    }
+
+    private static boolean readBoolean(String property, boolean defaultValue) {
+        String value = getProperty(property);
+        if (value == null) {
+            return defaultValue;
+        } else if ("true".equalsIgnoreCase(value.trim())) {
+            return true;
+        } else if ("false".equalsIgnoreCase(value.trim())) {
+            return false;
+        }
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected true or false");
+        return defaultValue;
+    }
+
+    private static boolean isAtLeast(LogEntry.LogEntryLevel level, int threshold) {
+        return level.ordinal() >= threshold;
+    }
+
+    /**
+     * The threshold of the most specific rule for the class: the class itself, then its enclosing classes, then
+     * its packages from the innermost outwards. {@link #NO_RULE} if no rule matches.
+     */
+    private int findThreshold(Class sourceClass) {
+        String name = sourceClass.getName();
+        while (true) {
+            Integer threshold = levelRules.get(name);
+            if (threshold != null) {
+                return threshold;
+            }
+            int cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
+            if (cut == -1) {
+                return NO_RULE;
+            }
+            name = name.substring(0, cut);
+        }
+    }
+
     @Override
     public void log(LogEntry entry) {
         getOutputStream(entry).println(createLogString(entry));
@@ -29,6 +174,12 @@ public class ConsoleLogger implements ILogger {
 
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+        if (sourceClass != null) {
+            int threshold = thresholdCache.computeIfAbsent(sourceClass, this::findThreshold);
+            if (threshold != NO_RULE) {
+                return isAtLeast(level, threshold);
+            }
+        }
         switch (level) {
             case TRACE:
                 return isTraceEnabled();

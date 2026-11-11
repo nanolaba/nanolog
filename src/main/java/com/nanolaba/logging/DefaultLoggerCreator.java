@@ -2,24 +2,57 @@ package com.nanolaba.logging;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.function.Function;
 
 public class DefaultLoggerCreator {
 
     public static final String PROPERTY_PREFIX = "nanolog.";
     public static final String PROPERTY_LOGGER_CLASS = PROPERTY_PREFIX + "logger";
     public static final String PROPERTY_LOGGER_CONFIG_FILE = PROPERTY_PREFIX + "config";
+    public static final String PROPERTY_LEVEL = PROPERTY_PREFIX + "level";
+    public static final String PROPERTY_LEVELS = PROPERTY_PREFIX + "levels";
 
     public static final String DEFAULT_CONFIGURATION_FILE = "nanolog.properties";
 
+    /**
+     * The source of environment variables; replaced in tests, since a JVM cannot change its own environment.
+     */
+    static Function<String, String> environment = System::getenv;
+
     private DefaultLoggerCreator() {
+    }
+
+    /**
+     * Looks a setting up in the system properties first, then in the environment variable of the same name.
+     * Keys from {@code nanolog.properties} reach this method as system properties, but only those the environment
+     * does not define, so the precedence is: {@code -D}, environment, file.
+     */
+    static String getProperty(String name) {
+        String value = System.getProperty(name);
+        return value != null ? value : environment.apply(toEnvironmentName(name));
+    }
+
+    /**
+     * {@code nanolog.console.showDate} becomes {@code NANOLOG_CONSOLE_SHOWDATE}.
+     */
+    static String toEnvironmentName(String property) {
+        return property.toUpperCase(Locale.ROOT).replace('.', '_');
+    }
+
+    /**
+     * Prints a {@code [NANOLOG]} diagnostic to {@code System.err}. Configuration mistakes must not break logging.
+     */
+    static void printDiagnostic(String message) {
+        System.err.println("[NANOLOG] " + message);
     }
 
     public static ILogger createDefaultLogger() {
 
         loadPropertiesFromFile();
 
-        String logger = System.getProperty(PROPERTY_LOGGER_CLASS);
+        String logger = getProperty(PROPERTY_LOGGER_CLASS);
         if (logger != null && !logger.isEmpty()) {
             try {
                 Class<?> loggerClass = Class.forName(logger);
@@ -34,7 +67,10 @@ public class DefaultLoggerCreator {
     }
 
     private static void loadPropertiesFromFile() {
-        String config = System.getProperty(PROPERTY_LOGGER_CONFIG_FILE, DEFAULT_CONFIGURATION_FILE);
+        String config = getProperty(PROPERTY_LOGGER_CONFIG_FILE);
+        if (config == null) {
+            config = DEFAULT_CONFIGURATION_FILE;
+        }
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if (classLoader == null) {
             classLoader = DefaultLoggerCreator.class.getClassLoader();
@@ -46,7 +82,8 @@ public class DefaultLoggerCreator {
                 props.forEach((name, value) -> {
                     String key = (String) name;
                     // only our own namespace: a config file must not be able to alter arbitrary JVM-wide settings
-                    if (key.startsWith(PROPERTY_PREFIX) && System.getProperty(key) == null) {
+                    // a key already set through -D or the environment wins over the file
+                    if (key.startsWith(PROPERTY_PREFIX) && getProperty(key) == null) {
                         System.setProperty(key, (String) value);
                     }
                 });

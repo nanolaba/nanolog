@@ -58,8 +58,9 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 - 3 [Agent-driven development](#agent-driven-development)
 - 4 [Choosing a logger](#choosing-a-logger)
 	- 4.1 [ConsoleLogger](#consolelogger)
-	- 4.2 [Slf4jLogger](#slf4jlogger)
-	- 4.3 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 4.2 [Levels and options without code](#levels-and-options-without-code)
+	- 4.3 [Slf4jLogger](#slf4jlogger)
+	- 4.4 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 - 6 [Caller detection](#caller-detection)
 - 7 [Writing your own logger](#writing-your-own-logger)
@@ -170,6 +171,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
+- **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. See [Levels and options without code](#levels-and-options-without-code).
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
@@ -178,8 +180,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
 Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
-JSON lines, levels set through properties
-and environment variables, an `llms.txt` and an installable agent skill.
+JSON lines, an `llms.txt` and an installable agent skill.
 
 ## Choosing a logger
 
@@ -204,10 +205,11 @@ The default `ConsoleLogger` can be replaced in three ways:
    ```
 
    When `LOG` initialises, the keys of the file with the `nanolog.` prefix are copied
-   into system properties without overwriting the ones already set via `-D`.
+   into system properties without overwriting the ones already set via `-D` or an environment variable.
    Other keys are ignored. The file path can be overridden with the `nanolog.config` property.
 
-Precedence, highest first: `LOG.init(logger)` → `-Dnanolog.logger` → `nanolog.properties` → `ConsoleLogger`.
+Every property can also be set as an environment variable: upper case, dots replaced by underscores, so `nanolog.logger` becomes `NANOLOG_LOGGER`.
+Precedence, highest first: `LOG.init(logger)` → `-Dnanolog.logger` → `NANOLOG_LOGGER` → `nanolog.properties` → `ConsoleLogger`.
 A no-argument `LOG.init()` re-reads the property and the file.
 
 | Property | Meaning | Default |
@@ -247,11 +249,39 @@ LOG.init(new ConsoleLogger()
 - `showDate` + `dateFormat` — the timestamp and its `SimpleDateFormat`; formatting is synchronized, so one shared format is safe.
 - `showSource` / `showSourceFullName` — the simple or the fully qualified source class name.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
-- `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.
+- `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.
 
 For a custom layout (colours, JSON, a different order) extend `ConsoleLogger` and
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
 `writeThrowable` or `addDelimiter`.
+
+### Levels and options without code
+
+The constructor of `ConsoleLogger` reads these settings from system properties, environment variables and `nanolog.properties`, in this order of precedence:
+
+| Property | Environment variable | Meaning |
+|---|---|---|
+| `nanolog.level` | `NANOLOG_LEVEL` | the lowest enabled level: `TRACE` (default), `DEBUG`, `INFO`, `WARN`, `ERROR`, `OFF` |
+| `nanolog.level.<package or class>` | — | the level for one package or class |
+| `nanolog.levels` | `NANOLOG_LEVELS` | several such rules in one value: `com.acme.payments=DEBUG,com.acme.db=TRACE` |
+| `nanolog.console.showLevel` | `NANOLOG_CONSOLE_SHOWLEVEL` | `true` or `false`, like the setter |
+| `nanolog.console.showDate` | `NANOLOG_CONSOLE_SHOWDATE` | the same |
+| `nanolog.console.showSource` | `NANOLOG_CONSOLE_SHOWSOURCE` | the same |
+| `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | the same |
+| `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | the same |
+| `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | a `SimpleDateFormat` pattern |
+
+```
+java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
+NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
+```
+
+- A package or class rule beats the global level, however that level was set, setters included. Turning `DEBUG` on for one package therefore needs no code change.
+- The most specific rule wins: the class itself, then its enclosing classes, then its packages from the innermost outwards. A rule matches whole name segments only, so `com.acme.pay` does not cover `com.acme.payments`.
+- `nanolog.level.<name>` beats an item for the same name in `nanolog.levels`.
+- Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.
+- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.
+- `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
 
 ### Slf4jLogger
 
@@ -437,6 +467,7 @@ In development, not released yet.
 - A trailing `Throwable` that no `{}` consumes becomes the exception of the entry, as in SLF4J: `LOG.error("Failed", e)` and `LOG.error("Failed {}", id, e)` no longer drop the stack trace.
 - `LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.
 - `MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.
+- `ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.
 
 ### 1.1
 
