@@ -2,10 +2,37 @@ package com.nanolaba.logging;
 
 import java.util.Arrays;
 
+/**
+ * One log record, as {@link ILogger#log(LogEntry)} receives it: level, source class, call site, exception, message
+ * and its arguments, creation time and thread. The message is resolved from its {@code Supplier} and formatted once,
+ * when the entry is created. Entries are immutable.
+ */
 public class LogEntry {
 
+    /**
+     * The levels, from the most to the least detailed.
+     */
     public enum LogEntryLevel {
-        TRACE, DEBUG, INFO, WARN, ERROR
+        /**
+         * The finest detail, for tracing the flow of a program.
+         */
+        TRACE,
+        /**
+         * Information for diagnosing problems.
+         */
+        DEBUG,
+        /**
+         * Normal events worth recording.
+         */
+        INFO,
+        /**
+         * Something unexpected that the program can handle.
+         */
+        WARN,
+        /**
+         * A failure.
+         */
+        ERROR
     }
 
     private final LogEntryLevel level;
@@ -20,6 +47,17 @@ public class LogEntry {
 
     private static final char ESCAPE_CHAR = '\\';
 
+    /**
+     * Creates an entry and formats its message. When no throwable is given and the last argument is a
+     * {@link Throwable} that no {@code {}} placeholder consumes, that argument becomes the throwable of the entry and
+     * is removed from the arguments, as in SLF4J.
+     *
+     * @param level       the level
+     * @param sourceClass the source class; may be {@code null}
+     * @param throwable   the exception; may be {@code null}
+     * @param message     the message, any object; may be {@code null}
+     * @param args        the arguments for {@code {}} placeholders in the message
+     */
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
         this(level, sourceClass, null, throwable, message, args);
     }
@@ -46,18 +84,38 @@ public class LogEntry {
         }
     }
 
+    /**
+     * Returns the level.
+     *
+     * @return the level
+     */
     public LogEntryLevel getLevel() {
         return level;
     }
 
+    /**
+     * Returns the detected or explicitly passed source class; {@code null} only if {@code null} was passed.
+     *
+     * @return the detected or explicitly passed source class; {@code null} only if {@code null} was passed
+     */
     public Class getSourceClass() {
         return sourceClass;
     }
 
+    /**
+     * Returns the exception, passed first or taken from the last argument; {@code null} if there is none.
+     *
+     * @return the exception, passed first or taken from the last argument; {@code null} if there is none
+     */
     public Throwable getThrowable() {
         return throwable;
     }
 
+    /**
+     * Returns the raw message object, already resolved from its {@code Supplier}; may be {@code null}.
+     *
+     * @return the raw message object, already resolved from its {@code Supplier}; may be {@code null}
+     */
     public Object getMessage() {
         return message;
     }
@@ -65,6 +123,8 @@ public class LogEntry {
     /**
      * The stack frame of the logging call, found while detecting the source class; {@code null} when the source class
      * was passed explicitly, because then no stack walk takes place.
+     *
+     * @return the frame: class, method, file and line of the call
      */
     public StackTraceElement getCaller() {
         return caller;
@@ -79,6 +139,8 @@ public class LogEntry {
 
     /**
      * The time the entry was created, in milliseconds since the epoch, like {@link System#currentTimeMillis()}.
+     *
+     * @return the creation time
      */
     public long getTimestamp() {
         return timestamp;
@@ -86,19 +148,37 @@ public class LogEntry {
 
     /**
      * The name of the thread that created the entry, so a logger that writes later or elsewhere still knows it.
+     *
+     * @return the thread name
      */
     public String getThreadName() {
         return threadName;
     }
 
+    /**
+     * Returns the arguments for the placeholders, without a trailing throwable taken as the exception.
+     *
+     * @return the arguments for the placeholders, without a trailing throwable taken as the exception
+     */
     public Object[] getArgs() {
         return args;
     }
 
+    /**
+     * Returns the message with the placeholders substituted; {@code "null"} for a {@code null} message.
+     *
+     * @return the message with the placeholders substituted; {@code "null"} for a {@code null} message
+     */
     public String getFormattedMessage() {
         return formattedMessage;
     }
 
+    /**
+     * A representation for debugging; never throws, even if the message or an argument has a broken
+     * {@code toString()}.
+     *
+     * @return the level, source class, throwable, message and arguments
+     */
     @Override
     public String toString() {
         return "LogEntry{" +

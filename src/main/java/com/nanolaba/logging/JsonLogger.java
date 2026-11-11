@@ -34,6 +34,12 @@ public class JsonLogger extends ConsoleLogger {
         super();
     }
 
+    /**
+     * Builds the JSON object of an entry.
+     *
+     * @param entry the entry to write
+     * @return one line of JSON without the final line break
+     */
     @Override
     protected String createLogString(LogEntry entry) {
         StringBuilder out = new StringBuilder(256);

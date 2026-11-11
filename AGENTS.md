@@ -15,6 +15,10 @@ Maven project targeting **Java 8** (`maven.compiler.release=8`). Do not introduc
 
 CI (`.github/workflows/ci.yml`) runs `mvn -Dgpg.skip=true -Dcheck=true verify` on JDK 8, 11, 17 and 21. Actions are pinned to commit SHAs and the token is read-only; keep it that way when editing the workflow.
 
+### Javadoc
+
+`maven-javadoc-plugin` runs with `doclint=all` and `failOnWarnings=true`, so every public and protected class, constructor, method, field and enum constant needs a Javadoc comment, with `@param` / `@return` tags and a first sentence before them (JDK 18+ rejects a tag-only comment as "no main description"). JDK 8 javadoc does not report missing comments at all, so check with a newer JDK as well, as CI does: `JAVA_HOME=<jdk17+> mvn javadoc:javadoc`. The plugin skips a run whose sources look unchanged: delete `target/maven-javadoc-plugin-stale-data.txt` (and `target/reports`) to force it. The level overloads of `LOG` share wording per signature shape; keep a new overload consistent with its siblings.
+
 ### Pitest mutation coverage (important)
 
 The `test` phase is wired to run **pitest-maven** with `mutationThreshold=100`. Any surviving mutant fails the build, not just failing unit tests. When changing production code:

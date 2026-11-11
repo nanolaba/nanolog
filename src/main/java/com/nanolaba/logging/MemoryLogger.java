@@ -34,6 +34,8 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Creates a logger that keeps only the newest entries.
+     *
      * @param capacity the number of newest entries to keep; older ones are dropped
      * @throws IllegalArgumentException if the capacity is less than 1
      */
@@ -75,12 +77,19 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Returns the maximum number of entries kept, {@link Integer#MAX_VALUE} without a limit.
+     *
      * @return the maximum number of entries kept, {@link Integer#MAX_VALUE} without a limit
      */
     public int getCapacity() {
         return capacity;
     }
 
+    /**
+     * Keeps the entry, dropping the oldest one if the capacity is exceeded.
+     *
+     * @param entry the entry
+     */
     @Override
     public void log(LogEntry entry) {
         synchronized (entries) {
@@ -92,6 +101,8 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Returns a snapshot of the captured entries, oldest first; it does not change when more entries arrive.
+     *
      * @return a snapshot of the captured entries, oldest first; it does not change when more entries arrive
      */
     public List<LogEntry> getEntries() {
@@ -101,6 +112,9 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Returns a snapshot of the captured entries of one level, oldest first.
+     *
+     * @param level the level to select
      * @return a snapshot of the captured entries of one level, oldest first
      */
     public List<LogEntry> getEntries(LogEntry.LogEntryLevel level) {
@@ -114,6 +128,8 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Returns the formatted messages of the captured entries, oldest first.
+     *
      * @return the formatted messages of the captured entries, oldest first
      */
     public List<String> getMessages() {
@@ -125,6 +141,10 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
+     * Returns {@code true} if an entry of this level has a formatted message containing {@code messagePart}.
+     *
+     * @param level       the level the entry must have
+     * @param messagePart the text its formatted message must contain
      * @return {@code true} if an entry of this level has a formatted message containing {@code messagePart}
      */
     public boolean contains(LogEntry.LogEntryLevel level, String messagePart) {

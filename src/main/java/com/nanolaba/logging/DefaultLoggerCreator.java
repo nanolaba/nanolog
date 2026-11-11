@@ -6,15 +6,43 @@ import java.util.Locale;
 import java.util.Properties;
 import java.util.function.Function;
 
+/**
+ * Chooses the logger that {@link LOG} starts with, and reads the settings of Nanolog.
+ * <p>
+ * Settings are looked up in system properties first, then in environment variables (upper case, dots replaced by
+ * underscores: {@code nanolog.logger} is {@code NANOLOG_LOGGER}), then in {@code nanolog.properties} on the classpath.
+ * The file contributes only keys with the {@code nanolog.} prefix, and only those not set otherwise.
+ */
 public class DefaultLoggerCreator {
 
+    /**
+     * The prefix of every Nanolog setting; other keys of {@code nanolog.properties} are ignored.
+     */
     public static final String PROPERTY_PREFIX = "nanolog.";
+    /**
+     * The class name of the {@link ILogger} to start with; it needs a public no-argument constructor.
+     */
     public static final String PROPERTY_LOGGER_CLASS = PROPERTY_PREFIX + "logger";
+    /**
+     * The classpath resource with the settings, {@value #DEFAULT_CONFIGURATION_FILE} by default.
+     */
     public static final String PROPERTY_LOGGER_CONFIG_FILE = PROPERTY_PREFIX + "config";
+    /**
+     * The lowest level {@link ConsoleLogger} logs: {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}.
+     */
     public static final String PROPERTY_LEVEL = PROPERTY_PREFIX + "level";
+    /**
+     * Levels for packages or classes in one value: {@code com.acme.payments=DEBUG,com.acme.db=TRACE}.
+     */
     public static final String PROPERTY_LEVELS = PROPERTY_PREFIX + "levels";
+    /**
+     * {@code true} reports calls whose {@code {}} placeholders and arguments do not match.
+     */
     public static final String PROPERTY_STRICT = PROPERTY_PREFIX + "strict";
 
+    /**
+     * The resource read when {@value #PROPERTY_LOGGER_CONFIG_FILE} is not set.
+     */
     public static final String DEFAULT_CONFIGURATION_FILE = "nanolog.properties";
 
     /**
@@ -66,6 +94,13 @@ public class DefaultLoggerCreator {
         System.err.println("[NANOLOG] " + message);
     }
 
+    /**
+     * Loads {@code nanolog.properties}, then creates the logger named by {@value #PROPERTY_LOGGER_CLASS}, or a
+     * {@link ConsoleLogger}. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
+     * {@code ConsoleLogger}.
+     *
+     * @return the new logger
+     */
     public static ILogger createDefaultLogger() {
 
         loadPropertiesFromFile();

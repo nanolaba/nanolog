@@ -15,13 +15,44 @@ import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
 import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
 import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
 
+/**
+ * The default logger: one line per entry, {@code ERROR} to {@code System.err} and everything else to
+ * {@code System.out}, followed by the stack trace if there is one.
+ * <pre>
+ * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message
+ * </pre>
+ * Every part is switched by a fluent setter, and the constructor reads the same settings from system properties,
+ * environment variables and {@code nanolog.properties}: {@code nanolog.level}, per-package rules
+ * ({@code nanolog.level.<package or class>}, {@code nanolog.levels}) and {@code nanolog.console.*}. All levels are
+ * enabled by default. For a different layout extend it and override the protected {@code write*} methods.
+ * <p>
+ * Logging is thread-safe; the setters are meant for startup, not for concurrent reconfiguration.
+ */
 public class ConsoleLogger implements ILogger {
 
+    /**
+     * Property for {@link #setShowLevel(boolean)}: {@code true} or {@code false}.
+     */
     public static final String PROPERTY_SHOW_LEVEL = "nanolog.console.showLevel";
+    /**
+     * Property for {@link #setShowDate(boolean)}: {@code true} or {@code false}.
+     */
     public static final String PROPERTY_SHOW_DATE = "nanolog.console.showDate";
+    /**
+     * Property for {@link #setShowSource(boolean)}: {@code true} or {@code false}.
+     */
     public static final String PROPERTY_SHOW_SOURCE = "nanolog.console.showSource";
+    /**
+     * Property for {@link #setShowSourceFullName(boolean)}: {@code true} or {@code false}.
+     */
     public static final String PROPERTY_SHOW_SOURCE_FULL_NAME = "nanolog.console.showSourceFullName";
+    /**
+     * Property for {@link #setShowLocation(boolean)}: {@code true} or {@code false}.
+     */
     public static final String PROPERTY_SHOW_LOCATION = "nanolog.console.showLocation";
+    /**
+     * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
+     */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
 
     private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
@@ -155,11 +186,23 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
+    /**
+     * Prints {@link #createLogString(LogEntry)} as one line to {@link #getOutputStream(LogEntry)}.
+     *
+     * @param entry the entry to write
+     */
     @Override
     public void log(LogEntry entry) {
         getOutputStream(entry).println(createLogString(entry));
     }
 
+    /**
+     * A package or class rule from the properties decides first; without one, the switch of the level does.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; {@code null} follows the switches
+     * @return {@code true} if the entry is logged
+     */
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         if (sourceClass != null) {
@@ -183,10 +226,23 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
+    /**
+     * The stream of an entry: {@code System.err} for {@code ERROR}, {@code System.out} otherwise.
+     *
+     * @param entry the entry to write
+     * @return the stream
+     */
     protected PrintStream getOutputStream(LogEntry entry) {
         return entry.getLevel() == LogEntry.LogEntryLevel.ERROR ? System.err : System.out;
     }
 
+    /**
+     * Builds the text of an entry from the {@code write*} methods, in this order: level, date, source, message,
+     * stack trace.
+     *
+     * @param entry the entry to write
+     * @return the text without the final line break
+     */
     protected String createLogString(LogEntry entry) {
 
         StringWriter out = new StringWriter();
@@ -199,6 +255,12 @@ public class ConsoleLogger implements ILogger {
         return out.toString();
     }
 
+    /**
+     * Writes the stack trace of the entry's exception, if there is one.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
     protected void writeThrowable(StringWriter out, LogEntry entry) {
         if (entry.getThrowable() != null) {
             addDelimiter(out);
@@ -220,6 +282,12 @@ public class ConsoleLogger implements ILogger {
         return out.toString();
     }
 
+    /**
+     * Writes the formatted message, unless the entry has no message or it is empty.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
     protected void writeMessage(StringWriter out, LogEntry entry) {
         if (entry.getMessage() != null) {
             String formattedMessage = entry.getFormattedMessage();
@@ -230,6 +298,12 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
+    /**
+     * Writes {@code [SourceClass]}, with the call site inside the brackets when {@code showLocation} is on.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
     protected void writeSource(StringWriter out, LogEntry entry) {
         Class clz = entry.getSourceClass();
         if (isShowSource() && clz != null) {
@@ -244,6 +318,12 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
+    /**
+     * The name of the source class as printed: simple or fully qualified.
+     *
+     * @param sourceClass the source class, never {@code null}
+     * @return the name
+     */
     protected String getSourceName(Class sourceClass) {
         return isShowSourceFullName() ? sourceClass.getCanonicalName() : sourceClass.getSimpleName();
     }
@@ -251,6 +331,9 @@ public class ConsoleLogger implements ILogger {
     /**
      * The call site appended to the source name: {@code .method(File.java:line)}, the form stack traces use, so IDEs
      * and terminals turn it into a link.
+     *
+     * @param caller the frame of the logging call
+     * @return the text to append
      */
     protected String getLocation(StackTraceElement caller) {
         String file;
@@ -264,6 +347,12 @@ public class ConsoleLogger implements ILogger {
         return "." + caller.getMethodName() + "(" + file + ")";
     }
 
+    /**
+     * Writes the timestamp of {@link #getCurrentDate()} in the date format.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
     protected void writeDate(StringWriter out, LogEntry entry) {
         SimpleDateFormat format = getDateFormat();
         if (isShowDate() && format != null) {
@@ -277,120 +366,256 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
+    /**
+     * The date written for an entry; the time of writing by default. Tests override it for a fixed date.
+     *
+     * @return the date to write
+     */
     protected Date getCurrentDate() {
         return new Date();
     }
 
+    /**
+     * Writes the level name.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
     protected void writeLevel(StringWriter out, LogEntry entry) {
         if (isShowLevel() && entry.getLevel() != null) {
             out.append(entry.getLevel().name());
         }
     }
 
+    /**
+     * Writes the space between two parts, unless nothing has been written yet.
+     *
+     * @param out the text being built
+     */
     protected void addDelimiter(StringWriter out) {
         if (out.getBuffer().length() != 0) {
             out.append(' ');
         }
     }
 
+    /**
+     * Returns the format of the timestamp; {@code null} prints no timestamp.
+     *
+     * @return the format of the timestamp; {@code null} prints no timestamp
+     */
     public SimpleDateFormat getDateFormat() {
         return dateFormat;
     }
 
+    /**
+     * Sets the format of the timestamp, {@code dd.MM.yyyy HH:mm:ss} by default; also set by
+     * {@code nanolog.console.dateFormat}. Formatting holds the format's monitor, so one instance may be shared.
+     *
+     * @param dateFormat the new format; {@code null} prints no timestamp
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setDateFormat(SimpleDateFormat dateFormat) {
         this.dateFormat = dateFormat;
         return this;
     }
 
+    /**
+     * Returns {@code true} if the level name is printed.
+     *
+     * @return {@code true} if the level name is printed
+     */
     public boolean isShowLevel() {
         return showLevel;
     }
 
+    /**
+     * Whether to print the level name. On by default. Also set by {@code nanolog.console.showLevel}.
+     *
+     * @param showLevel the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setShowLevel(boolean showLevel) {
         this.showLevel = showLevel;
         return this;
     }
 
+    /**
+     * Returns {@code true} if the timestamp is printed.
+     *
+     * @return {@code true} if the timestamp is printed
+     */
     public boolean isShowDate() {
         return showDate;
     }
 
+    /**
+     * Whether to print the timestamp. On by default. Also set by {@code nanolog.console.showDate}.
+     *
+     * @param showDate the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setShowDate(boolean showDate) {
         this.showDate = showDate;
         return this;
     }
 
+    /**
+     * Returns {@code true} if the source class is printed.
+     *
+     * @return {@code true} if the source class is printed
+     */
     public boolean isShowSource() {
         return showSource;
     }
 
+    /**
+     * Whether to print the source class in square brackets. On by default. Also set by {@code nanolog.console.showSource}.
+     *
+     * @param showSource the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setShowSource(boolean showSource) {
         this.showSource = showSource;
         return this;
     }
 
+    /**
+     * Returns {@code true} if the source class is printed with its fully qualified name.
+     *
+     * @return {@code true} if the source class is printed with its fully qualified name
+     */
     public boolean isShowSourceFullName() {
         return showSourceFullName;
     }
 
+    /**
+     * Whether to print the fully qualified name of the source class instead of the simple one. Off by default. Also set by {@code nanolog.console.showSourceFullName}.
+     *
+     * @param showSourceFullName the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setShowSourceFullName(boolean showSourceFullName) {
         this.showSourceFullName = showSourceFullName;
         return this;
     }
 
+    /**
+     * Returns {@code true} if the call site is printed after the source class.
+     *
+     * @return {@code true} if the call site is printed after the source class
+     */
     public boolean isShowLocation() {
         return showLocation;
     }
 
     /**
-     * Appends the call site, {@code .method(File.java:line)}, to the source class. Off by default. Has no effect on
-     * entries logged with an explicit source class, since those carry no caller frame.
+     * Appends the call site, {@code .method(File.java:line)}, to the source class. Off by default; also set by
+     * {@code nanolog.console.showLocation}. Has no effect on entries logged with an explicit source class, since
+     * those carry no caller frame.
+     *
+     * @param showLocation the new value
+     * @return this logger, for chaining
      */
     public ConsoleLogger setShowLocation(boolean showLocation) {
         this.showLocation = showLocation;
         return this;
     }
 
+    /**
+     * Returns {@code true} if {@code TRACE} entries are logged.
+     *
+     * @return {@code true} if {@code TRACE} entries are logged
+     */
     public boolean isTraceEnabled() {
         return traceEnabled;
     }
 
+    /**
+     * Whether to log {@code TRACE} entries. Packages and classes with a rule of their own ({@code nanolog.level.<name>}) follow that rule instead. On by default, or as set by {@code nanolog.level}.
+     *
+     * @param traceEnabled the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setTraceEnabled(boolean traceEnabled) {
         this.traceEnabled = traceEnabled;
         return this;
     }
 
+    /**
+     * Returns {@code true} if {@code DEBUG} entries are logged.
+     *
+     * @return {@code true} if {@code DEBUG} entries are logged
+     */
     public boolean isDebugEnabled() {
         return debugEnabled;
     }
 
+    /**
+     * Whether to log {@code DEBUG} entries. Packages and classes with a rule of their own ({@code nanolog.level.<name>}) follow that rule instead. On by default, or as set by {@code nanolog.level}.
+     *
+     * @param debugEnabled the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setDebugEnabled(boolean debugEnabled) {
         this.debugEnabled = debugEnabled;
         return this;
     }
 
+    /**
+     * Returns {@code true} if {@code INFO} entries are logged.
+     *
+     * @return {@code true} if {@code INFO} entries are logged
+     */
     public boolean isInfoEnabled() {
         return infoEnabled;
     }
 
+    /**
+     * Whether to log {@code INFO} entries. Packages and classes with a rule of their own ({@code nanolog.level.<name>}) follow that rule instead. On by default, or as set by {@code nanolog.level}.
+     *
+     * @param infoEnabled the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setInfoEnabled(boolean infoEnabled) {
         this.infoEnabled = infoEnabled;
         return this;
     }
 
+    /**
+     * Returns {@code true} if {@code WARN} entries are logged.
+     *
+     * @return {@code true} if {@code WARN} entries are logged
+     */
     public boolean isWarnEnabled() {
         return warnEnabled;
     }
 
+    /**
+     * Whether to log {@code WARN} entries. Packages and classes with a rule of their own ({@code nanolog.level.<name>}) follow that rule instead. On by default, or as set by {@code nanolog.level}.
+     *
+     * @param warnEnabled the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setWarnEnabled(boolean warnEnabled) {
         this.warnEnabled = warnEnabled;
         return this;
     }
 
+    /**
+     * Returns {@code true} if {@code ERROR} entries are logged.
+     *
+     * @return {@code true} if {@code ERROR} entries are logged
+     */
     public boolean isErrorEnabled() {
         return errorEnabled;
     }
 
+    /**
+     * Whether to log {@code ERROR} entries. Packages and classes with a rule of their own ({@code nanolog.level.<name>}) follow that rule instead. On by default, or as set by {@code nanolog.level}.
+     *
+     * @param errorEnabled the new value
+     * @return this logger, for chaining
+     */
     public ConsoleLogger setErrorEnabled(boolean errorEnabled) {
         this.errorEnabled = errorEnabled;
         return this;

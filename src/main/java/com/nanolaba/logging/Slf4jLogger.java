@@ -9,6 +9,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 
+/**
+ * Forwards entries to SLF4J, and through it to Logback, Log4j 2 or any other backend. Each entry goes to the SLF4J
+ * logger named after its source class, an entry without one to the root logger. Levels, layouts and appenders are
+ * configured in the backend; {@link #isEnabled} asks the backend.
+ * <p>
+ * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
+ * after {@link LOG}, so its {@code %file:%line} or {@code %l} shows the code that called {@code LOG}. SLF4J markers
+ * are not supported; MDC works as usual. {@code slf4j-api} is a {@code provided} dependency of Nanolog.
+ */
 public class Slf4jLogger implements ILogger {
 
     /**
@@ -28,12 +37,19 @@ public class Slf4jLogger implements ILogger {
     }
 
     /**
+     * Creates a bridge that takes its loggers from the given factory.
+     *
      * @param factory returns the SLF4J logger of a name; replaced in tests
      */
     Slf4jLogger(Function<String, Logger> factory) {
         this.factory = factory;
     }
 
+    /**
+     * Passes the entry to the SLF4J logger of its source class at the same level.
+     *
+     * @param entry the entry; an entry without a message is passed with an empty one
+     */
     @Override
     public void log(LogEntry entry) {
 
@@ -81,6 +97,13 @@ public class Slf4jLogger implements ILogger {
         }
     }
 
+    /**
+     * Asks the SLF4J logger of the source class whether the level is enabled.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; {@code null} asks the root logger
+     * @return the answer of the backend
+     */
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         Logger logger = getLogger(sourceClass);

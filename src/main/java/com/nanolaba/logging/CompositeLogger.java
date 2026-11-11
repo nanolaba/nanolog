@@ -18,6 +18,8 @@ public class CompositeLogger implements ILogger {
     private final ILogger[] loggers;
 
     /**
+     * Creates a composite of the given loggers.
+     *
      * @param loggers the delegates, in the order they receive each entry; none of them may be {@code null}
      * @throws NullPointerException if the array or any delegate is {@code null}
      */
@@ -29,12 +31,19 @@ public class CompositeLogger implements ILogger {
     }
 
     /**
+     * Returns the delegates in the order they receive each entry, as an unmodifiable list.
+     *
      * @return the delegates in the order they receive each entry, as an unmodifiable list
      */
     public List<ILogger> getLoggers() {
         return Collections.unmodifiableList(Arrays.asList(loggers));
     }
 
+    /**
+     * Passes the entry to every delegate that has its level enabled, in order.
+     *
+     * @param entry the entry
+     */
     @Override
     public void log(LogEntry entry) {
         for (ILogger logger : loggers) {
@@ -44,6 +53,13 @@ public class CompositeLogger implements ILogger {
         }
     }
 
+    /**
+     * Returns {@code true} if at least one delegate has the level enabled.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; may be {@code null}
+     * @return {@code true} if at least one delegate has the level enabled
+     */
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         for (ILogger logger : loggers) {

@@ -40,7 +40,8 @@ logging
 ├── LOG.java
 ├── LogEntry.java
 ├── MemoryLogger.java
-└── Slf4jLogger.java
+├── Slf4jLogger.java
+└── package-info.java
 ```
 
 - `LOG` — статическая точка входа со всеми `trace` / `debug` / `info` / `warn` / `error` перегрузками.
@@ -164,7 +165,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 | `LOG.isInfoEnabled()` | проверка уровня, с явным классом или без |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | универсальная точка входа, к которой сводятся все перегрузки |
 
-Полные сигнатуры — в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1).
+Каждый класс и метод описан в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1), который IDE показывают и из jar с исходниками.
 
 ## Агентная разработка
 
@@ -179,7 +180,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 - **Вывод, который разбирается скриптом.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` переключает вывод на один JSON-объект в строке, где время, поток, место вызова и трассировка стека — отдельные поля. Такой вывод готов для `jq` или скрипта, который агент напишет на ходу. См. [JsonLogger](#jsonlogger).
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.
 - **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста. При этом в тестовых запусках `-Dnanolog.strict=true` сообщает о таких несовпадениях вместе с местом вызова, чтобы их исправили, а не оставили незамеченными.
-- **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
+- **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
 - **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать **Nanolog**, но и чинить и расширять его.
 
@@ -528,6 +529,7 @@ dependencies {
 - `LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.
 - `MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.
 - `nanolog.strict=true` сообщает о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, по разу на шаблон и с местом вызова.
+- У всего публичного API есть Javadoc, и сборка падает, если комментария не хватает.
 - `ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.
 - `JsonLogger` пишет один JSON-объект в строке. `LogEntry.getTimestamp()` и `LogEntry.getThreadName()` сообщают, когда и где создана запись.
 - `ConsoleLogger`: исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.
