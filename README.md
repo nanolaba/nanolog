@@ -174,7 +174,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
 - **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. See [Levels and options without code](#levels-and-options-without-code).
-- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.
+- **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement. Through SLF4J, the backend's own `%file:%line` reports the same call site.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
@@ -330,6 +330,7 @@ LOG.init(new Slf4jLogger());
 
 Things to know:
 
+- Location-aware backends, Logback and Log4j 2 among them, are told that the call site is the first frame after `LOG`. Their own `%file:%line`, `%method` and `%class` (Logback) or `%l` (Log4j 2) therefore show the code that called `LOG`, not `Slf4jLogger`, with no backend configuration. slf4j-simple prints no location at all.
 - The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. SLF4J markers are not supported; MDC works as usual because the backend reads it itself.
 - An entry without a message is passed with an empty message, not the word `null`.
 - An entry without a source class goes to the SLF4J `ROOT` logger.
@@ -492,6 +493,7 @@ In development, not released yet.
 - `ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.
 - `JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.
 - `ConsoleLogger`: a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.
+- `Slf4jLogger`: location-aware backends (Logback, Log4j 2) report the code that called `LOG` in `%file:%line` and `%l`, instead of `Slf4jLogger.log`.
 
 ### 1.1
 
