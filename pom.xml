@@ -12,12 +12,12 @@
         that removes the need for static logger instances in every class requiring logging
     </description>
 
-    <version>1.2-SNAPSHOT</version>
+    <version>1.2</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- the latest release on Maven Central, shown by README.src.md and agent-guide.src.md; bump after every release -->
-        <nanolog.stableVersion>1.1</nanolog.stableVersion>
+        <nanolog.stableVersion>1.2</nanolog.stableVersion>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <maven.compiler.release>8</maven.compiler.release>

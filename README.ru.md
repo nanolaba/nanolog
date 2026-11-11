@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.1-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.1)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.2-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.2)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
@@ -51,7 +51,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — перехват записей в тестах и отправка записей в несколько логгеров.
 - `DefaultLoggerCreator` — выбирает логгер при старте по системному свойству или файлу настроек.
 
-Последняя стабильная версия — **1.1**; версия в разработке — **1.2-SNAPSHOT** (см. [Changelog](#changelog)).
+Последняя стабильная версия — **1.2**.
 
 ## Содержание
 - 1 [Установка](#установка)
@@ -70,13 +70,12 @@ logging
 - 6 [Определение вызывающего класса](#определение-вызывающего-класса)
 - 7 [Собственный логгер](#собственный-логгер)
 - 8 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 9 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
-- 10 [Changelog](#changelog)
-	- 10.1 [1.2-SNAPSHOT](#12-snapshot)
-	- 10.2 [1.1](#11)
-	- 10.3 [1.0](#10)
-- 11 [Участие в разработке](#участие-в-разработке)
-- 12 [Лицензия](#лицензия)
+- 9 [Changelog](#changelog)
+	- 9.1 [1.2](#12)
+	- 9.2 [1.1](#11)
+	- 9.3 [1.0](#10)
+- 10 [Участие в разработке](#участие-в-разработке)
+- 11 [Лицензия](#лицензия)
 
 
 ## Установка
@@ -87,7 +86,7 @@ logging
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
 </dependency>
 ```
 
@@ -95,14 +94,14 @@ logging
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.1'
+    implementation 'com.nanolaba:nanolog:1.2'
 }
 ```
 
 <details>
 <summary>Скачивание вручную</summary>
 
-Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.1) и добавьте его в classpath.
+Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.2) и добавьте его в classpath.
 
 </details>
 
@@ -166,7 +165,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 | `LOG.isInfoEnabled()` | проверка уровня, с явным классом или без |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | универсальная точка входа, к которой сводятся все перегрузки |
 
-Каждый класс и метод описан в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1), который IDE показывают и из jar с исходниками.
+Каждый класс и метод описан в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2), который IDE показывают и из jar с исходниками.
 
 ## Агентная разработка
 
@@ -181,7 +180,7 @@ java.lang.NumberFormatException: For input string: "not a number"
 - **Вывод, который разбирается скриптом.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` переключает вывод на один JSON-объект в строке, где время, поток, место вызова и трассировка стека — отдельные поля. Такой вывод готов для `jq` или скрипта, который агент напишет на ходу. См. [JsonLogger](#jsonlogger).
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.
 - **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста. При этом в тестовых запусках `-Dnanolog.strict=true` сообщает о таких несовпадениях вместе с местом вызова, чтобы их исправили, а не оставили незамеченными.
-- **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
+- **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
 - **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать **Nanolog**, но и чинить и расширять его.
 
@@ -505,61 +504,22 @@ public class CustomLogger implements ILogger {
 - `LOG.init(...)` и сеттеры `ConsoleLogger` рассчитаны на старт приложения, а не на параллельную перенастройку.
 - Вызов с отключённым уровнем стоит один `isEnabled` плюс, без явного класса, один обход стека. Форматирование сообщения и `Supplier` вычисляются только для включённых уровней.
 
-## Использование SNAPSHOT-версий
-
-Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.2-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.2-SNAPSHOT'
-}
-```
 
 ## Changelog
 
-### 1.2-SNAPSHOT
 
-В разработке, ещё не выпущена.
+### 1.2
 
 - `Throwable` в конце списка аргументов, который не занял ни один `{}`, становится исключением записи, как в SLF4J: `LOG.error("Failed", e)` и `LOG.error("Failed {}", id, e)` больше не теряют трассировку стека.
 - `LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.
-- `MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.
-- `nanolog.strict=true` сообщает о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, по разу на шаблон и с местом вызова.
-- У всего публичного API есть Javadoc, и сборка падает, если комментария не хватает.
-- [`llms.txt`](llms.txt) и навык агента [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) дают кодовым агентам правила работы с библиотекой; оба генерируются вместе с README.
 - `ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.
 - `JsonLogger` пишет один JSON-объект в строке. `LogEntry.getTimestamp()` и `LogEntry.getThreadName()` сообщают, когда и где создана запись.
-- `ConsoleLogger`: исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.
+- `MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.
+- `nanolog.strict=true` сообщает о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, по разу на шаблон и с местом вызова.
 - `Slf4jLogger`: бэкенды, определяющие место вызова (Logback, Log4j 2), показывают в `%file:%line` и `%l` код, вызвавший `LOG`, а не `Slf4jLogger.log`.
+- `ConsoleLogger`: исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.
+- У всего публичного API есть Javadoc, и сборка падает, если комментария не хватает.
+- [`llms.txt`](llms.txt) и навык агента [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) дают кодовым агентам правила работы с библиотекой; оба генерируются вместе с README.
 
 ### 1.1
 
