@@ -51,7 +51,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
-The latest stable version is **1.2**.
+The latest stable version is **1.2**; the version under development is **1.3-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -70,12 +70,14 @@ The latest stable version is **1.2**.
 - 6 [Caller detection](#caller-detection)
 - 7 [Writing your own logger](#writing-your-own-logger)
 - 8 [Thread safety and performance](#thread-safety-and-performance)
-- 9 [Changelog](#changelog)
-	- 9.1 [1.2](#12)
-	- 9.2 [1.1](#11)
-	- 9.3 [1.0](#10)
-- 10 [Contributing](#contributing)
-- 11 [License](#license)
+- 9 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 10 [Changelog](#changelog)
+	- 10.1 [1.3-SNAPSHOT](#13-snapshot)
+	- 10.2 [1.2](#12)
+	- 10.3 [1.1](#11)
+	- 10.4 [1.0](#10)
+- 11 [Contributing](#contributing)
+- 12 [License](#license)
 
 
 ## Installation
@@ -504,9 +506,50 @@ What a `LogEntry` carries:
 - `LOG.init(...)` and the `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
 - A call with a disabled level costs one `isEnabled` check plus, without an explicit class, one stack walk. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
+## Using SNAPSHOT versions
+
+Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.3-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.3-SNAPSHOT'
+}
+```
 
 ## Changelog
 
+### 1.3-SNAPSHOT
+
+In development, not released yet.
 
 ### 1.2
 

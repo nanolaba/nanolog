@@ -2,7 +2,7 @@
 
 > Nanolog (`com.nanolaba:nanolog`) is a tiny logging facade for Java 8+. Every call goes through the static methods of `com.nanolaba.logging.LOG`, and the source class is detected from the stack, so classes have no logger fields. It prints to the console by default, writes JSON lines or forwards to SLF4J, and has no runtime dependencies.
 
-The latest stable version is 1.2. Features marked *1.2+* need version 1.2 or newer.
+The latest stable version is 1.2; this guide describes the development version 1.3-SNAPSHOT. Features marked *1.2+* need version 1.2 or newer.
 
 ## Rules
 
