@@ -214,10 +214,22 @@ public class ConsoleLogger implements ILogger {
     protected void writeThrowable(StringWriter out, LogEntry entry) {
         if (entry.getThrowable() != null) {
             addDelimiter(out);
-            try (PrintWriter writer = new PrintWriter(out)) {
-                entry.getThrowable().printStackTrace(writer);
-            }
+            out.append(stackTraceOf(entry.getThrowable()));
         }
+    }
+
+    /**
+     * The output of {@code printStackTrace}, or {@code [FAILED printStackTrace()]} if the throwable's own
+     * {@code toString()} or stack trace code throws: logging never throws.
+     */
+    static String stackTraceOf(Throwable throwable) {
+        StringWriter out = new StringWriter();
+        try (PrintWriter writer = new PrintWriter(out)) {
+            throwable.printStackTrace(writer);
+        } catch (Throwable t) {
+            return "[FAILED printStackTrace()]";
+        }
+        return out.toString();
     }
 
     protected void writeMessage(StringWriter out, LogEntry entry) {

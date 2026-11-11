@@ -85,6 +85,20 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testBrokenThrowableNeverThrows() {
+        LOG.init(createLogger());
+
+        LOG.error(InfoObject.class, new RuntimeException() {
+            @Override
+            public String toString() {
+                throw new IllegalStateException("broken toString");
+            }
+        }, "message");
+
+        assertEquals("ERROR 01.01.2010 00:00:00 [InfoObject] message [FAILED printStackTrace()]" + System.lineSeparator(), getErrAndClear());
+    }
+
+    @Test
     public void testLocationIsOffByDefault() {
         assertFalse(new ConsoleLogger().isShowLocation());
 

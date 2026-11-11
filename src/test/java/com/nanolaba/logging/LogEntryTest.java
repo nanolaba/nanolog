@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LogEntryTest {
 
@@ -168,6 +169,26 @@ class LogEntryTest {
         LogEntry brokenMessage = new LogEntry(ERROR, getClass(), null, new BrokenToString(), e);
         assertSame(e, brokenMessage.getThrowable());
         assertEquals("[FAILED toString()]", brokenMessage.getFormattedMessage());
+    }
+
+    @Test
+    public void testTimestampIsTakenAtCreation() {
+        long before = System.currentTimeMillis();
+        LogEntry entry = new LogEntry(ERROR, getClass(), null, "now");
+        long after = System.currentTimeMillis();
+
+        assertTrue(entry.getTimestamp() >= before && entry.getTimestamp() <= after, String.valueOf(entry.getTimestamp()));
+    }
+
+    @Test
+    public void testThreadNameIsTakenAtCreation() throws InterruptedException {
+        assertEquals(Thread.currentThread().getName(), new LogEntry(ERROR, getClass(), null, "here").getThreadName());
+
+        LogEntry[] fromWorker = new LogEntry[1];
+        Thread worker = new Thread(() -> fromWorker[0] = new LogEntry(ERROR, getClass(), null, "there"), "nanolog-worker");
+        worker.start();
+        worker.join();
+        assertEquals("nanolog-worker", fromWorker[0].getThreadName());
     }
 
     @Test

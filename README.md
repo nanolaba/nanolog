@@ -24,7 +24,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of
 - **Lazy messages.** `LOG.debug(() -> ...)` is evaluated only when the level is enabled.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
 - **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
-- **Zero dependencies.** Eight classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
+- **Zero dependencies.** Nine classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
@@ -36,6 +36,7 @@ logging
 ├── ConsoleLogger.java
 ├── DefaultLoggerCreator.java
 ├── ILogger.java
+├── JsonLogger.java
 ├── LOG.java
 ├── LogEntry.java
 ├── MemoryLogger.java
@@ -45,7 +46,7 @@ logging
 - `LOG` — the static entry point with all the `trace` / `debug` / `info` / `warn` / `error` overloads.
 - `ILogger` — the extension point: one abstract method plus an optional level filter.
 - `LogEntry` — one log record and the message formatter.
-- `ConsoleLogger`, `Slf4jLogger` — the bundled implementations.
+- `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — the bundled implementations: text, JSON lines and the bridge to SLF4J.
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
@@ -59,8 +60,9 @@ The latest stable version is **1.1**; the version under development is **1.2-SNA
 - 4 [Choosing a logger](#choosing-a-logger)
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Levels and options without code](#levels-and-options-without-code)
-	- 4.3 [Slf4jLogger](#slf4jlogger)
-	- 4.4 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 4.3 [JsonLogger](#jsonlogger)
+	- 4.4 [Slf4jLogger](#slf4jlogger)
+	- 4.5 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 - 6 [Caller detection](#caller-detection)
 - 7 [Writing your own logger](#writing-your-own-logger)
@@ -173,14 +175,15 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
 - **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. See [Levels and options without code](#levels-and-options-without-code).
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.
+- **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.
-- **The whole library fits in a context window.** Eight small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** Nine small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.1). An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
 Features planned for this workflow are tracked under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents):
-JSON lines, an `llms.txt` and an installable agent skill.
+an `llms.txt` and an installable agent skill.
 
 ## Choosing a logger
 
@@ -283,6 +286,24 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.
 - `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
 
+### JsonLogger
+
+One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON library and is selected without code:
+
+```
+-Dnanolog.logger=com.nanolaba.logging.JsonLogger
+```
+
+```json
+{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
+```
+
+- `ts` — ISO-8601 in UTC with milliseconds, sortable as text; `level`, `logger` (the source class), `thread`, `message` (the formatted message).
+- `template` and `args` — the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.
+- `caller` — the call site, when the source class was detected; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
+- Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
+- `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err`). The display options do not apply.
+
 ### Slf4jLogger
 
 The bridge to **SLF4J**. Each entry is forwarded to the `org.slf4j.Logger` named after the source class, so your SLF4J backend sees the real caller, not `LOG`. Levels, patterns, appenders and files are configured in that backend as usual.
@@ -358,7 +379,7 @@ LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.I
 - `{}` is replaced by the next argument; `\{}` is a literal `{}` and consumes no argument; `\\{}` is a literal backslash followed by a substitution.
 - A `Throwable` in the last position that no `{}` consumes is not an argument: it becomes the exception of the entry, and its stack trace is logged, as in SLF4J. In `LOG.error("Cause: {}", e)` the placeholder takes the exception, so only `e.toString()` is printed. An exception passed first always wins; a trailing one then stays an ordinary argument.
 - Primitive arrays are rendered with `Arrays.toString`, object arrays with `Arrays.deepToString`.
-- Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller.
+- Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller. A throwable whose stack trace cannot be printed becomes `[FAILED printStackTrace()]`.
 - The message object itself may be anything, not only a `String`; it is converted with the same guarded `toString()`.
 
 ## Caller detection
@@ -408,6 +429,7 @@ What a `LogEntry` carries:
 - `getCaller()` — the `StackTraceElement` of the logging call; `null` when the source class was passed explicitly.
 - `getThrowable()` — the exception or `null`.
 - `getMessage()` — the raw message object, already resolved from its `Supplier`.
+- `getTimestamp()`, `getThreadName()` — when and in which thread the entry was created, so a logger that writes later or elsewhere still knows.
 - `getArgs()` — the substitution arguments.
 - `getFormattedMessage()` — the final string with `{}` substituted.
 
@@ -468,6 +490,8 @@ In development, not released yet.
 - `LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.
 - `MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.
 - `ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.
+- `JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.
+- `ConsoleLogger`: a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.
 
 ### 1.1
 

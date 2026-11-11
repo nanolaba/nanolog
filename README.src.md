@@ -39,7 +39,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of<!--en--
 - **${en:'Lazy messages.', ru:'Ленивые сообщения.'}** `LOG.debug(() -> ...)` ${en:'is evaluated only when the level is enabled', ru:'вычисляется только при включённом уровне'}.
 - **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
 - **${en:'Logging never throws.', ru:'Логирование никогда не падает.'}** ${en:'A broken', ru:'Сломанный'} `toString()` ${en:'becomes', ru:'превращается в'} `[FAILED toString()]` ${en:'instead of an exception in your code', ru:'вместо исключения в вашем коде'}.
-- **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'Eight classes, no transitive libraries;', ru:'Восемь классов, никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
+- **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'Nine classes, no transitive libraries;', ru:'Девять классов, никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
 - **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
@@ -50,7 +50,7 @@ ${widget:fileTree(path='src/main/java/com/nanolaba/logging', depth='1')}
 - `LOG` — ${en:'the static entry point with all the', ru:'статическая точка входа со всеми'} `trace` / `debug` / `info` / `warn` / `error` ${en:'overloads', ru:'перегрузками'}.
 - `ILogger` — ${en:'the extension point: one abstract method plus an optional level filter', ru:'точка расширения: один абстрактный метод и необязательный фильтр уровней'}.
 - `LogEntry` — ${en:'one log record and the message formatter', ru:'одна запись лога и форматирование сообщения'}.
-- `ConsoleLogger`, `Slf4jLogger` — ${en:'the bundled implementations', ru:'встроенные реализации'}.
+- `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — ${en:'the bundled implementations: text, JSON lines and the bridge to SLF4J', ru:'встроенные реализации: текст, JSON-строки и мост к SLF4J'}.
 - `MemoryLogger`, `CompositeLogger` — ${en:'capturing entries in tests and sending them to several loggers', ru:'перехват записей в тестах и отправка записей в несколько логгеров'}.
 - `DefaultLoggerCreator` — ${en:'picks the logger at startup from a system property or a properties file', ru:'выбирает логгер при старте по системному свойству или файлу настроек'}.
 
@@ -145,21 +145,23 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Уровни на один запуск, без правки кода.** `NANOLOG_LEVEL=INFO` убирает лишнее, когда первый запуск уже прочитан, а `-Dnanolog.level.com.acme.payments=DEBUG` добавляет подробностей для одного пакета, даже если код при старте выключил `DEBUG`. Переменную окружения агент может задать в любой песочнице и в CI, а временная правка кода обычно попадает в коммит. См. [Уровни и настройки без кода](#уровни-и-настройки-без-кода).<!--ru-->
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement.<!--en-->
 - **Строки, которые легко прочитать обратно.** Одна запись занимает одну строку вида `LEVEL дата [КлассИсточник] сообщение`, за ней идёт трассировка стека, если она есть. Такой вывод легко искать через `grep` и сопоставлять с исходниками. С `setShowLocation(true)` каждая строка ещё и называет метод и строку вызова, `[PaymentService.charge(PaymentService.java:87)]`, и агент переходит от вывода прямо к нужному оператору.<!--ru-->
+- **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).<!--en-->
+- **Вывод, который разбирается скриптом.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` переключает вывод на один JSON-объект в строке, где время, поток, место вызова и трассировка стека — отдельные поля. Такой вывод готов для `jq` или скрипта, который агент напишет на ходу. См. [JsonLogger](#jsonlogger).<!--ru-->
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.<!--en-->
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.<!--ru-->
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red.<!--en-->
 - **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. Строка лога никогда не становится причиной красного теста.<!--ru-->
-- **The whole library fits in a context window.** Eight small classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
-- **Вся библиотека помещается в контекстное окно.** Восемь небольших классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
+- **The whole library fits in a context window.** Nine small classes, one entry point, this README and the [Javadoc](${javadoc}/${stableVersion}). An agent reads everything it needs in one pass and does not have to map a framework first.<!--en-->
+- **Вся библиотека помещается в контекстное окно.** Девять небольших классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).<!--en-->
 - **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).<!--ru-->
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend ${name}, not only use it.<!--en-->
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
 Features planned for this workflow are tracked under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--en-->
-JSON lines, an `llms.txt` and an installable agent skill.<!--en-->
+an `llms.txt` and an installable agent skill.<!--en-->
 Возможности, запланированные для этого сценария, собраны под [меткой `agents`](${repo}/issues?q=is%3Aissue+label%3Aagents):<!--ru-->
-JSON-строки, `llms.txt` и устанавливаемый навык для агентов.<!--ru-->
+`llms.txt` и устанавливаемый навык для агентов.<!--ru-->
 
 ## ${en:'Choosing a logger', ru:'Выбор логгера'}
 
@@ -257,6 +259,24 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - ${en:'An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.', ru:'Неверное значение печатает в `System.err` диагностику с префиксом `[NANOLOG]` и игнорируется; логирование продолжается.'}
 - ${en:'`nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.', ru:'`nanolog.properties` читается при инициализации `LOG`, поэтому `ConsoleLogger`, созданный раньше, видит только `-D` и переменные окружения.'}
 
+### JsonLogger
+
+${en:'One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON library and is selected without code:', ru:'Один JSON-объект в строке для `jq`, сборщиков логов и скриптов. Библиотека JSON не нужна, а включается логгер без правки кода:'}
+
+```
+-Dnanolog.logger=com.nanolaba.logging.JsonLogger
+```
+
+```json
+{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
+```
+
+- `ts` — ${en:'ISO-8601 in UTC with milliseconds, sortable as text;', ru:'ISO-8601 в UTC с миллисекундами, сортируется как текст;'} `level`, `logger` (${en:'the source class', ru:'класс-источник'}), `thread`, `message` (${en:'the formatted message', ru:'отформатированное сообщение'}).
+- `template` ${en:'and', ru:'и'} `args` — ${en:'the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.', ru:'исходное сообщение и аргументы строками, только для параметризованных сообщений; одинаковые события можно группировать независимо от аргументов.'}
+- `caller` — ${en:'the call site, when the source class was detected;', ru:'место вызова, если класс-источник определялся автоматически;'} `exception` — `class`, `message` ${en:'and', ru:'и'} `stackTrace`, ${en:'when there is a throwable. Fields without a value are left out.', ru:'если есть исключение. Поля без значения не выводятся.'}
+- ${en:'Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.', ru:'Переводы строк и управляющие символы экранируются, поэтому одна запись — всегда ровно одна строка, вместе с трассировкой стека.'}
+- `JsonLogger` ${en:'extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err`). The display options do not apply.', ru:'наследует `ConsoleLogger`: те же уровни, те же свойства уровней и те же потоки (`ERROR` в `System.err`). Настройки отображения на него не действуют.'}
+
 ### Slf4jLogger
 
 ${en:'The bridge to', ru:'Мост к'} **SLF4J**. ${en:'Each entry is forwarded to the', ru:'Каждая запись передаётся в'} `org.slf4j.Logger` ${en:'named after the source class, so your SLF4J backend sees the real caller, not', ru:'с именем класса-источника, поэтому SLF4J-бэкенд видит реального вызывающего, а не'} `LOG`. ${en:'Levels, patterns, appenders and files are configured in that backend as usual.', ru:'Уровни, шаблоны, аппендеры и файлы настраиваются в этом бэкенде как обычно.'}
@@ -307,7 +327,7 @@ ${widget:import(path='${examples}/Formatting.java', region='formatting', wrap='t
 - ${en:'`{}` is replaced by the next argument; `\{}` is a literal `{}` and consumes no argument; `\\{}` is a literal backslash followed by a substitution.', ru:'`{}` заменяется очередным аргументом; `\{}` — литеральные `{}`, аргумент не расходуется; `\\{}` — литеральный обратный слеш и подстановка.'}
 - ${en:'A `Throwable` in the last position that no `{}` consumes is not an argument: it becomes the exception of the entry, and its stack trace is logged, as in SLF4J. In `LOG.error("Cause: {}", e)` the placeholder takes the exception, so only `e.toString()` is printed. An exception passed first always wins; a trailing one then stays an ordinary argument.', ru:'`Throwable` на последнем месте, который не занял ни один `{}`, не считается аргументом: он становится исключением записи, и его трассировка стека попадает в лог, как в SLF4J. В `LOG.error("Cause: {}", e)` исключение занимает плейсхолдер, поэтому печатается только `e.toString()`. Исключение, переданное первым, всегда главнее; исключение в конце тогда остаётся обычным аргументом.'}
 - ${en:'Primitive arrays are rendered with', ru:'Примитивные массивы выводятся через'} `Arrays.toString`, ${en:'object arrays with', ru:'объектные через'} `Arrays.deepToString`.
-- ${en:'Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller.', ru:'Каждый `toString()` защищён: если он бросает исключение, значение превращается в `[FAILED toString()]`, и наружу ничего не вылетает.'}
+- ${en:'Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller. A throwable whose stack trace cannot be printed becomes `[FAILED printStackTrace()]`.', ru:'Каждый `toString()` защищён: если он бросает исключение, значение превращается в `[FAILED toString()]`, и наружу ничего не вылетает. Исключение, трассировку которого не удаётся напечатать, превращается в `[FAILED printStackTrace()]`.'}
 - ${en:'The message object itself may be anything, not only a', ru:'Сам объект сообщения может быть любым, не только'} `String`; ${en:'it is converted with the same guarded', ru:'он преобразуется тем же защищённым'} `toString()`.
 
 ## ${en:'Caller detection', ru:'Определение вызывающего класса'}
@@ -340,6 +360,7 @@ ${en:'What a `LogEntry` carries:', ru:'Что содержит `LogEntry`:'}
 - `getCaller()` — ${en:'the `StackTraceElement` of the logging call;', ru:'`StackTraceElement` вызова логирования;'} `null` ${en:'when the source class was passed explicitly.', ru:'при явно переданном классе-источнике.'}
 - `getThrowable()` — ${en:'the exception or', ru:'исключение или'} `null`.
 - `getMessage()` — ${en:'the raw message object, already resolved from its', ru:'исходный объект сообщения, уже полученный из'} `Supplier`.
+- `getTimestamp()`, `getThreadName()` — ${en:'when and in which thread the entry was created, so a logger that writes later or elsewhere still knows.', ru:'когда и в каком потоке создана запись, чтобы это знал и логгер, который пишет позже или в другом месте.'}
 - `getArgs()` — ${en:'the substitution arguments.', ru:'аргументы подстановки.'}
 - `getFormattedMessage()` — ${en:'the final string with `{}` substituted.', ru:'итоговая строка с подставленными `{}`.'}
 
@@ -403,6 +424,8 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 - ${en:'`LogEntry.getCaller()` returns the frame of the logging call, and `ConsoleLogger.setShowLocation(true)` prints it as `[PaymentService.charge(PaymentService.java:87)]`.', ru:'`LogEntry.getCaller()` возвращает кадр вызова логирования, а `ConsoleLogger.setShowLocation(true)` печатает его как `[PaymentService.charge(PaymentService.java:87)]`.'}
 - ${en:'`MemoryLogger` captures entries in tests (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` sends entries to several loggers.', ru:'`MemoryLogger` перехватывает записи в тестах (`try (MemoryLogger log = MemoryLogger.install()) { ... }`), `CompositeLogger` отправляет записи в несколько логгеров.'}
 - ${en:'`ConsoleLogger` reads its levels and options from properties and environment variables: `nanolog.level`, `nanolog.level.<package or class>`, `nanolog.levels` and `nanolog.console.*`. Every property, `nanolog.logger` and `nanolog.config` included, can be set as an environment variable (`NANOLOG_LEVEL`), which beats `nanolog.properties`.', ru:'`ConsoleLogger` читает уровни и настройки из свойств и переменных окружения: `nanolog.level`, `nanolog.level.<пакет или класс>`, `nanolog.levels` и `nanolog.console.*`. Любое свойство, включая `nanolog.logger` и `nanolog.config`, можно задать переменной окружения (`NANOLOG_LEVEL`), и она главнее `nanolog.properties`.'}
+- ${en:'`JsonLogger` writes one JSON object per line. `LogEntry.getTimestamp()` and `LogEntry.getThreadName()` tell when and where an entry was created.', ru:'`JsonLogger` пишет один JSON-объект в строке. `LogEntry.getTimestamp()` и `LogEntry.getThreadName()` сообщают, когда и где создана запись.'}
+- `ConsoleLogger`: ${en:'a throwable whose `toString()` throws no longer escapes from the logging call; it is printed as `[FAILED printStackTrace()]`.', ru:'исключение, у которого бросает `toString()`, больше не вылетает из вызова логирования, а печатается как `[FAILED printStackTrace()]`.'}
 ${widget:endIf}
 
 ### 1.1

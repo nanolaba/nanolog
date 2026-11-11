@@ -15,6 +15,8 @@ public class LogEntry {
     private final String formattedMessage;
     private final Object[] args;
     private final StackTraceElement caller;
+    private final long timestamp;
+    private final String threadName;
 
     private static final char ESCAPE_CHAR = '\\';
 
@@ -27,6 +29,8 @@ public class LogEntry {
         this.sourceClass = sourceClass;
         this.caller = caller;
         this.message = message;
+        this.timestamp = System.currentTimeMillis();
+        this.threadName = Thread.currentThread().getName();
 
         String pattern = message == null ? null : safeToString(message);
         // formatted with the original arguments: an unused trailing throwable changes nothing in the text
@@ -71,6 +75,20 @@ public class LogEntry {
      */
     static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args) {
         return new LogEntry(level, sourceClass, caller, throwable, message, args);
+    }
+
+    /**
+     * The time the entry was created, in milliseconds since the epoch, like {@link System#currentTimeMillis()}.
+     */
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    /**
+     * The name of the thread that created the entry, so a logger that writes later or elsewhere still knows it.
+     */
+    public String getThreadName() {
+        return threadName;
     }
 
     public Object[] getArgs() {
@@ -172,7 +190,7 @@ public class LogEntry {
         return delimiterStartIndex >= 2 && msg.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR;
     }
 
-    private static String argToString(Object o) {
+    static String argToString(Object o) {
         if (o == null) {
             return "null";
         } else if (!o.getClass().isArray()) {
@@ -214,7 +232,7 @@ public class LogEntry {
         }
     }
 
-    private static String safeToString(Object o) {
+    static String safeToString(Object o) {
         try {
             return o == null ? "null" : o.toString();
         } catch (Throwable t) {
