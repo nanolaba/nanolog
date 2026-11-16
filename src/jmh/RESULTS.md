@@ -14,31 +14,55 @@ Measured on 2026-11-17.
   Temurin 21.0.13+9. JDK 25: Java HotSpot 25.0.1+8-LTS.
 - JMH 1.37, average time per operation, 1 fork, 3 warm-up and 5 measurement iterations of 1 second each. On JDK 25 JMH
   prints warnings about `sun.misc.Unsafe`; they come from JMH itself and do not affect the results.
-- A first run on JDK 11 and 21 overlapped with an unrelated test run on the same machine (the empty benchmark took
-  3 ± 20 ns instead of 0.3) and was discarded; the numbers below come from a second run on a quiet machine.
-- "Current" is the code of commit `9729ae5` (1.3-SNAPSHOT). "Before #16" is commit `8f4aaca`, the last one before the
-  level check moved in front of the stack walk, compiled on its own and measured with the same benchmark classes.
+- Three versions of the code were measured with the same benchmark classes. "Current" is the code after #24, which
+  detects the caller with `StackWalker` on Java 9+. "Before #24" is commit `daed6b4`. "Before #16" is commit `8f4aaca`,
+  the last one before the level check moved in front of the stack walk, compiled on its own.
+- A first run of "before #24" on JDK 11 and 21 overlapped with an unrelated test run on the same machine (the empty
+  benchmark took 3 ± 20 ns instead of 0.3) and was discarded; the numbers below come from a second run.
 - In every benchmark the source class is `com.nanolaba.logging.benchmark.*`; "on elsewhere" means `DEBUG` is enabled
   only for another package (`-Dnanolog.level.com.acme.other=DEBUG`), so the level is enabled for some class but not for
   this one.
 
 ## Disabled calls
 
-`DisabledCallBenchmark`, in nanoseconds per call. `ConsoleLogger` with `TRACE` and `DEBUG` switched off.
+`DisabledCallBenchmark`, current code, in nanoseconds per call. `ConsoleLogger` with `TRACE` and `DEBUG` switched off.
 
 | Call | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 |
 |---|---:|---:|---:|---:|---:|
-| empty benchmark method, for reference | 0.29 | 0.68 | 0.31 | 0.31 | 0.34 |
-| `LOG.debug("value {}", v)`, `DEBUG` off everywhere | 2.1 | 2.2 | 1.9 | 1.6 | 1.7 |
-| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` off everywhere | 11.4 | 9.2 | 7.0 | 6.9 | 8.2 |
-| `LOG.isDebugEnabled()`, `DEBUG` off everywhere | 3.1 | 3.2 | 1.2 | 1.2 | 1.4 |
-| `LOG.isDebugEnabled(Foo.class)`, `DEBUG` off everywhere | 11.8 | 9.5 | 6.4 | 6.3 | 6.9 |
-| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 12 395 | 9 157 | 8 624 | 9 736 | 8 111 |
-| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` on elsewhere | 11.7 | 9.3 | 7.0 | 6.7 | 8.0 |
+| empty benchmark method, for reference | 0.27 | 0.55 | 0.43 | 0.34 | 0.39 |
+| `LOG.debug("value {}", v)`, `DEBUG` off everywhere | 2.0 | 2.1 | 1.5 | 1.6 | 2.0 |
+| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` off everywhere | 11.6 | 8.3 | 7.5 | 7.2 | 8.9 |
+| `LOG.isDebugEnabled()`, `DEBUG` off everywhere | 3.2 | 2.7 | 1.3 | 1.2 | 1.5 |
+| `LOG.isDebugEnabled(Foo.class)`, `DEBUG` off everywhere | 11.7 | 8.5 | 7.8 | 6.6 | 8.3 |
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 13 711 | 8 523 | 2 432 | 2 603 | 2 821 |
+| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` on elsewhere | 11.4 | 8.7 | 10.3 ± 19.5 | 7.3 | 10.6 |
+
+## Before and after #24
+
+The calls that walk the stack, before and after `StackWalker` replaced the `Throwable` walk on Java 9+, in
+microseconds per call, before → after. Java 8 has no `StackWalker` and still reads a `Throwable`, so its column shows
+the same code twice; the differences there are within the error of the measurements.
+
+| Call | Depth | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 |
+|---|---:|---:|---:|---:|---:|---:|
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere (`DisabledCallBenchmark`) | | 12.4 → 13.7 | 9.2 → 8.5 | 8.6 → 2.4 | 9.7 → 2.6 | 8.1 → 2.8 |
+| the same (`StackDepthBenchmark`) | 10 | 18.0 → 20.0 | 13.0 → 8.5 | 10.5 → 2.6 | 10.2 → 2.6 | 10.4 → 2.7 |
+| | 100 | 61.1 → 65.2 | 29.3 → 8.6 | 25.8 → 3.1 | 25.2 → 2.9 | 27.6 → 3.2 |
+| | 500 | 249.8 → 275.7 | 90.0 → 9.3 | 90.5 → 4.3 | 84.2 → 4.3 | 104.7 → 4.9 |
+| `LOG.info("value {}", v)`, enabled, logger keeps the entry | 10 | 17.7 → 19.9 | 10.7 → 8.3 | 10.5 → 2.9 | 9.9 → 3.0 | 10.1 → 3.4 |
+| | 100 | 60.4 → 64.8 | 25.2 → 9.3 | 26.2 → 3.2 | 24.2 → 3.3 | 26.8 → 3.2 |
+| | 500 | 261.6 → 273.2 | 85.6 → 11.7 | 88.0 → 4.2 | 84.9 → 4.8 | 105.3 → 4.8 |
+| `LOG.info("value {}", v)` through `ConsoleLogger` | | 14.3 → 14.9 | 11.2 → 9.6 | 9.0 → 3.8 | 10.4 → 3.5 | 8.3 → 3.1 |
+
+On JDK 17, 21 and 25 a call that detects its caller became three to four times cheaper near the top of the stack and
+twenty times cheaper 500 frames down, and its cost now hardly grows with the depth: 2.5 to 3.5 µs at 10 frames, about
+3 µs at 100 and 4 to 5 µs at 500. On JDK 11 it no longer grows with the depth either, but the `StackWalker` of that release has a
+higher fixed cost, about 8.5 µs.
 
 ## Before and after #16
 
-The same `DisabledCallBenchmark` against the code before #16, in nanoseconds per call, before → after.
+`DisabledCallBenchmark` against the code before #16, in nanoseconds per call, before → after (after: commit
+`daed6b4`).
 
 | Call | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 |
 |---|---:|---:|---:|---:|---:|
@@ -48,52 +72,53 @@ The same `DisabledCallBenchmark` against the code before #16, in nanoseconds per
 | `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` off everywhere | 11.0 → 11.4 | 7.5 → 9.2 | 22.0 ± 124 → 7.0 | 6.8 → 6.9 | 8.2 → 8.2 |
 
 A level that is off for every class no longer walks the stack, which makes such a call 2 800 to 8 300 times cheaper.
-A level enabled for some other package still needs the class, so that call costs about the same as before: the
-differences in that row are within the error of the measurements. The 22.0 before #16 on JDK 17 is a noisy
-measurement (error ± 124), not a real difference.
+A level enabled for some other package still needs the class, so #16 left that call as it was: the differences in that
+row are within the error of the measurements. #24 made it cheaper on Java 9+, see above. The 22.0 before #16 on JDK 17
+is a noisy measurement (error ± 124), not a real difference.
 
 ## Stack depth
 
-`StackDepthBenchmark`: each call is made `depth` frames below the benchmark method, on top of the frames of JMH
-itself. In microseconds per call.
+`StackDepthBenchmark`, current code: each call is made `depth` frames below the benchmark method, on top of the frames
+of JMH itself. In microseconds per call.
 
 | Call | Depth | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 |
 |---|---:|---:|---:|---:|---:|---:|
-| the recursion only, no logging | 10 | 0.009 | 0.008 | 0.009 | 0.008 | 0.008 |
-| | 100 | 0.078 | 0.070 | 0.081 | 0.089 | 0.088 |
-| | 500 | 0.34 | 0.33 | 0.39 | 0.41 | 0.41 |
-| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 10 | 18.0 | 13.0 ± 10.9 | 10.5 | 10.2 | 10.4 |
-| | 100 | 61.1 | 29.3 | 25.8 | 25.2 | 27.6 |
-| | 500 | 249.8 | 90.0 | 90.5 | 84.2 | 104.7 |
-| `LOG.info("value {}", v)`, enabled, logger keeps the entry | 10 | 17.7 | 10.7 | 10.5 | 9.9 | 10.1 |
-| | 100 | 60.4 | 25.2 | 26.2 | 24.2 | 26.8 |
-| | 500 | 261.6 | 85.6 | 88.0 | 84.9 | 105.3 |
-| `LOG.info(Foo.class, "value {}", v)`, enabled, logger keeps the entry | 10 | 0.12 | 0.08 | 0.07 | 0.07 | 0.05 |
-| | 100 | 0.17 | 0.13 | 0.16 | 0.16 | 0.15 |
-| | 500 | 0.52 | 0.70 ± 1.0 | 0.56 | 0.59 | 0.59 |
+| the recursion only, no logging | 10 | 0.010 | 0.010 | 0.009 | 0.009 | 0.009 |
+| | 100 | 0.078 | 0.082 | 0.081 | 0.092 | 0.108 |
+| | 500 | 0.36 | 0.36 | 0.39 | 0.49 ± 0.42 | 0.58 |
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 10 | 20.0 | 8.5 | 2.6 | 2.6 | 2.7 |
+| | 100 | 65.2 | 8.6 | 3.1 | 2.9 | 3.2 |
+| | 500 | 275.7 | 9.3 | 4.3 | 4.3 | 4.9 |
+| `LOG.info("value {}", v)`, enabled, logger keeps the entry | 10 | 19.9 | 8.3 | 2.9 | 3.0 | 3.4 |
+| | 100 | 64.8 | 9.3 | 3.2 | 3.3 | 3.2 |
+| | 500 | 273.2 | 11.7 | 4.2 | 4.8 | 4.8 |
+| `LOG.info(Foo.class, "value {}", v)`, enabled, logger keeps the entry | 10 | 0.12 | 0.06 | 0.07 | 0.06 | 0.07 |
+| | 100 | 0.19 | 0.13 | 0.16 | 0.16 | 0.18 |
+| | 500 | 0.56 | 0.50 | 0.68 ± 0.38 | 0.61 | 0.75 |
 
-Caller detection dominates every call without a class whose level is enabled for some class. It grows linearly with
-the depth of the stack, because `Throwable.getStackTrace()` builds an element for every frame, even though detection
-needs only the first few: about 25 to 30 µs at a depth of 100 frames on JDK 11 to 25, a depth that code running inside a
-framework reaches easily, and two to three times as much on JDK 8. With an explicit class the same call costs about
-0.05 to 0.2 µs once the recursion of the benchmark is subtracted, whatever the depth. The two values marked with their
-error are noisy measurements.
+Caller detection still dominates every call without a class whose level is enabled for some class. On Java 9+ it costs
+a few microseconds whatever the depth; on Java 8 it grows linearly with the depth, because `Throwable.getStackTrace()`
+builds an element for every frame although detection needs only the first few. With an explicit class the same call
+costs about 0.05 to 0.2 µs once the recursion of the benchmark is subtracted, whatever the depth. Values marked with
+their error are noisy measurements.
 
 ## ConsoleLogger
 
-`ConsoleLoggerBenchmark`: an enabled `INFO` call through the default `ConsoleLogger`, formatted as usual and written to
-a stream that discards it, so no terminal is involved. In nanoseconds per call.
+`ConsoleLoggerBenchmark`, current code: an enabled `INFO` call through the default `ConsoleLogger`, formatted as usual
+and written to a stream that discards it, so no terminal is involved. In nanoseconds per call.
 
 | Call | JDK 8 | JDK 11 | JDK 17 | JDK 21 | JDK 25 |
 |---|---:|---:|---:|---:|---:|
-| `LOG.info(Foo.class, "value {}", v)` | 1 047 | 758 | 617 | 664 | 562 |
-| `LOG.info("value {}", v)` | 14 306 | 11 246 | 8 981 | 10 441 | 8 265 |
+| `LOG.info(Foo.class, "value {}", v)` | 956 | 983 ± 1 418 | 844 ± 433 | 675 | 587 |
+| `LOG.info("value {}", v)` | 14 905 | 9 630 | 3 815 | 3 461 | 3 144 |
 
 ## Findings to follow up
 
-- Caller detection costs microseconds and grows with the stack: a stack walker that stops at the first frame outside
-  Nanolog (#24) should make it independent of the depth.
-- A disabled call with an explicit class (7 to 11 ns) costs more than one without a class at a level that is off
+- Java 8 still pays for a full `Throwable` stack trace and for `Class.forName` on every frame up to the caller:
+  `sun.reflect.Reflection.getCallerClass(int)` and per-frame access to the stack trace could avoid both.
+- On Java 9+ the walk itself is a few microseconds. Part of it may be `StackFrame.toStackTraceElement()`, which the
+  call site needs only when a logger asks for `LogEntry.getCaller()`; measure before building it lazily.
+- A disabled call with an explicit class (7 to 12 ns) costs more than one without a class at a level that is off
   everywhere (2 ns): it skips `mayBeEnabled` and pays for the per-class lookup in `ConsoleLogger.isEnabled`.
 
 ## Raw output
@@ -101,7 +126,157 @@ a stream that discards it, so no terminal is involved. In nanoseconds per call.
 JMH printed the numbers with the decimal comma of the system locale. "Error" is the 99.9% confidence interval.
 
 <details>
-<summary>Current, JDK 8</summary>
+<summary>Current (after #24), JDK 8</summary>
+
+```
+Benchmark                                         (depth)  Mode  Cnt       Score       Error  Units
+ConsoleLoggerBenchmark.infoWithClass                  N/A  avgt    5     955,659 ±   192,632  ns/op
+ConsoleLoggerBenchmark.infoWithoutClass               N/A  avgt    5   14904,937 ±  2391,008  ns/op
+DisabledCallBenchmark.baseline                        N/A  avgt    5       0,271 ±     0,038  ns/op
+DisabledCallBenchmark.isDebugEnabledWithClass         N/A  avgt    5      11,708 ±     1,475  ns/op
+DisabledCallBenchmark.isDebugEnabledWithoutClass      N/A  avgt    5       3,227 ±     1,097  ns/op
+DisabledCallBenchmark.offEverywhereWithClass          N/A  avgt    5      11,583 ±     1,200  ns/op
+DisabledCallBenchmark.offEverywhereWithoutClass       N/A  avgt    5       1,981 ±     0,261  ns/op
+DisabledCallBenchmark.onElsewhereWithClass            N/A  avgt    5      11,406 ±     1,006  ns/op
+DisabledCallBenchmark.onElsewhereWithoutClass         N/A  avgt    5   13710,638 ±  2034,684  ns/op
+StackDepthBenchmark.disabledWithoutClass               10  avgt    5   19989,511 ±  3679,665  ns/op
+StackDepthBenchmark.disabledWithoutClass              100  avgt    5   65220,495 ± 11691,510  ns/op
+StackDepthBenchmark.disabledWithoutClass              500  avgt    5  275718,590 ± 78727,305  ns/op
+StackDepthBenchmark.enabledWithClass                   10  avgt    5     119,762 ±    34,214  ns/op
+StackDepthBenchmark.enabledWithClass                  100  avgt    5     191,914 ±    32,472  ns/op
+StackDepthBenchmark.enabledWithClass                  500  avgt    5     557,103 ±   166,684  ns/op
+StackDepthBenchmark.enabledWithoutClass                10  avgt    5   19909,457 ±  4538,113  ns/op
+StackDepthBenchmark.enabledWithoutClass               100  avgt    5   64750,441 ± 10268,815  ns/op
+StackDepthBenchmark.enabledWithoutClass               500  avgt    5  273156,308 ± 61535,177  ns/op
+StackDepthBenchmark.recursionOnly                      10  avgt    5       9,756 ±     3,872  ns/op
+StackDepthBenchmark.recursionOnly                     100  avgt    5      78,358 ±     5,731  ns/op
+StackDepthBenchmark.recursionOnly                     500  avgt    5     360,980 ±   121,308  ns/op
+```
+
+</details>
+
+<details>
+<summary>Current (after #24), JDK 11</summary>
+
+```
+Benchmark                                         (depth)  Mode  Cnt      Score      Error  Units
+ConsoleLoggerBenchmark.infoWithClass                  N/A  avgt    5    983,027 ± 1417,688  ns/op
+ConsoleLoggerBenchmark.infoWithoutClass               N/A  avgt    5   9629,858 ± 2735,295  ns/op
+DisabledCallBenchmark.baseline                        N/A  avgt    5      0,552 ±    0,107  ns/op
+DisabledCallBenchmark.isDebugEnabledWithClass         N/A  avgt    5      8,463 ±    3,305  ns/op
+DisabledCallBenchmark.isDebugEnabledWithoutClass      N/A  avgt    5      2,678 ±    0,247  ns/op
+DisabledCallBenchmark.offEverywhereWithClass          N/A  avgt    5      8,265 ±    1,540  ns/op
+DisabledCallBenchmark.offEverywhereWithoutClass       N/A  avgt    5      2,068 ±    0,117  ns/op
+DisabledCallBenchmark.onElsewhereWithClass            N/A  avgt    5      8,745 ±    0,960  ns/op
+DisabledCallBenchmark.onElsewhereWithoutClass         N/A  avgt    5   8523,125 ±  971,344  ns/op
+StackDepthBenchmark.disabledWithoutClass               10  avgt    5   8451,205 ±  982,704  ns/op
+StackDepthBenchmark.disabledWithoutClass              100  avgt    5   8601,846 ±  863,951  ns/op
+StackDepthBenchmark.disabledWithoutClass              500  avgt    5   9319,249 ± 1032,207  ns/op
+StackDepthBenchmark.enabledWithClass                   10  avgt    5     60,523 ±    4,850  ns/op
+StackDepthBenchmark.enabledWithClass                  100  avgt    5    128,134 ±    9,030  ns/op
+StackDepthBenchmark.enabledWithClass                  500  avgt    5    499,457 ±   43,960  ns/op
+StackDepthBenchmark.enabledWithoutClass                10  avgt    5   8287,023 ± 1064,800  ns/op
+StackDepthBenchmark.enabledWithoutClass               100  avgt    5   9303,402 ± 2616,969  ns/op
+StackDepthBenchmark.enabledWithoutClass               500  avgt    5  11687,823 ± 2629,770  ns/op
+StackDepthBenchmark.recursionOnly                      10  avgt    5      9,751 ±    6,005  ns/op
+StackDepthBenchmark.recursionOnly                     100  avgt    5     81,814 ±   20,150  ns/op
+StackDepthBenchmark.recursionOnly                     500  avgt    5    355,055 ±   49,942  ns/op
+```
+
+</details>
+
+<details>
+<summary>Current (after #24), JDK 17</summary>
+
+```
+Benchmark                                         (depth)  Mode  Cnt     Score      Error  Units
+ConsoleLoggerBenchmark.infoWithClass                  N/A  avgt    5   844,301 ±  433,291  ns/op
+ConsoleLoggerBenchmark.infoWithoutClass               N/A  avgt    5  3815,272 ±  906,511  ns/op
+DisabledCallBenchmark.baseline                        N/A  avgt    5     0,431 ±    0,140  ns/op
+DisabledCallBenchmark.isDebugEnabledWithClass         N/A  avgt    5     7,841 ±    2,369  ns/op
+DisabledCallBenchmark.isDebugEnabledWithoutClass      N/A  avgt    5     1,278 ±    0,098  ns/op
+DisabledCallBenchmark.offEverywhereWithClass          N/A  avgt    5     7,541 ±    1,862  ns/op
+DisabledCallBenchmark.offEverywhereWithoutClass       N/A  avgt    5     1,541 ±    0,177  ns/op
+DisabledCallBenchmark.onElsewhereWithClass            N/A  avgt    5    10,293 ±   19,534  ns/op
+DisabledCallBenchmark.onElsewhereWithoutClass         N/A  avgt    5  2431,646 ±  258,536  ns/op
+StackDepthBenchmark.disabledWithoutClass               10  avgt    5  2586,523 ±  429,440  ns/op
+StackDepthBenchmark.disabledWithoutClass              100  avgt    5  3087,121 ±  769,989  ns/op
+StackDepthBenchmark.disabledWithoutClass              500  avgt    5  4326,974 ±  617,039  ns/op
+StackDepthBenchmark.enabledWithClass                   10  avgt    5    74,953 ±    9,098  ns/op
+StackDepthBenchmark.enabledWithClass                  100  avgt    5   162,238 ±   16,935  ns/op
+StackDepthBenchmark.enabledWithClass                  500  avgt    5   684,150 ±  383,021  ns/op
+StackDepthBenchmark.enabledWithoutClass                10  avgt    5  2934,717 ±  506,973  ns/op
+StackDepthBenchmark.enabledWithoutClass               100  avgt    5  3179,764 ± 1291,945  ns/op
+StackDepthBenchmark.enabledWithoutClass               500  avgt    5  4162,927 ±  838,604  ns/op
+StackDepthBenchmark.recursionOnly                      10  avgt    5     8,608 ±    0,579  ns/op
+StackDepthBenchmark.recursionOnly                     100  avgt    5    80,696 ±    9,584  ns/op
+StackDepthBenchmark.recursionOnly                     500  avgt    5   391,348 ±   27,683  ns/op
+```
+
+</details>
+
+<details>
+<summary>Current (after #24), JDK 21</summary>
+
+```
+Benchmark                                         (depth)  Mode  Cnt     Score     Error  Units
+ConsoleLoggerBenchmark.infoWithClass                  N/A  avgt    5   674,940 ± 100,264  ns/op
+ConsoleLoggerBenchmark.infoWithoutClass               N/A  avgt    5  3460,558 ± 415,794  ns/op
+DisabledCallBenchmark.baseline                        N/A  avgt    5     0,338 ±   0,078  ns/op
+DisabledCallBenchmark.isDebugEnabledWithClass         N/A  avgt    5     6,563 ±   0,952  ns/op
+DisabledCallBenchmark.isDebugEnabledWithoutClass      N/A  avgt    5     1,215 ±   0,127  ns/op
+DisabledCallBenchmark.offEverywhereWithClass          N/A  avgt    5     7,194 ±   1,540  ns/op
+DisabledCallBenchmark.offEverywhereWithoutClass       N/A  avgt    5     1,617 ±   0,245  ns/op
+DisabledCallBenchmark.onElsewhereWithClass            N/A  avgt    5     7,332 ±   1,992  ns/op
+DisabledCallBenchmark.onElsewhereWithoutClass         N/A  avgt    5  2603,038 ± 277,066  ns/op
+StackDepthBenchmark.disabledWithoutClass               10  avgt    5  2648,681 ± 217,606  ns/op
+StackDepthBenchmark.disabledWithoutClass              100  avgt    5  2914,793 ± 324,012  ns/op
+StackDepthBenchmark.disabledWithoutClass              500  avgt    5  4251,627 ± 602,112  ns/op
+StackDepthBenchmark.enabledWithClass                   10  avgt    5    59,711 ±   8,287  ns/op
+StackDepthBenchmark.enabledWithClass                  100  avgt    5   156,250 ±  19,141  ns/op
+StackDepthBenchmark.enabledWithClass                  500  avgt    5   612,397 ± 101,157  ns/op
+StackDepthBenchmark.enabledWithoutClass                10  avgt    5  3046,654 ± 341,982  ns/op
+StackDepthBenchmark.enabledWithoutClass               100  avgt    5  3308,980 ± 842,578  ns/op
+StackDepthBenchmark.enabledWithoutClass               500  avgt    5  4799,679 ± 802,783  ns/op
+StackDepthBenchmark.recursionOnly                      10  avgt    5     9,233 ±   2,119  ns/op
+StackDepthBenchmark.recursionOnly                     100  avgt    5    92,322 ±  17,251  ns/op
+StackDepthBenchmark.recursionOnly                     500  avgt    5   491,580 ± 419,600  ns/op
+```
+
+</details>
+
+<details>
+<summary>Current (after #24), JDK 25</summary>
+
+```
+Benchmark                                         (depth)  Mode  Cnt     Score      Error  Units
+ConsoleLoggerBenchmark.infoWithClass                  N/A  avgt    5   586,928 ±   88,221  ns/op
+ConsoleLoggerBenchmark.infoWithoutClass               N/A  avgt    5  3144,299 ±  648,872  ns/op
+DisabledCallBenchmark.baseline                        N/A  avgt    5     0,385 ±    0,116  ns/op
+DisabledCallBenchmark.isDebugEnabledWithClass         N/A  avgt    5     8,301 ±    5,459  ns/op
+DisabledCallBenchmark.isDebugEnabledWithoutClass      N/A  avgt    5     1,515 ±    0,286  ns/op
+DisabledCallBenchmark.offEverywhereWithClass          N/A  avgt    5     8,876 ±    1,261  ns/op
+DisabledCallBenchmark.offEverywhereWithoutClass       N/A  avgt    5     1,988 ±    0,399  ns/op
+DisabledCallBenchmark.onElsewhereWithClass            N/A  avgt    5    10,569 ±    1,891  ns/op
+DisabledCallBenchmark.onElsewhereWithoutClass         N/A  avgt    5  2820,784 ± 1647,089  ns/op
+StackDepthBenchmark.disabledWithoutClass               10  avgt    5  2696,257 ± 1228,733  ns/op
+StackDepthBenchmark.disabledWithoutClass              100  avgt    5  3162,586 ±  687,611  ns/op
+StackDepthBenchmark.disabledWithoutClass              500  avgt    5  4892,764 ± 1933,553  ns/op
+StackDepthBenchmark.enabledWithClass                   10  avgt    5    67,571 ±   13,527  ns/op
+StackDepthBenchmark.enabledWithClass                  100  avgt    5   182,716 ±   48,168  ns/op
+StackDepthBenchmark.enabledWithClass                  500  avgt    5   745,066 ±  139,337  ns/op
+StackDepthBenchmark.enabledWithoutClass                10  avgt    5  3392,175 ± 1110,961  ns/op
+StackDepthBenchmark.enabledWithoutClass               100  avgt    5  3187,099 ±  583,581  ns/op
+StackDepthBenchmark.enabledWithoutClass               500  avgt    5  4757,326 ± 1284,502  ns/op
+StackDepthBenchmark.recursionOnly                      10  avgt    5     9,280 ±    2,059  ns/op
+StackDepthBenchmark.recursionOnly                     100  avgt    5   107,514 ±   31,368  ns/op
+StackDepthBenchmark.recursionOnly                     500  avgt    5   584,313 ±   88,443  ns/op
+```
+
+</details>
+
+<details>
+<summary>Before #24 (daed6b4), JDK 8</summary>
 
 ```
 Benchmark                                         (depth)  Mode  Cnt       Score       Error  Units
@@ -131,7 +306,7 @@ StackDepthBenchmark.recursionOnly                     500  avgt    5     338,129
 </details>
 
 <details>
-<summary>Current, JDK 11</summary>
+<summary>Before #24 (daed6b4), JDK 11</summary>
 
 ```
 Benchmark                                         (depth)  Mode  Cnt      Score       Error  Units
@@ -161,7 +336,7 @@ StackDepthBenchmark.recursionOnly                     500  avgt    5    333,649 
 </details>
 
 <details>
-<summary>Current, JDK 17</summary>
+<summary>Before #24 (daed6b4), JDK 17</summary>
 
 ```
 Benchmark                                         (depth)  Mode  Cnt      Score       Error  Units
@@ -191,7 +366,7 @@ StackDepthBenchmark.recursionOnly                     500  avgt    5    386,901 
 </details>
 
 <details>
-<summary>Current, JDK 21</summary>
+<summary>Before #24 (daed6b4), JDK 21</summary>
 
 ```
 Benchmark                                         (depth)  Mode  Cnt      Score       Error  Units
@@ -221,7 +396,7 @@ StackDepthBenchmark.recursionOnly                     500  avgt    5    405,449 
 </details>
 
 <details>
-<summary>Current, JDK 25</summary>
+<summary>Before #24 (daed6b4), JDK 25</summary>
 
 ```
 Benchmark                                         (depth)  Mode  Cnt       Score       Error  Units

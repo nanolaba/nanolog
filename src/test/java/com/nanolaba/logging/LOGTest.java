@@ -2,6 +2,7 @@ package com.nanolaba.logging;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import javax.tools.JavaCompiler;
@@ -19,8 +20,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class LOGTest {
+
+    private final CallerDetection.Locator originalLocator = LOG.callerLocator;
+
+    @AfterEach
+    public void restoreCallerLocator() {
+        LOG.callerLocator = originalLocator;
+    }
 
     @Test
     public void testTraceLog() {
@@ -529,10 +538,12 @@ public class LOGTest {
 
     /**
      * The caller lives in a child class loader (app server, plugin framework) that LOG's own loader cannot see,
-     * but it is the thread's context class loader: the source class must still be detected.
+     * but it is the thread's context class loader: the {@code Throwable} walk, which resolves classes by name, must
+     * still detect the source class.
      */
     @Test
     public void testCallerFromContextClassLoader() throws Exception {
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
         Mutable<Class> sourceClass = new MutableObject<>();
         Mutable<StackTraceElement> frame = new MutableObject<>();
         LOG.init(entry -> {
@@ -555,11 +566,12 @@ public class LOGTest {
     }
 
     /**
-     * The caller's class loader is neither the context class loader nor LOG's loader: the frame cannot be resolved,
-     * so it is skipped instead of breaking the logging call.
+     * The caller's class loader is neither the context class loader nor LOG's loader: the {@code Throwable} walk
+     * cannot resolve the frame by name, so it skips it instead of breaking the logging call.
      */
     @Test
     public void testCallerFromUnresolvableClassLoader() throws Exception {
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
         Mutable<Class> sourceClass = new MutableObject<>();
         Mutable<StackTraceElement> frame = new MutableObject<>();
         LOG.init(entry -> {
@@ -578,10 +590,34 @@ public class LOGTest {
     }
 
     /**
+     * The stack walker of Java 9+ hands over the class of each frame, so a caller that no loader can resolve by name
+     * is found exactly, with its frame.
+     */
+    @Test
+    public void testStackWalkFindsACallerThatNoLoaderCanResolve() throws Exception {
+        assumeTrue(CallerDetectionTest.isJava9OrLater(), "StackWalker exists from Java 9");
+        LOG.callerLocator = new CallerDetection.StackWalk();
+        Mutable<Class> sourceClass = new MutableObject<>();
+        Mutable<StackTraceElement> frame = new MutableObject<>();
+        LOG.init(entry -> {
+            sourceClass.setValue(entry.getSourceClass());
+            frame.setValue(entry.getCaller());
+        });
+
+        try (ForeignCaller caller = new ForeignCaller()) {
+            caller.callLog();
+            assertSame(caller.callerClass, sourceClass.getValue());
+            assertEquals(ForeignCaller.CLASS_NAME, frame.getValue().getClassName());
+            assertEquals("call", frame.getValue().getMethodName());
+        }
+    }
+
+    /**
      * The context class loader cannot see the caller (or is absent), but LOG's own loader can: the fallback resolves it.
      */
     @Test
     public void testCallerResolvedByOwnLoaderWhenContextLoaderCannotSeeIt() throws Exception {
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
         Mutable<Class> sourceClass = new MutableObject<>();
         LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
 
@@ -639,6 +675,7 @@ public class LOGTest {
      */
     @Test
     public void testCallerResolvedByOwnLoaderWhenContextLoaderFails() {
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
         Mutable<Class> sourceClass = new MutableObject<>();
         LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
 

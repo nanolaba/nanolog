@@ -1,0 +1,216 @@
+package com.nanolaba.logging;
+
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.util.Iterator;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+/**
+ * Finds the caller of {@link LOG}: the first stack frame outside Nanolog, that is outside {@code LOG},
+ * {@code LogEntry}, this class and any {@code ILogger}. Its top-level class becomes the source class of the entry,
+ * the frame itself the call site.
+ */
+final class CallerDetection {
+
+    private CallerDetection() {/**/}
+
+    /**
+     * A detected caller. When no frame qualifies, it has neither a class nor a frame.
+     */
+    static final class Caller {
+
+        static final Caller NONE = new Caller(null, null);
+
+        final Class sourceClass;
+        final StackTraceElement frame;
+
+        Caller(Class sourceClass, StackTraceElement frame) {
+            this.sourceClass = sourceClass;
+            this.frame = frame;
+        }
+    }
+
+    /**
+     * A way to find the caller.
+     */
+    interface Locator {
+
+        Caller find();
+    }
+
+    /**
+     * Whether a frame of this class belongs to Nanolog and is skipped. The frames of the locators are skipped too: a
+     * walk starts in them.
+     *
+     * @param topLevel a top-level class
+     */
+    static boolean isNanolog(Class topLevel) {
+        return topLevel.equals(LOG.class) || topLevel.equals(LogEntry.class) || topLevel.equals(CallerDetection.class) ||
+               ILogger.class.isAssignableFrom(topLevel);
+    }
+
+    /**
+     * Nested, anonymous and lambda classes count as their top-level enclosing class.
+     */
+    static Class topLevel(Class frameClass) {
+        Class result = frameClass;
+        while (result.getEnclosingClass() != null) {
+            result = result.getEnclosingClass();
+        }
+        return result;
+    }
+
+    /**
+     * The locator {@code LOG} uses: the stack walker where it works (Java 9+), the {@code Throwable} walk otherwise.
+     */
+    static Locator best() {
+        return firstWorking(StackWalk::new, ThrowableWalk.INSTANCE);
+    }
+
+    /**
+     * The preferred locator if it can be created and finds a caller once without failing, the fallback otherwise.
+     */
+    static Locator firstWorking(Supplier<Locator> preferred, Locator fallback) {
+        try {
+            Locator locator = preferred.get();
+            locator.find();
+            return locator;
+        } catch (Throwable t) {
+            // StackWalker is missing (Java 8), forbidden (a security manager) or not registered (a native image)
+            return fallback;
+        }
+    }
+
+    /**
+     * Java 9+: a {@code StackWalker} that hands over the {@code Class} of each frame and stops at the first frame
+     * outside Nanolog. No class is loaded by name, and only that one frame becomes a {@code StackTraceElement}, so the
+     * cost hardly grows with the depth of the stack.
+     * <p>
+     * Nanolog is compiled for Java 8, so the walker is reached through method handles. On Java 8 creating this class
+     * fails with an {@code ExceptionInInitializerError}, and {@link #best()} takes the {@code Throwable} walk.
+     */
+    static final class StackWalk implements Locator {
+
+        private static final Object WALKER;
+        private static final MethodHandle WALK;
+        private static final MethodHandle DECLARING_CLASS;
+        private static final MethodHandle TO_STACK_TRACE_ELEMENT;
+
+        static {
+            try {
+                Class<?> walkerClass = Class.forName("java.lang.StackWalker");
+                Class<?> optionClass = Class.forName("java.lang.StackWalker$Option");
+                Class<?> frameClass = Class.forName("java.lang.StackWalker$StackFrame");
+                // a full lookup: publicLookup() refuses getInstance, which is caller-sensitive
+                MethodHandles.Lookup lookup = MethodHandles.lookup();
+                @SuppressWarnings("unchecked")
+                Object retainClassReference = Enum.valueOf((Class) optionClass, "RETAIN_CLASS_REFERENCE");
+                WALKER = lookup.findStatic(walkerClass, "getInstance", MethodType.methodType(walkerClass, optionClass))
+                               .invoke(retainClassReference);
+                WALK = lookup.findVirtual(walkerClass, "walk", MethodType.methodType(Object.class, Function.class));
+                DECLARING_CLASS = lookup.findVirtual(frameClass, "getDeclaringClass", MethodType.methodType(Class.class));
+                TO_STACK_TRACE_ELEMENT = lookup.findVirtual(frameClass, "toStackTraceElement",
+                                                            MethodType.methodType(StackTraceElement.class));
+            } catch (Throwable t) {
+                throw new ExceptionInInitializerError(t);
+            }
+        }
+
+        private static final Function<Stream<?>, Caller> FIRST_OUTSIDE_NANOLOG = StackWalk::firstOutsideNanolog;
+
+        @Override
+        public Caller find() {
+            try {
+                return (Caller) WALK.invoke(WALKER, FIRST_OUTSIDE_NANOLOG);
+            } catch (Throwable t) {
+                throw rethrow(t);
+            }
+        }
+
+        private static Caller firstOutsideNanolog(Stream<?> frames) {
+            try {
+                Iterator<?> iterator = frames.iterator();
+                while (iterator.hasNext()) {
+                    Object frame = iterator.next();
+                    Class sourceClass = topLevel((Class) DECLARING_CLASS.invoke(frame));
+                    if (!isNanolog(sourceClass)) {
+                        return new Caller(sourceClass, (StackTraceElement) TO_STACK_TRACE_ELEMENT.invoke(frame));
+                    }
+                }
+                return Caller.NONE;
+            } catch (Throwable t) {
+                throw rethrow(t);
+            }
+        }
+    }
+
+    /**
+     * Throws a checked throwable of a method handle without wrapping it; {@code LOG} catches it and falls back to the
+     * {@code Throwable} walk.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> RuntimeException rethrow(Throwable t) throws T {
+        throw (T) t;
+    }
+
+    /**
+     * Reads the stack trace of a new {@code Throwable} and resolves each frame's class by its name. Works on every
+     * JVM, but builds an element for every frame of the stack and loads classes by name.
+     */
+    static final class ThrowableWalk implements Locator {
+
+        static final ThrowableWalk INSTANCE = new ThrowableWalk();
+
+        /**
+         * Reads the frames of the {@code Throwable}. Tests replace it to simulate a JVM that records no frames
+         * ({@code -XX:-StackTraceInThrowable}) and must restore it afterwards.
+         */
+        static Function<Throwable, StackTraceElement[]> stackTraceOf = Throwable::getStackTrace;
+
+        private ThrowableWalk() {/**/}
+
+        @Override
+        public Caller find() {
+            for (StackTraceElement element : stackTraceOf.apply(new Throwable())) {
+                Class frameClass = resolveClass(element.getClassName());
+                if (frameClass == null) {
+                    // the frame belongs to a class loader we cannot see (e.g. a child loader in an app server): skip it
+                    continue;
+                }
+                Class sourceClass = topLevel(frameClass);
+                if (!isNanolog(sourceClass)) {
+                    return new Caller(sourceClass, element);
+                }
+            }
+            // no frame qualifies (stack traces disabled, or the code runs entirely inside an ILogger): logging must
+            // not throw, so the entry goes out without a source class and call site, like LOG.log(level, null, ...)
+            return Caller.NONE;
+        }
+
+        /**
+         * Resolves a stack frame class, preferring the thread's context class loader (the application's loader in
+         * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see or
+         * load it, whatever the failure.
+         */
+        private static Class resolveClass(String className) {
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+            if (contextClassLoader != null) {
+                try {
+                    return Class.forName(className, false, contextClassLoader);
+                } catch (Throwable e) {
+                    // not visible from the context class loader, or it fails to load the class: try our own
+                }
+            }
+            try {
+                return Class.forName(className, false, LOG.class.getClassLoader());
+            } catch (Throwable e) {
+                // besides ClassNotFoundException: a LinkageError, GraalVM's MissingReflectionRegistrationError (an
+                // Error), a SecurityException. Logging never throws, so the frame is skipped instead
+                return null;
+            }
+        }
+    }
+}

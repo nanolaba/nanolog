@@ -22,19 +22,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LevelCheckBeforeStackWalkTest extends AbstractLoggerTest {
 
-    private final AtomicInteger walks = new AtomicInteger();
+    private final CallerDetection.Locator original = LOG.callerLocator;
+    private final CountingLocator counting = new CountingLocator(original);
+    private final AtomicInteger walks = counting.walks;
 
     @BeforeEach
     public void countStackWalks() {
-        LOG.stackTraceOf = t -> {
-            walks.incrementAndGet();
-            return t.getStackTrace();
-        };
+        LOG.callerLocator = counting;
     }
 
     @AfterEach
     public void restore() {
-        LOG.stackTraceOf = Throwable::getStackTrace;
+        LOG.callerLocator = original;
         System.clearProperty("nanolog.level");
         System.clearProperty("nanolog.level.com.nanolaba.logging");
         LOG.init();

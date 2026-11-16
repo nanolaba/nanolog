@@ -33,6 +33,7 @@ The whole library:
 
 ```
 logging
+├── CallerDetection.java
 ├── CompositeLogger.java
 ├── ConsoleLogger.java
 ├── DefaultLoggerCreator.java
@@ -481,15 +482,16 @@ test {
 
 ## Caller detection
 
-When no class is passed explicitly, `LOG` creates a `Throwable`, walks its stack trace
-and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation.
+When no class is passed explicitly, `LOG` walks the stack and takes the first frame
+that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation. On Java 9+ a
+`StackWalker` does it and stops at that frame; on Java 8 `LOG` reads the stack trace of a `Throwable`.
 
 - Nested, anonymous and lambda classes are attributed to their top-level enclosing class.
 - The frame found by the walk is kept as `LogEntry.getCaller()`: the exact class, method, file and line of the call, including nested classes and lambdas. It costs nothing extra, and it is `null` when the class was passed explicitly.
-- Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see or load is skipped, whatever the failure: a missing class, a linkage error such as `NoClassDefFoundError`, or `MissingReflectionRegistrationError` from GraalVM in a native image.
+- On Java 9+ the stack walker hands over the class of each frame, so the caller is found exactly whatever class loader it lives in. On Java 8, and wherever `StackWalker` is not available (a native image without the metadata for it), the frames of a `Throwable` carry only class names: they are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see or load is skipped, whatever the failure: a missing class, a linkage error such as `NoClassDefFoundError`, or `MissingReflectionRegistrationError` from GraalVM in a native image.
 - The stack is walked only for a level the logger may have enabled: `LOG` first asks `ILogger.mayBeEnabled(level)`, so a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, costs no walk. `LOG.isDebugEnabled()` follows the same rule. Once a level is on anywhere, even for one package (`nanolog.level.com.acme.db=TRACE`), every call at that level walks the stack, because only the class tells whether it is enabled. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
 - Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.
-- If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the JVM records no stack traces (`-XX:-StackTraceInThrowable`) or when the code runs entirely inside an `ILogger` class. `Slf4jLogger` sends such entries to the `ROOT` logger.
+- If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the code runs entirely inside an `ILogger` class, or on Java 8 when the JVM records no stack traces (`-XX:-StackTraceInThrowable`). `Slf4jLogger` sends such entries to the `ROOT` logger.
 
 ## Writing your own logger
 
@@ -549,7 +551,7 @@ A logger that throws does not break the code that logs. The first failure of eac
 - The static `LOG` methods are safe to call from any thread as long as the installed `ILogger` is; `ConsoleLogger` and `Slf4jLogger` are.
 - A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is used by every thread from its next logging call, threads that are already running included. Levels may change at any time, through `LOG.setLevel(...)` and the other level methods or the level setters of `ConsoleLogger`. The display setters (`setShowDate`, `setDateFormat` and the others) are meant for startup, not for concurrent reconfiguration.
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. A level that is on for some package or class costs a call without an explicit class one stack walk and an `isEnabled` check even where it is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
-- Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk takes about 9 µs on a shallow stack and grows with its depth, to about 26 µs at 100 frames; that is the price of a call without a class at a level enabled for some class. An enabled line through `ConsoleLogger` takes about 0.6 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
+- Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 20 µs and 60 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
 ## Using SNAPSHOT versions
 
@@ -596,6 +598,7 @@ dependencies {
 
 In development, not released yet.
 
+- On Java 9+ caller detection uses `StackWalker`: it stops at the calling frame and loads no class by name, so a call without an explicit class costs about 3 µs instead of 9 to 26 µs on JDK 17 and hardly grows with the depth of the stack. A caller in a class loader that neither the context loader nor the loader of Nanolog can see is now found exactly instead of being skipped. Java 8 keeps the `Throwable` walk.
 - A `[NANOLOG]` diagnostic is always one line. Control characters in the values it repeats, such as a level passed to `LOG.setLevel` from a request, an exception message or a template, are printed as `\u000a` escapes, so such a value cannot forge a line of the log.
 - Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. The level is a `LogEntryLevel` or a string such as `"OFF"`, as in the settings. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.

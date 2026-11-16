@@ -6,7 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
@@ -55,10 +54,10 @@ public class LOG {
     private static volatile boolean strict;
 
     /**
-     * Reads the frames of the {@code Throwable} that caller detection creates. Tests replace it to simulate a JVM
-     * that records no frames ({@code -XX:-StackTraceInThrowable}) and must restore it afterwards.
+     * Finds the caller of a call without an explicit class. Chosen when the class initialises; tests replace it to
+     * exercise one locator in particular and must restore it afterwards.
      */
-    static Function<Throwable, StackTraceElement[]> stackTraceOf = Throwable::getStackTrace;
+    static CallerDetection.Locator callerLocator = CallerDetection.best();
 
     private static final int REPORTED_TEMPLATES_LIMIT = 1000;
 
@@ -1123,7 +1122,7 @@ public class LOG {
     private static void logFromCaller(LogEntry.LogEntryLevel level, Throwable throwable, Supplier<Object> message, Object... args) {
         ILogger current = logger;
         if (mayBeEnabled(current, level)) {
-            Caller caller = findCaller();
+            CallerDetection.Caller caller = findCaller();
             doLog(current, level, caller.sourceClass, caller.frame, throwable, message, args);
         }
     }
@@ -1265,71 +1264,14 @@ public class LOG {
     }
 
     /**
-     * Walks the stack to the first frame outside Nanolog: {@code LOG}, {@code LogEntry} and any {@code ILogger}.
-     * The source class is the top-level class of that frame, the frame itself is kept as the call site. When no frame
-     * qualifies, the caller has neither a class nor a frame.
+     * Finds the caller through {@link #callerLocator}. A locator that fails gives way to the {@code Throwable} walk,
+     * which works on every JVM: logging never throws.
      */
-    private static Caller findCaller() {
+    private static CallerDetection.Caller findCaller() {
         try {
-            throw new Throwable();
+            return callerLocator.find();
         } catch (Throwable t) {
-            for (StackTraceElement element : stackTraceOf.apply(t)) {
-                Class result = resolveClass(element.getClassName());
-                if (result == null) {
-                    // the frame belongs to a class loader we cannot see (e.g. a child loader in an app server): skip it
-                    continue;
-                }
-
-                while (result.getEnclosingClass() != null) {
-                    result = result.getEnclosingClass();
-                }
-
-                if (result.equals(LOG.class) || result.equals(LogEntry.class) || ILogger.class.isAssignableFrom(result)) {
-                    continue;
-                }
-
-                return new Caller(result, element);
-            }
-        }
-
-        // no frame qualifies (stack traces disabled, or the code runs entirely inside an ILogger): logging must not
-        // throw, so the entry goes out without a source class and call site, like LOG.log(level, null, ...)
-        return NO_CALLER;
-    }
-
-    private static final Caller NO_CALLER = new Caller(null, null);
-
-    private static final class Caller {
-
-        final Class sourceClass;
-        final StackTraceElement frame;
-
-        Caller(Class sourceClass, StackTraceElement frame) {
-            this.sourceClass = sourceClass;
-            this.frame = frame;
-        }
-    }
-
-    /**
-     * Resolves a stack frame class, preferring the thread's context class loader (the application's loader in
-     * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see or
-     * load it, whatever the failure.
-     */
-    private static Class resolveClass(String className) {
-        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-        if (contextClassLoader != null) {
-            try {
-                return Class.forName(className, false, contextClassLoader);
-            } catch (Throwable e) {
-                // not visible from the context class loader, or it fails to load the class: try our own
-            }
-        }
-        try {
-            return Class.forName(className, false, LOG.class.getClassLoader());
-        } catch (Throwable e) {
-            // besides ClassNotFoundException: a LinkageError, GraalVM's MissingReflectionRegistrationError (an Error),
-            // a SecurityException. Logging never throws, so the frame is skipped instead
-            return null;
+            return CallerDetection.ThrowableWalk.INSTANCE.find();
         }
     }
 }

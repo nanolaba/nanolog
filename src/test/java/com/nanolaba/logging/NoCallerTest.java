@@ -17,9 +17,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class NoCallerTest {
 
+    private final CallerDetection.Locator original = LOG.callerLocator;
+
     @AfterEach
     public void restore() {
-        LOG.stackTraceOf = Throwable::getStackTrace;
+        LOG.callerLocator = original;
+        CallerDetection.ThrowableWalk.stackTraceOf = Throwable::getStackTrace;
         LOG.init();
     }
 
@@ -28,7 +31,8 @@ public class NoCallerTest {
         List<LogEntry> entries = new ArrayList<>();
         LOG.init(entries::add);
         // what -XX:-StackTraceInThrowable does to every Throwable
-        LOG.stackTraceOf = t -> new StackTraceElement[0];
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
+        CallerDetection.ThrowableWalk.stackTraceOf = t -> new StackTraceElement[0];
 
         LOG.info("no stack {}", 1);
 
@@ -53,7 +57,8 @@ public class NoCallerTest {
                 return false;
             }
         });
-        LOG.stackTraceOf = t -> new StackTraceElement[0];
+        LOG.callerLocator = CallerDetection.ThrowableWalk.INSTANCE;
+        CallerDetection.ThrowableWalk.stackTraceOf = t -> new StackTraceElement[0];
 
         assertFalse(LOG.isWarnEnabled());
         assertEquals(Collections.<Class>singletonList(null), asked);
