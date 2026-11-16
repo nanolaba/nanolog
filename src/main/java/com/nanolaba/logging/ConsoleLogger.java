@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -168,13 +169,25 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     private static int parseThreshold(String property, String value) {
-        String name = value.trim();
+        int threshold = thresholdNamed(value);
+        if (threshold == NO_RULE) {
+            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected " + EXPECTED_LEVELS);
+        }
+        return threshold;
+    }
+
+    private static final String EXPECTED_LEVELS = "TRACE, DEBUG, INFO, WARN, ERROR or OFF";
+
+    /**
+     * The threshold of a level name, ignoring case and surrounding spaces; {@link #NO_RULE} for anything else.
+     */
+    private static int thresholdNamed(String level) {
+        String name = level.trim();
         for (int i = 0; i < THRESHOLDS.length; i++) {
             if (THRESHOLDS[i].equalsIgnoreCase(name)) {
                 return i;
             }
         }
-        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF");
         return NO_RULE;
     }
 
@@ -294,18 +307,32 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Sets the five level switches at once: this level and above on, the levels below off. Packages and classes with
-     * a rule of their own keep it. Takes effect on the next call in every thread.
+     * Sets the five level switches at once: this level and above on, the levels below off, every level off for
+     * {@code OFF}. Packages and classes with a rule of their own keep it. Takes effect on the next call in every
+     * thread.
+     *
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces; anything else prints a diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    @Override
+    public synchronized ConsoleLogger setLevel(String level) {
+        int threshold = parseLevel("setLevel", null, level);
+        if (threshold != NO_RULE) {
+            applyThreshold(threshold);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the five level switches at once, as {@link #setLevel(String)} does.
      *
      * @param level the lowest level to log; {@code null} prints a diagnostic and changes nothing
      * @return this logger, for chaining
      */
     @Override
-    public synchronized ConsoleLogger setLevel(LogEntry.LogEntryLevel level) {
-        if (isValidLevel("setLevel", level)) {
-            applyThreshold(level.ordinal());
-        }
-        return this;
+    public ConsoleLogger setLevel(LogEntry.LogEntryLevel level) {
+        return setLevel(Objects.toString(level, null));
     }
 
     /**
@@ -313,15 +340,29 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * one. Takes effect on the next call in every thread.
      *
      * @param name  the package or class; surrounding spaces are ignored
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces
+     * @return this logger, for chaining
+     */
+    @Override
+    public ConsoleLogger setLevel(String name, String level) {
+        int threshold = parseRule("setLevel", name, level);
+        if (threshold != NO_RULE) {
+            replaceRule(name.trim(), threshold);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the level of a package or class, as {@link #setLevel(String, String)} does.
+     *
+     * @param name  the package or class; surrounding spaces are ignored
      * @param level the lowest level to log for it
      * @return this logger, for chaining
      */
     @Override
     public ConsoleLogger setLevel(String name, LogEntry.LogEntryLevel level) {
-        if (isValidRule("setLevel", name, level)) {
-            replaceRule(name.trim(), level.ordinal());
-        }
-        return this;
+        return setLevel(name, Objects.toString(level, null));
     }
 
     /**
@@ -354,7 +395,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Sets the level of a package or class until the returned override is closed, then restores the rule it had.
+     * Sets the level of a package or class until the returned override is closed, as
+     * {@link #withLevel(String, String)} does.
      *
      * @param name  the package or class
      * @param level the lowest level to log for it while the override is open
@@ -362,12 +404,26 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     @Override
     public LOG.LevelOverride withLevel(String name, LogEntry.LogEntryLevel level) {
-        if (!isValidRule("withLevel", name, level)) {
+        return withLevel(name, Objects.toString(level, null));
+    }
+
+    /**
+     * Sets the level of a package or class until the returned override is closed, then restores the rule it had.
+     *
+     * @param name  the package or class
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces
+     * @return the override to close
+     */
+    @Override
+    public LOG.LevelOverride withLevel(String name, String level) {
+        int threshold = parseRule("withLevel", name, level);
+        if (threshold == NO_RULE) {
             return () -> {
             };
         }
         String rule = name.trim();
-        Integer previous = replaceRule(rule, level.ordinal());
+        Integer previous = replaceRule(rule, threshold);
         AtomicBoolean closed = new AtomicBoolean();
         return () -> {
             if (closed.compareAndSet(false, true)) {
@@ -392,18 +448,21 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Checks a global level for the level methods, here and in {@link CompositeLogger}.
+     * Checks a global level given to a level method, here and in {@link CompositeLogger}.
      */
-    static boolean isValidLevel(String operation, LogEntry.LogEntryLevel level) {
-        if (level == null) {
-            printDiagnostic("Invalid level null in " + operation + "; nothing changed");
-            return false;
-        }
-        return true;
+    static boolean isValidLevel(String operation, String level) {
+        return parseLevel(operation, null, level) != NO_RULE;
     }
 
     /**
-     * Checks a package or class name for the level methods.
+     * Checks a package or class name and its level given to a level method.
+     */
+    static boolean isValidRule(String operation, String name, String level) {
+        return parseRule(operation, name, level) != NO_RULE;
+    }
+
+    /**
+     * Checks a package or class name given to a level method.
      */
     static boolean isValidName(String operation, String name) {
         if (name == null || name.trim().isEmpty()) {
@@ -415,17 +474,29 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Checks a package or class name and its level for the level methods.
+     * The threshold of a package or class rule given to a level method; {@link #NO_RULE}, after a diagnostic, if the
+     * name or the level is invalid.
      */
-    static boolean isValidRule(String operation, String name, LogEntry.LogEntryLevel level) {
-        if (!isValidName(operation, name)) {
-            return false;
-        }
+    private static int parseRule(String operation, String name, String level) {
+        return isValidName(operation, name) ? parseLevel(operation, name, level) : NO_RULE;
+    }
+
+    /**
+     * The threshold of a level given to a level method; {@link #NO_RULE}, after a diagnostic, if it is invalid. The
+     * name is the package or class the level is for, {@code null} for the global level.
+     */
+    private static int parseLevel(String operation, String name, String level) {
+        String target = name == null ? "" : " for \"" + name.trim() + "\"";
         if (level == null) {
-            printDiagnostic("Invalid level null for \"" + name.trim() + "\" in " + operation + "; nothing changed");
-            return false;
+            printDiagnostic("Invalid level null" + target + " in " + operation + "; nothing changed");
+            return NO_RULE;
         }
-        return true;
+        int threshold = thresholdNamed(level);
+        if (threshold == NO_RULE) {
+            printDiagnostic("Invalid level \"" + level + "\"" + target + " in " + operation + ": expected " + EXPECTED_LEVELS +
+                            "; nothing changed");
+        }
+        return threshold;
     }
 
     /**

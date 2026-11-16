@@ -12,6 +12,7 @@ public class RuntimeLevels {
         // nrg:begin:runtime
         LOG.setLevel(LogEntryLevel.INFO);                         // the global level
         LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG);   // one package or class, like nanolog.level.<name>
+        LOG.setLevel("com.acme.noisy", "OFF");                    // a string, as in the settings: OFF works too
         LOG.clearLevel("com.acme.payments");                      // the global level applies to it again
         LOG.resetLevels();                                        // back to -D, the environment and nanolog.properties
 

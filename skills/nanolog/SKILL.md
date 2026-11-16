@@ -53,7 +53,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 
 ## Changing levels at run time *1.3+*
 
-`LOG.setLevel(LogEntryLevel.INFO)`, `LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG)`, `LOG.clearLevel(name)` and `LOG.resetLevels()` change the levels of `ConsoleLogger` and `JsonLogger` while the program runs, in every thread. In a test prefer `try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE)) { ... }`, which puts the previous level back. Like `LOG.init`, a change is JVM-wide.
+`LOG.setLevel(LogEntryLevel.INFO)`, `LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG)`, `LOG.clearLevel(name)` and `LOG.resetLevels()` change the levels of `ConsoleLogger` and `JsonLogger` while the program runs, in every thread. A level may also be a string as in the settings, `OFF` included: `LOG.setLevel("com.acme.noisy", "OFF")`. In a test prefer `try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE)) { ... }`, which puts the previous level back. Like `LOG.init`, a change is JVM-wide.
 
 ## Asserting log output in tests *1.2+*
 

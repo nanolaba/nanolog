@@ -328,6 +328,7 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 ```java
 LOG.setLevel(LogEntryLevel.INFO);                         // the global level
 LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG);   // one package or class, like nanolog.level.<name>
+LOG.setLevel("com.acme.noisy", "OFF");                    // a string, as in the settings: OFF works too
 LOG.clearLevel("com.acme.payments");                      // the global level applies to it again
 LOG.resetLevels();                                        // back to -D, the environment and nanolog.properties
 
@@ -341,7 +342,8 @@ try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE))
 - `LOG.withLevel(...)` возвращает прежнее правило в конце блока `try`, даже если блок завершился исключением. Изменение действует на всю JVM, а не только на текущий поток. Вложенные переопределения одного имени восстанавливаются правильно, если закрываются в обратном порядке, как в try-with-resources.
 - `LOG.resetLevels()` заново читает `nanolog.level`, `nanolog.levels` и `nanolog.level.<имя>`: из `-D` и переменных окружения в их текущем виде, из `nanolog.properties` — в том виде, в каком файл был загружен при старте. Это отменяет все изменения, сделанные во время работы, включая сеттеры уровней `ConsoleLogger`; настройки вывода остаются как есть.
 - `CompositeLogger` передаёт каждое изменение тем делегатам, которые его поддерживают. У остальных логгеров нет уровней, которые можно поменять: `Slf4jLogger` берёт их из бэкенда SLF4J, а `MemoryLogger` перехватывает всё. Если такой логгер установлен напрямую, первый вызов печатает одну строку `[NANOLOG]`, и ничего не меняется.
-- Пустое имя, `null` вместо имени или уровня печатают диагностику `[NANOLOG]` и ничего не меняют. `OFF` есть только в настройках; во время работы самый высокий уровень — `ERROR`.
+- Уровень можно передать и строкой, как в настройках: от `TRACE` до `OFF`, без учёта регистра. `LOG.setLevel("com.acme.noisy", "OFF")` выключает пакет целиком, а значение из запроса или командной строки не нужно разбирать самому.
+- Пустое имя, `null` вместо имени или уровня и неизвестный уровень печатают диагностику `[NANOLOG]` и ничего не меняют.
 - Те же методы есть у самих `ConsoleLogger` и `CompositeLogger`. Свой логгер поддерживает `LOG.setLevel(...)`, если реализует `ILevelControl`.
 
 ### JsonLogger
@@ -593,7 +595,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
-- Уровни меняются во время работы приложения, потокобезопасно: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()` и `LOG.withLevel(name, level)` для блока `try`. `ConsoleLogger`, `JsonLogger` и `CompositeLogger` реализуют новый `ILevelControl`, а сеттеры уровней `ConsoleLogger` теперь можно вызывать, пока другие потоки пишут в лог.
+- Уровни меняются во время работы приложения, потокобезопасно: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()` и `LOG.withLevel(name, level)` для блока `try`. Уровень задаётся как `LogEntryLevel` или строкой вроде `"OFF"`, как в настройках. `ConsoleLogger`, `JsonLogger` и `CompositeLogger` реализуют новый `ILevelControl`, а сеттеры уровней `ConsoleLogger` теперь можно вызывать, пока другие потоки пишут в лог.
 - Вызовы без явного класса больше не обходят стек, если их уровень выключен для всех классов: `LOG` сначала спрашивает новый `ILogger.mayBeEnabled(level)`. `ConsoleLogger`, `JsonLogger` и `CompositeLogger` отвечают по своим переключателям, правилам пакетов и делегатам; остальные логгеры получают `true` по умолчанию и работают как раньше.
 - Ленивое сообщение, у которого `Supplier` бросает исключение, больше не роняет вызов логирования: запись попадает в лог с сообщением `[FAILED supplier: <исключение>]`.
 - Если в стеке нет подходящего вызывающего кадра (`-XX:-StackTraceInThrowable` или код целиком внутри `ILogger`), запись логируется без класса-источника, а не падает с `IllegalStateException`.

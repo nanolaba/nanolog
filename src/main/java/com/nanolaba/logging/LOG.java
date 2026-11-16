@@ -133,6 +133,52 @@ public class LOG {
     }
 
     /**
+     * Sets the global level of the installed logger from its name, as {@code nanolog.level} does, so {@code OFF}
+     * works too and a value from a request or a command line needs no parsing.
+     *
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces; anything else prints a diagnostic and changes nothing
+     * @see #setLevel(LogEntry.LogEntryLevel)
+     */
+    public static void setLevel(String level) {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.setLevel(level);
+        }
+    }
+
+    /**
+     * Sets the level of a package or class from its name, as {@code nanolog.level.<name>} does;
+     * {@code LOG.setLevel("com.acme.noisy", "OFF")} switches a package off.
+     *
+     * @param name  the package or class
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces
+     * @see #setLevel(String, LogEntry.LogEntryLevel)
+     */
+    public static void setLevel(String name, String level) {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.setLevel(name, level);
+        }
+    }
+
+    /**
+     * Sets the level of a package or class from its name until the returned override is closed.
+     *
+     * @param name  the package or class
+     * @param level {@code TRACE}, {@code DEBUG}, {@code INFO}, {@code WARN}, {@code ERROR} or {@code OFF}, ignoring
+     *              case and surrounding spaces
+     * @return the override to close; it does nothing if the logger does not support level changes
+     * @see #withLevel(String, LogEntry.LogEntryLevel)
+     */
+    public static LevelOverride withLevel(String name, String level) {
+        ILevelControl control = levelControl();
+        return control == null ? () -> {
+        } : control.withLevel(name, level);
+    }
+
+    /**
      * Sets the level of a package or class while the application runs, as {@code nanolog.level.<name>} does at
      * startup: it beats the global level, and the most specific rule wins. Replaces the rule the name had.
      *

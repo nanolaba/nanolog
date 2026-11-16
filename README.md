@@ -328,6 +328,7 @@ The levels of `ConsoleLogger` and `JsonLogger` can change while the application 
 ```java
 LOG.setLevel(LogEntryLevel.INFO);                         // the global level
 LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG);   // one package or class, like nanolog.level.<name>
+LOG.setLevel("com.acme.noisy", "OFF");                    // a string, as in the settings: OFF works too
 LOG.clearLevel("com.acme.payments");                      // the global level applies to it again
 LOG.resetLevels();                                        // back to -D, the environment and nanolog.properties
 
@@ -341,7 +342,8 @@ try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE))
 - `LOG.withLevel(...)` restores the rule the name had when the `try` block ends, also when it ends with an exception. The change is JVM-wide, not limited to the current thread. Nested overrides of the same name restore correctly when they close in reverse order, as try-with-resources does.
 - `LOG.resetLevels()` reads `nanolog.level`, `nanolog.levels` and `nanolog.level.<name>` again: from `-D` and the environment as they are now, from `nanolog.properties` as it was loaded at startup. It undoes every change made at run time, the level setters of `ConsoleLogger` included; the display options stay as they are.
 - `CompositeLogger` passes each change to those of its delegates that support it. The other loggers have no levels to change: `Slf4jLogger` takes them from the SLF4J backend, and `MemoryLogger` captures everything. When such a logger is installed directly, the first call prints one `[NANOLOG]` line and nothing changes.
-- A `null` or blank name and a `null` level print a `[NANOLOG]` diagnostic and change nothing. `OFF` exists only in the settings; at run time the highest level is `ERROR`.
+- A level may also be given as a string, as in the settings: `TRACE` to `OFF`, ignoring case. `LOG.setLevel("com.acme.noisy", "OFF")` switches a package off, and a value from a request or a command line needs no parsing of your own.
+- A `null` or blank name and a `null` or unknown level print a `[NANOLOG]` diagnostic and change nothing.
 - The same methods exist on `ConsoleLogger` and `CompositeLogger`. A custom logger supports `LOG.setLevel(...)` by implementing `ILevelControl`.
 
 ### JsonLogger
@@ -593,7 +595,7 @@ dependencies {
 
 In development, not released yet.
 
-- Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
+- Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. The level is a `LogEntryLevel` or a string such as `"OFF"`, as in the settings. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
