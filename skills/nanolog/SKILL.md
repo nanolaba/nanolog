@@ -7,7 +7,7 @@ description: Use when writing, reviewing or debugging Java code that logs throug
 
 Nanolog (`com.nanolaba:nanolog`) is a tiny logging facade for Java 8+: every call goes through the static methods of `com.nanolaba.logging.LOG`, and the source class is detected from the stack, so classes have no logger fields. Follow this guide whenever you add or change log calls in a project that depends on it.
 
-The latest stable version is 1.2; this guide describes the development version 1.3-SNAPSHOT. Features marked *1.2+* need version 1.2 or newer.
+The latest stable version is 1.2; this guide describes the development version 1.3-SNAPSHOT. Features marked *1.2+* or *1.3+* need that version or newer.
 
 ## Rules
 
@@ -17,7 +17,7 @@ The latest stable version is 1.2; this guide describes the development version 1
 4. Build expensive messages lazily: `LOG.debug(() -> "Report: " + buildReport())` runs the lambda only when `DEBUG` is enabled.
 5. In hot paths pass the class: `LOG.debug(MyClass.class, "...")`. Without it every call walks the stack, `LOG.isDebugEnabled()` included.
 6. Call `LOG.init(...)` once at application startup and never from library code: it replaces the logger for the whole JVM.
-7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`. Do not wrap log calls in `try`/`catch`.
+7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`, a lazy message whose lambda throws becomes `[FAILED supplier: <exception>]` *1.3+*. Do not wrap log calls in `try`/`catch`.
 8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class.
 
 ## Call shapes

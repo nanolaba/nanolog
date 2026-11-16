@@ -26,7 +26,8 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
  * Formatting rules: {@code {}} takes the next argument, {@code \{}} is a literal {@code {}}, {@code \\{}} is a
  * literal backslash followed by a placeholder, missing arguments leave {@code {}} in place, extra ones are ignored,
  * arrays are rendered with {@code Arrays.toString} / {@code Arrays.deepToString}. Logging never throws: a failing
- * {@code toString()} becomes {@code [FAILED toString()]}.
+ * {@code toString()} becomes {@code [FAILED toString()]}, and a message {@code Supplier} that throws becomes the
+ * message {@code [FAILED supplier: <exception>]}.
  * <p>
  * The logger behind these methods is chosen at class initialisation by {@link DefaultLoggerCreator}
  * ({@code nanolog.logger}, {@code nanolog.properties}, {@link ConsoleLogger} by default) and can be replaced with
@@ -940,11 +941,26 @@ public class LOG {
 
     private static void doLog(LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (logger.isEnabled(level, loggedClass)) {
-            LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, message == null ? null : message.get(), args);
+            LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args);
             if (strict) {
                 checkPlaceholders(entry);
             }
             logger.log(entry);
+        }
+    }
+
+    /**
+     * Evaluates a lazy message. A supplier that throws must not fail the logging call, so its exception becomes the
+     * message {@code [FAILED supplier: <exception>]}, in the spirit of {@code [FAILED toString()]}.
+     */
+    private static Object resolve(Supplier<Object> message) {
+        if (message == null) {
+            return null;
+        }
+        try {
+            return message.get();
+        } catch (Throwable t) {
+            return "[FAILED supplier: " + LogEntry.safeToString(t) + "]";
         }
     }
 
