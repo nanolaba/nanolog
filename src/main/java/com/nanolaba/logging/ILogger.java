@@ -49,4 +49,16 @@ public interface ILogger {
     default boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
         return true;
     }
+
+    /**
+     * Receives a finding of strict mode ({@code nanolog.strict=true}) about the entry this logger is about to
+     * receive: a call whose {@code {}} placeholders and arguments do not match. {@code LOG} prints such a finding to
+     * {@code System.err} once per template; this method gets every occurrence, so a test can fail on it even when an
+     * earlier test met the same template first. {@link MemoryLogger} keeps them for
+     * {@link MemoryLogger#assertNoDiagnostics()}; the default ignores them.
+     *
+     * @param message the finding, as printed after {@code [NANOLOG]}: the call site, the counts and the template
+     */
+    default void onDiagnostic(String message) {
+    }
 }

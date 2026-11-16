@@ -1470,7 +1470,7 @@ public class LOG {
      */
     private static void write(ILogger current, LogEntry entry) {
         if (strict) {
-            checkPlaceholders(entry);
+            checkPlaceholders(current, entry);
         }
         try {
             current.log(entry);
@@ -1569,17 +1569,25 @@ public class LOG {
      * not match its arguments. Only calls with arguments are checked, so a plain message that happens to contain
      * {@code {}} is never reported. The entry itself is logged unchanged, and nothing is thrown.
      */
-    private static void checkPlaceholders(LogEntry entry) {
+    private static void checkPlaceholders(ILogger current, LogEntry entry) {
         Object[] args = entry.getArgs();
         if (args == null || args.length == 0) {
             return;
         }
         String template = LogEntry.safeToString(entry.getMessage());
         int placeholders = LogEntry.countPlaceholders(template);
-        if (placeholders != args.length && REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null) {
-            DefaultLoggerCreator.printDiagnostic(describeSource(entry) + ": " +
-                                                 count(placeholders, "placeholder") + ", " + count(args.length, "argument") +
-                                                 " in \"" + template + "\"");
+        if (placeholders != args.length) {
+            String diagnostic = describeSource(entry) + ": " + count(placeholders, "placeholder") + ", " +
+                                count(args.length, "argument") + " in \"" + template + "\"";
+            if (REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null) {
+                DefaultLoggerCreator.printDiagnostic(diagnostic);
+            }
+            // every occurrence: a test must see a mismatch that an earlier test already printed
+            try {
+                current.onDiagnostic(diagnostic);
+            } catch (Throwable t) {
+                reportLoggerFailure(current, t, "its diagnostics are printed to System.err only");
+            }
         }
     }
 

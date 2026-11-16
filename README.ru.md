@@ -520,6 +520,21 @@ test {
 }
 ```
 
+Строку в потоке ошибок легко пропустить среди тысяч других; `MemoryLogger` превращает её в упавший тест. Strict-режим передаёт каждую находку и установленному логгеру (`ILogger.onDiagnostic`), каждое повторение, а не только первое для шаблона, поэтому тест падает, даже если то же несовпадение уже встретил предыдущий тест:
+
+```java
+void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
+    try (MemoryLogger log = MemoryLogger.install()) {
+        new PaymentService().charge(42);
+
+        log.assertNoDiagnostics(); // fails with the call site and the template of every mismatch
+    }
+}
+```
+
+- `getDiagnostics()` возвращает находки, `assertNoDiagnostics()` падает со всеми ними в сообщении; `clear()` удаляет их вместе с записями. `CompositeLogger` передаёт их своим делегатам.
+- Без strict-режима сообщать не о чем, и `assertNoDiagnostics()` проходит, поэтому включите его для тестового запуска, как показано выше.
+
 ## Ограничение частоты
 
 Цикл повторов, переполненная очередь или устаревшая настройка могут напечатать одну и ту же строку тысячи раз, и важная строка уходит из виду. `LOG.once()` и `LOG.atMostEvery(...)` ограничивают одну строку кода:
@@ -655,6 +670,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
+- Strict-режим доходит до тестов: каждая находка передаётся и установленному логгеру через новый `ILogger.onDiagnostic`, каждое повторение, а не только первое для шаблона, и `MemoryLogger.assertNoDiagnostics()` падает на них. `CompositeLogger` передаёт их дальше.
 - `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` и `assertTemplateLogged(level, template)` падают с `AssertionError`, в котором перечислены все перехваченные записи вместе с трассировками и местами вызова; `getEntries(Class)` отбирает записи одного класса-источника.
 - Короткие трассировки стека в `ConsoleLogger` и `JsonLogger`: `nanolog.exception.exclude` сворачивает подряд идущие кадры пакетов вроде `org.junit` или `jdk.internal.reflect` в `... N frames excluded`, `nanolog.exception.maxFrames` ограничивает число кадров каждого исключения. Без них вывод, как и раньше, совпадает с `printStackTrace`.
 - `LOG.once()` и `LOG.atMostEvery(period, unit)` ограничивают строку кода первым вызовом или одной записью за период, по месту вызова. Следующая прошедшая запись несёт число пропущенных вызовов, `LogEntry.getSkippedCount()`, и `ConsoleLogger`, `JsonLogger` и `Slf4jLogger` его печатают.

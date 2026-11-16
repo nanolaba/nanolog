@@ -307,6 +307,33 @@ class MemoryLoggerTest extends AbstractLoggerTest {
         assertEquals(Collections.singletonList("no class"), messagesOf(memory.getEntries((Class) null)));
     }
 
+    @Test
+    public void testDiagnosticsAreKeptClearedAndBoundedLikeEntries() {
+        MemoryLogger memory = new MemoryLogger(2);
+        memory.assertNoDiagnostics();
+
+        memory.onDiagnostic("first");
+        memory.onDiagnostic("second");
+        memory.onDiagnostic("third");
+
+        List<String> diagnostics = memory.getDiagnostics();
+        assertEquals(Arrays.asList("second", "third"), diagnostics, "the capacity keeps the newest diagnostics too");
+        assertThrows(UnsupportedOperationException.class, () -> diagnostics.add("x"));
+        assertEquals("Expected no diagnostics, but strict mode reported 2:" + N + "second" + N + "third",
+                     assertThrows(AssertionError.class, memory::assertNoDiagnostics).getMessage());
+
+        memory.onDiagnostic("fourth");
+        assertEquals(Arrays.asList("second", "third"), diagnostics, "a snapshot does not change");
+        assertEquals("Expected no diagnostics, but strict mode reported 2:" + N + "third" + N + "fourth",
+                     assertThrows(AssertionError.class, memory::assertNoDiagnostics).getMessage());
+
+        memory.clear();
+        assertEquals(Collections.emptyList(), memory.getDiagnostics(), "clear() drops the diagnostics as well");
+        memory.onDiagnostic("only");
+        assertEquals("Expected no diagnostics, but strict mode reported 1:" + N + "only",
+                     assertThrows(AssertionError.class, memory::assertNoDiagnostics).getMessage());
+    }
+
     private static List<String> messagesOf(List<LogEntry> entries) {
         List<String> result = new ArrayList<>();
         for (LogEntry entry : entries) {

@@ -74,6 +74,23 @@ public class CompositeLogger implements ILogger, ILevelControl {
     }
 
     /**
+     * Passes a finding of strict mode to every delegate. A delegate that throws is reported once per class and
+     * skipped; the others still receive the finding.
+     *
+     * @param message the finding
+     */
+    @Override
+    public void onDiagnostic(String message) {
+        for (ILogger logger : loggers) {
+            try {
+                logger.onDiagnostic(message);
+            } catch (Throwable t) {
+                LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
+            }
+        }
+    }
+
+    /**
      * Returns {@code true} if at least one delegate has the level enabled. A delegate whose check throws counts as
      * enabled.
      *

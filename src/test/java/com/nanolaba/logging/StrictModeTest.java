@@ -5,12 +5,16 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -198,5 +202,117 @@ class StrictModeTest extends AbstractLoggerTest {
 
         LOG.info("t0 {} {}", 1);
         assertTrue(getErrAndClear().contains("t0 {} {}"), "beyond the limit the oldest template is forgotten and reported again");
+    }
+
+    private void mismatched(int value) {
+        LOG.info("{} and {}", value);
+    }
+
+    @Test
+    public void testEveryOccurrenceReachesTheLoggerWhileStandardErrorGetsTheFirst() {
+        enableStrictMode("true");
+
+        mismatched(1);
+        mismatched(2);
+
+        List<String> diagnostics = memory.getDiagnostics();
+        assertEquals(2, diagnostics.size());
+        assertEquals(diagnostics.get(0), diagnostics.get(1));
+        assertTrue(diagnostics.get(0).startsWith("com.nanolaba.logging.StrictModeTest.mismatched(StrictModeTest.java:"), diagnostics.get(0));
+        assertTrue(diagnostics.get(0).endsWith("): 2 placeholders, 1 argument in \"{} and {}\""), diagnostics.get(0));
+        assertEquals("[NANOLOG] " + diagnostics.get(0) + System.lineSeparator(), getErrAndClear(), "standard error reports a template once");
+
+        AssertionError error = assertThrows(AssertionError.class, memory::assertNoDiagnostics);
+        assertEquals("Expected no diagnostics, but strict mode reported 2:" + System.lineSeparator() +
+                     diagnostics.get(0) + System.lineSeparator() + diagnostics.get(1), error.getMessage());
+    }
+
+    @Test
+    public void testTemplateReportedEarlierInTheJvmStillReachesTheTest() {
+        enableStrictMode("true");
+        mismatched(1);
+        getErrAndClear();
+
+        try (MemoryLogger log = MemoryLogger.install()) {
+            mismatched(2);
+
+            assertEquals(1, log.getDiagnostics().size());
+            assertThrows(AssertionError.class, log::assertNoDiagnostics);
+            assertEquals("", getErrAndClear(), "the template was printed already");
+        }
+    }
+
+    @Test
+    public void testMatchingCallsLeaveNoDiagnostics() {
+        enableStrictMode("true");
+
+        LOG.info("{} and {}", 1, 2);
+        LOG.info("plain");
+
+        memory.assertNoDiagnostics();
+        assertEquals(Collections.emptyList(), memory.getDiagnostics());
+    }
+
+    @Test
+    public void testCompositeForwardsDiagnosticsToItsDelegates() {
+        enableStrictMode("true");
+        MemoryLogger first = new MemoryLogger();
+        MemoryLogger second = new MemoryLogger();
+        LOG.init(new CompositeLogger(first, entry -> {
+        }, second));
+
+        mismatched(1);
+
+        assertEquals(1, first.getDiagnostics().size());
+        assertEquals(first.getDiagnostics(), second.getDiagnostics(), "a delegate without onDiagnostic is skipped quietly");
+    }
+
+    @Test
+    public void testThrowingOnDiagnosticNeverBreaksTheCall() {
+        enableStrictMode("true");
+        LOG.clearReportedLoggerFailures();
+        List<String> logged = new ArrayList<>();
+        LOG.init(new ILogger() {
+            @Override
+            public void log(LogEntry entry) {
+                logged.add(entry.getFormattedMessage());
+            }
+
+            @Override
+            public void onDiagnostic(String message) {
+                throw new IllegalStateException("broken");
+            }
+        });
+
+        mismatched(1);
+
+        assertEquals(Collections.singletonList("1 and {}"), logged, "the entry is logged all the same");
+        String err = getErrAndClear();
+        assertTrue(err.contains("2 placeholders, 1 argument"), err);
+        assertTrue(err.contains("threw java.lang.IllegalStateException: broken; its diagnostics are printed to System.err only"), err);
+        LOG.clearReportedLoggerFailures();
+    }
+
+    @Test
+    public void testCompositeKeepsDeliveringWhenADelegateThrows() {
+        enableStrictMode("true");
+        LOG.clearReportedLoggerFailures();
+        MemoryLogger after = new MemoryLogger();
+        LOG.init(new CompositeLogger(new ILogger() {
+            @Override
+            public void log(LogEntry entry) {
+            }
+
+            @Override
+            public void onDiagnostic(String message) {
+                throw new IllegalStateException("broken");
+            }
+        }, after));
+
+        mismatched(1);
+
+        assertEquals(1, after.getDiagnostics().size());
+        assertTrue(getErrAndClear().contains("threw java.lang.IllegalStateException: broken; the other loggers of the CompositeLogger still receive its entries"));
+        LOG.clearReportedLoggerFailures();
     }
 }

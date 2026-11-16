@@ -23,6 +23,7 @@ public class MemoryLogger implements ILogger, AutoCloseable {
 
     private final int capacity;
     private final Deque<LogEntry> entries = new ArrayDeque<>();
+    private final Deque<String> diagnostics = new ArrayDeque<>();
 
     private ILogger previous;
     private boolean installed;
@@ -245,11 +246,57 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
-     * Drops all captured entries.
+     * Keeps a finding of strict mode, dropping the oldest one if the capacity is exceeded.
+     *
+     * @param message the finding
+     */
+    @Override
+    public void onDiagnostic(String message) {
+        synchronized (entries) {
+            diagnostics.addLast(message);
+            if (diagnostics.size() > capacity) {
+                diagnostics.removeFirst();
+            }
+        }
+    }
+
+    /**
+     * Returns a snapshot of the findings of strict mode, oldest first: one per call whose {@code {}} placeholders and
+     * arguments did not match, while {@code nanolog.strict=true}.
+     *
+     * @return a snapshot of the findings of strict mode, oldest first
+     */
+    public List<String> getDiagnostics() {
+        synchronized (entries) {
+            return Collections.unmodifiableList(new ArrayList<>(diagnostics));
+        }
+    }
+
+    /**
+     * Fails if strict mode reported a call whose {@code {}} placeholders and arguments do not match. Strict mode must
+     * be on ({@code -Dnanolog.strict=true}, for example in the Surefire configuration); without it there is nothing to
+     * report and the assertion passes.
+     *
+     * @throws AssertionError with every finding, each naming the call site and the template
+     */
+    public void assertNoDiagnostics() {
+        List<String> found = getDiagnostics();
+        if (!found.isEmpty()) {
+            StringBuilder message = new StringBuilder("Expected no diagnostics, but strict mode reported ").append(found.size()).append(':');
+            for (String diagnostic : found) {
+                message.append(System.lineSeparator()).append(diagnostic);
+            }
+            throw new AssertionError(message.toString());
+        }
+    }
+
+    /**
+     * Drops all captured entries and findings of strict mode.
      */
     public void clear() {
         synchronized (entries) {
             entries.clear();
+            diagnostics.clear();
         }
     }
 

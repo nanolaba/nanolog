@@ -23,6 +23,16 @@ public class CapturingLogs {
     }
     // nrg:end:capture
 
+    // nrg:begin:diagnostics
+    void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
+        try (MemoryLogger log = MemoryLogger.install()) {
+            new PaymentService().charge(42);
+
+            log.assertNoDiagnostics(); // fails with the call site and the template of every mismatch
+        }
+    }
+    // nrg:end:diagnostics
+
     void composite() {
         // nrg:begin:composite
         MemoryLogger memory = new MemoryLogger(1000); // keeps the newest 1000 entries

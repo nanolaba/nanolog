@@ -520,6 +520,21 @@ test {
 }
 ```
 
+A line on standard error is easy to miss among thousands; `MemoryLogger` turns it into a failing test. Strict mode hands every finding to the installed logger as well (`ILogger.onDiagnostic`), every occurrence and not only the first one of a template, so a test fails even when an earlier test met the same mismatch:
+
+```java
+void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
+    try (MemoryLogger log = MemoryLogger.install()) {
+        new PaymentService().charge(42);
+
+        log.assertNoDiagnostics(); // fails with the call site and the template of every mismatch
+    }
+}
+```
+
+- `getDiagnostics()` returns the findings, `assertNoDiagnostics()` fails with all of them in the message; `clear()` drops them together with the entries. `CompositeLogger` passes them to its delegates.
+- Without strict mode there is nothing to report and `assertNoDiagnostics()` passes, so switch it on for the test run as above.
+
 ## Rate limiting
 
 A retry loop, a full queue or a deprecated option can print the same line thousands of times, and the line that matters scrolls away. `LOG.once()` and `LOG.atMostEvery(...)` limit one statement:
@@ -655,6 +670,7 @@ dependencies {
 
 In development, not released yet.
 
+- Strict mode reaches tests: every finding also goes to the installed logger through the new `ILogger.onDiagnostic`, every occurrence rather than the first one of a template, and `MemoryLogger.assertNoDiagnostics()` fails on them. `CompositeLogger` forwards them.
 - `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` and `assertTemplateLogged(level, template)` fail with an `AssertionError` that lists every captured entry, stack traces and call sites included; `getEntries(Class)` selects the entries of one source class.
 - Shorter stack traces in `ConsoleLogger` and `JsonLogger`: `nanolog.exception.exclude` collapses runs of frames from packages such as `org.junit` or `jdk.internal.reflect` into `... N frames excluded`, `nanolog.exception.maxFrames` caps the frames of each throwable. Without them the output is that of `printStackTrace`, as before.
 - `LOG.once()` and `LOG.atMostEvery(period, unit)` limit a statement to its first call or to one entry per period, keyed by the call site. The next entry that gets through carries the number of skipped calls, `LogEntry.getSkippedCount()`, which `ConsoleLogger`, `JsonLogger` and `Slf4jLogger` print.
