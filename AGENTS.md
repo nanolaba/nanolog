@@ -125,3 +125,4 @@ Release checklist:
 - Commit messages: English, imperative subject line, body explains the why.
 - Keep the public API additive; this library is consumed from Maven Central.
 - Every production change ships with tests that kill the corresponding pitest mutants and, where user-visible, with a README change in `README.src.md`.
+- A killer feature (an issue labelled `killer-feature`) is not done until its SEO work is done too. Every such issue has an "SEO" section with the search phrases and a checklist; work through it. It covers a README section titled with the search phrase plus a "Why Nanolog" bullet (EN and RU), the GitHub description and topics (`gh repo edit`), `<description>` in `pom.xml`, the description in `agent-guide.src.md`, the first sentence of the Javadoc and the release notes. Claims stay honest: no keyword stuffing, comparisons with versions and dates. The baseline is issue #69.
