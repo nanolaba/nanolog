@@ -60,7 +60,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
-The latest stable version is **1.3**.
+The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -82,13 +82,15 @@ The latest stable version is **1.3**.
 - 7 [Caller detection](#caller-detection)
 - 8 [Writing your own logger](#writing-your-own-logger)
 - 9 [Thread safety and performance](#thread-safety-and-performance)
-- 10 [Changelog](#changelog)
-	- 10.1 [1.3](#13)
-	- 10.2 [1.2](#12)
-	- 10.3 [1.1](#11)
-	- 10.4 [1.0](#10)
-- 11 [Contributing](#contributing)
-- 12 [License](#license)
+- 10 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 11 [Changelog](#changelog)
+	- 11.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 11.2 [1.3](#13)
+	- 11.3 [1.2](#12)
+	- 11.4 [1.1](#11)
+	- 11.5 [1.0](#10)
+- 12 [Contributing](#contributing)
+- 13 [License](#license)
 
 
 ## Installation
@@ -628,8 +630,50 @@ A logger that throws does not break the code that logs. The first failure of eac
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. A level that is on for some package or class costs a call without an explicit class one stack walk and an `isEnabled` check even where it is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 - Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 20 µs and 60 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
+## Using SNAPSHOT versions
+
+Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.4-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.4-SNAPSHOT'
+}
+```
 
 ## Changelog
+
+### 1.4-SNAPSHOT
+
+In development, not released yet.
 
 ### 1.3
 

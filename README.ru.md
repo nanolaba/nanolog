@@ -60,7 +60,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — перехват записей в тестах и отправка записей в несколько логгеров.
 - `DefaultLoggerCreator` — выбирает логгер при старте по системному свойству или файлу настроек.
 
-Последняя стабильная версия — **1.3**.
+Последняя стабильная версия — **1.3**; версия в разработке — **1.4-SNAPSHOT** (см. [Changelog](#changelog)).
 
 ## Содержание
 - 1 [Установка](#установка)
@@ -82,13 +82,15 @@ logging
 - 7 [Определение вызывающего класса](#определение-вызывающего-класса)
 - 8 [Собственный логгер](#собственный-логгер)
 - 9 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 10 [Changelog](#changelog)
-	- 10.1 [1.3](#13)
-	- 10.2 [1.2](#12)
-	- 10.3 [1.1](#11)
-	- 10.4 [1.0](#10)
-- 11 [Участие в разработке](#участие-в-разработке)
-- 12 [Лицензия](#лицензия)
+- 10 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
+- 11 [Changelog](#changelog)
+	- 11.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 11.2 [1.3](#13)
+	- 11.3 [1.2](#12)
+	- 11.4 [1.1](#11)
+	- 11.5 [1.0](#10)
+- 12 [Участие в разработке](#участие-в-разработке)
+- 13 [Лицензия](#лицензия)
 
 
 ## Установка
@@ -628,8 +630,50 @@ public class CustomLogger implements ILogger {
 - Вызов уровня, выключенного для всех классов, стоит одну проверку `mayBeEnabled`, а с явным классом — одну проверку `isEnabled`. Если уровень включён для какого-то пакета или класса, вызов без явного класса стоит обхода стека и проверки `isEnabled` даже там, где уровень выключен: одно правило вроде `nanolog.level.com.acme.db=TRACE` заставляет каждый вызов `trace` без класса обходить стек. Форматирование сообщения и `Supplier` вычисляются только для включённых уровней.
 - Замеры JMH на JDK 17 (Ryzen 5 5600X, Windows 10): вызов уровня, выключенного для всех классов, занимает около 2 нс без класса и 7 нс с явным классом. Обход стека — цена вызова без класса для уровня, включённого хотя бы для одного класса, — стоит около 2,5 мкс у вершины стека и 3 мкс на глубине 100 кадров; на Java 8, где нет `StackWalker`, — около 20 и 60 мкс. Включённая строка через `ConsoleLogger` занимает меньше 1 мкс плюс обход, если класс не передан. Другие JDK и методика: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
+## Использование SNAPSHOT-версий
+
+Сборки в разработке публикуются в snapshot-репозиторий Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.4-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.4-SNAPSHOT'
+}
+```
 
 ## Changelog
+
+### 1.4-SNAPSHOT
+
+В разработке, ещё не выпущена.
 
 ### 1.3
 
