@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.2-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.2)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.3-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.3)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
@@ -60,7 +60,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 
-The latest stable version is **1.2**; the version under development is **1.3-SNAPSHOT** (see [Changelog](#changelog)).
+The latest stable version is **1.3**.
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -82,14 +82,13 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 - 7 [Caller detection](#caller-detection)
 - 8 [Writing your own logger](#writing-your-own-logger)
 - 9 [Thread safety and performance](#thread-safety-and-performance)
-- 10 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 11 [Changelog](#changelog)
-	- 11.1 [1.3-SNAPSHOT](#13-snapshot)
-	- 11.2 [1.2](#12)
-	- 11.3 [1.1](#11)
-	- 11.4 [1.0](#10)
-- 12 [Contributing](#contributing)
-- 13 [License](#license)
+- 10 [Changelog](#changelog)
+	- 10.1 [1.3](#13)
+	- 10.2 [1.2](#12)
+	- 10.3 [1.1](#11)
+	- 10.4 [1.0](#10)
+- 11 [Contributing](#contributing)
+- 12 [License](#license)
 
 
 ## Installation
@@ -100,7 +99,7 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.2</version>
+    <version>1.3</version>
 </dependency>
 ```
 
@@ -108,14 +107,14 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.2'
+    implementation 'com.nanolaba:nanolog:1.3'
 }
 ```
 
 <details>
 <summary>Manual download</summary>
 
-Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.2) and add it to the classpath.
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.3) and add it to the classpath.
 
 </details>
 
@@ -183,7 +182,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
-Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2), which IDEs also show from the sources jar.
+Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
 
 ## Agent-driven development
 
@@ -199,7 +198,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
-- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
@@ -629,69 +628,30 @@ A logger that throws does not break the code that logs. The first failure of eac
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. A level that is on for some package or class costs a call without an explicit class one stack walk and an `isEnabled` check even where it is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 - Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 20 µs and 60 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
-## Using SNAPSHOT versions
-
-Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.3-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.3-SNAPSHOT'
-}
-```
 
 ## Changelog
 
-### 1.3-SNAPSHOT
+### 1.3
 
-In development, not released yet.
-
-- Strict mode reaches tests: every finding also goes to the installed logger through the new `ILogger.onDiagnostic`, every occurrence rather than the first one of a template, and `MemoryLogger.assertNoDiagnostics()` fails on them. `CompositeLogger` forwards them.
-- `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` and `assertTemplateLogged(level, template)` fail with an `AssertionError` that lists every captured entry, stack traces and call sites included; `getEntries(Class)` selects the entries of one source class.
-- Shorter stack traces in `ConsoleLogger` and `JsonLogger`: `nanolog.exception.exclude` collapses runs of frames from packages such as `org.junit` or `jdk.internal.reflect` into `... N frames excluded`, `nanolog.exception.maxFrames` caps the frames of each throwable. Without them the output is that of `printStackTrace`, as before.
+- Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. The level is a `LogEntryLevel` or a string such as `"OFF"`, as in the settings. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - `LOG.once()` and `LOG.atMostEvery(period, unit)` limit a statement to its first call or to one entry per period, keyed by the call site. The next entry that gets through carries the number of skipped calls, `LogEntry.getSkippedCount()`, which `ConsoleLogger`, `JsonLogger` and `Slf4jLogger` print.
+- Shorter stack traces in `ConsoleLogger` and `JsonLogger`: `nanolog.exception.exclude` collapses runs of frames from packages such as `org.junit` or `jdk.internal.reflect` into `... N frames excluded`, `nanolog.exception.maxFrames` caps the frames of each throwable. Without them the output is that of `printStackTrace`, as before.
+- `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` and `assertTemplateLogged(level, template)` fail with an `AssertionError` that lists every captured entry, stack traces and call sites included; `getEntries(Class)` selects the entries of one source class.
+- Strict mode reaches tests: every finding also goes to the installed logger through the new `ILogger.onDiagnostic`, every occurrence rather than the first one of a template, and `MemoryLogger.assertNoDiagnostics()` fails on them. `CompositeLogger` forwards them.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (or `setStream`) chooses the stream of each level: `out` sends everything to standard output, so `java -jar app.jar | jq` keeps the `ERROR` lines, `err` sends everything to standard error, `err@WARN` warnings and errors. The default `err@ERROR` is the former behaviour.
 - `ConsoleLogger`: `setShowThread(true)` or `nanolog.console.showThread=true` prints the name of the thread after the date, `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. Off by default, so the format of existing output does not change.
-- On Java 9+ caller detection uses `StackWalker`: it stops at the calling frame and loads no class by name, so a call without an explicit class costs about 3 µs instead of 9 to 26 µs on JDK 17 and hardly grows with the depth of the stack. A caller in a class loader that neither the context loader nor the loader of Nanolog can see is now found exactly instead of being skipped. Java 8 keeps the `Throwable` walk.
-- A `[NANOLOG]` diagnostic is always one line. Control characters in the values it repeats, such as a level passed to `LOG.setLevel` from a request, an exception message or a template, are printed as `\u000a` escapes, so such a value cannot forge a line of the log.
-- Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. The level is a `LogEntryLevel` or a string such as `"OFF"`, as in the settings. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.
+- On Java 9+ caller detection uses `StackWalker`: it stops at the calling frame and loads no class by name, so a call without an explicit class costs about 3 µs instead of 9 to 26 µs on JDK 17 and hardly grows with the depth of the stack. A caller in a class loader that neither the context loader nor the loader of Nanolog can see is now found exactly instead of being skipped. Java 8 keeps the `Throwable` walk.
+- A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
+- Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.
+- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is now guaranteed to be seen by threads that are already logging; before, a test could miss entries logged from an executor thread.
+- `ConsoleLogger`: an anonymous or local source class passed explicitly is printed as `[Foo$1]` instead of `[]` or `[null]`; `LogEntry.toString()` names it too.
+- A `[NANOLOG]` diagnostic is always one line. Control characters in the values it repeats, such as a level passed to `LOG.setLevel` from a request, an exception message or a template, are printed as `\u000a` escapes, so such a value cannot forge a line of the log.
 - Documentation: the `Slf4jLogger` section no longer says that MDC works with every backend; slf4j-simple and slf4j-nop discard MDC values.
 - Documentation: `ILogger.isEnabled` no longer promises that returning `false` skips the whole cost of a call; caller detection has already walked the stack by then.
-- `ConsoleLogger`: an anonymous or local source class passed explicitly is printed as `[Foo$1]` instead of `[]` or `[null]`; `LogEntry.toString()` names it too.
-- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is now guaranteed to be seen by threads that are already logging; before, a test could miss entries logged from an executor thread.
-- A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.
-- Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.
+- JMH benchmarks in `src/jmh`, built with `mvn -P benchmark test-compile exec:exec`, with results for JDK 8 to 25 in [`src/jmh/RESULTS.md`](src/jmh/RESULTS.md); the README quotes the measured costs.
 
 ### 1.2
 
