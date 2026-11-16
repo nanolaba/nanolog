@@ -600,6 +600,20 @@ public class LOGTest {
     }
 
     /**
+     * {@code LOG.init(...)} and {@code MemoryLogger.install()} replace the logger while other threads may already be
+     * logging (a test installs a {@code MemoryLogger} while the code under test logs from an executor). Without
+     * {@code volatile} those threads are not guaranteed to ever see the new logger. A race cannot be provoked
+     * deterministically, and pitest does not mutate {@code volatile}, so the contract itself is asserted.
+     */
+    @Test
+    public void testLoggerAndStrictModeAreSafelyPublished() throws NoSuchFieldException {
+        for (String field : new String[]{"logger", "strict"}) {
+            assertTrue(java.lang.reflect.Modifier.isVolatile(LOG.class.getDeclaredField(field).getModifiers()),
+                       "LOG." + field + " must be volatile");
+        }
+    }
+
+    /**
      * The context class loader fails with something other than {@code ClassNotFoundException} while loading a frame's
      * class: a linkage error (a child-first loader of an application server that cannot see a dependency), an
      * {@code Error} such as GraalVM's {@code MissingReflectionRegistrationError}, or a runtime exception. Logging must

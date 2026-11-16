@@ -507,7 +507,7 @@ A logger that throws does not break the code that logs. The first failure of eac
 ## Thread safety and performance
 
 - The static `LOG` methods are safe to call from any thread as long as the installed `ILogger` is; `ConsoleLogger` and `Slf4jLogger` are.
-- `LOG.init(...)` and the `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
+- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is used by every thread from its next logging call, threads that are already running included. The `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
 - A call with a disabled level costs one `isEnabled` check plus, without an explicit class, one stack walk. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
 ## Using SNAPSHOT versions
@@ -557,6 +557,7 @@ In development, not released yet.
 
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
+- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is now guaranteed to be seen by threads that are already logging; before, a test could miss entries logged from an executor thread.
 - A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.
 - Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.
 

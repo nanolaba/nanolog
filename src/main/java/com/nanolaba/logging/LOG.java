@@ -39,12 +39,17 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
  */
 public class LOG {
 
-    private static ILogger logger;
+    /**
+     * The installed logger. {@code volatile}, because {@link #init(ILogger)} and {@code MemoryLogger.install()} may
+     * replace it while other threads are logging, and those threads must see the new one.
+     */
+    private static volatile ILogger logger;
 
     /**
-     * {@code nanolog.strict}: report calls whose placeholders and arguments do not match. Read by {@link #init()}.
+     * {@code nanolog.strict}: report calls whose placeholders and arguments do not match. Read by {@link #init()};
+     * {@code volatile} for the same reason as {@link #logger}.
      */
-    private static boolean strict;
+    private static volatile boolean strict;
 
     /**
      * Reads the frames of the {@code Throwable} that caller detection creates. Tests replace it to simulate a JVM
