@@ -276,6 +276,22 @@ class RuntimeLevelsTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testArgumentsCannotForgeDiagnosticLines() {
+        // a level from an HTTP request must not be able to add a line of its own to System.err
+        ConsoleLogger logger = new ConsoleLogger();
+
+        logger.setLevel("DEBUG\n[NANOLOG] forged");
+        logger.setLevel("com.acme\r\n[NANOLOG] forged", "LOUD\u2028");
+        logger.setLevel("\t", "DEBUG");
+
+        assertEquals(Arrays.asList(
+                "[NANOLOG] Invalid level \"DEBUG\\u000a[NANOLOG] forged\" in setLevel: expected TRACE, DEBUG, INFO, WARN, ERROR or OFF; nothing changed",
+                "[NANOLOG] Invalid level \"LOUD\\u2028\" for \"com.acme\\u000d\\u000a[NANOLOG] forged\" in setLevel: expected TRACE, DEBUG, INFO, WARN, ERROR or OFF; nothing changed",
+                "[NANOLOG] Invalid package or class name \"\\u0009\" in setLevel; nothing changed"),
+                     lines(getErrAndClear()));
+    }
+
+    @Test
     public void testEnumLevelsOfTheInterfaceDelegateToTheStringOnes() {
         RecordingLevelControl control = new RecordingLevelControl();
 

@@ -318,7 +318,7 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - The most specific rule wins: the class itself, then its enclosing classes, then its packages from the innermost outwards. A rule matches whole name segments only, so `com.acme.pay` does not cover `com.acme.payments`.
 - `nanolog.level.<name>` beats an item for the same name in `nanolog.levels`.
 - Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.
-- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.
+- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on. A diagnostic is always one line: control characters in the value it repeats are printed as escapes such as `\u000a`.
 - `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
 
 ### Changing levels at run time
@@ -595,6 +595,7 @@ dependencies {
 
 In development, not released yet.
 
+- A `[NANOLOG]` diagnostic is always one line. Control characters in the values it repeats, such as a level passed to `LOG.setLevel` from a request, an exception message or a template, are printed as `\u000a` escapes, so such a value cannot forge a line of the log.
 - Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. The level is a `LogEntryLevel` or a string such as `"OFF"`, as in the settings. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.

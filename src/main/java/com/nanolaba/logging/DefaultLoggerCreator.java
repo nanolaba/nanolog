@@ -89,9 +89,26 @@ public class DefaultLoggerCreator {
 
     /**
      * Prints a {@code [NANOLOG]} diagnostic to {@code System.err}. Configuration mistakes must not break logging.
+     * <p>
+     * A diagnostic echoes values it did not choose: settings, a level passed to {@code LOG.setLevel} from a request,
+     * an exception message, a template. Control characters and the Unicode line separators are printed as
+     * {@code \}{@code u000a} escapes, so a diagnostic is always one line and no value can forge a line of its own.
      */
     static void printDiagnostic(String message) {
-        System.err.println("[NANOLOG] " + message);
+        System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+    }
+
+    private static String escapeControlCharacters(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isISOControl(c) || c == ' ' || c == ' ') {
+                result.append(String.format("\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 
     /**

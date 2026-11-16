@@ -31,6 +31,15 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void diagnosticIsOneLineWhateverItEchoesTest() {
+        // values from settings, requests, exception messages and templates are echoed: none may start a line of its own
+        DefaultLoggerCreator.printDiagnostic("a\nb\rc\td\u001fe f\u007fg\u009fh j k ~");
+
+        assertEquals("[NANOLOG] a\\u000ab\\u000dc\\u0009d\\u001fe f\\u007fg\\u009fh\\u2028j\\u2029k ~" + System.lineSeparator(),
+                     getErrAndClear());
+    }
+
+    @Test
     public void onlyNanologKeysAreCopiedFromTheFileTest() {
         System.setProperty(PROPERTY_LOGGER_CONFIG_FILE, "mixed.properties");
         LOG.init();
