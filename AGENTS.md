@@ -105,6 +105,10 @@ Failures in step 2, and a missing file named by `nanolog.config`, are printed to
 
 Do not add a `nanolog.properties` to `src/test/resources`: it would be picked up by every test's `LOG` initialization. Tests use `nanolog.config` pointing at `test.properties` / `mixed.properties` / `levels.properties` instead, and clear every `nanolog.*` system property they or the file set.
 
+### Stack traces: `ConsoleLogger.stackTraceOf`, `ShortStackTrace`
+
+`ConsoleLogger.stackTraceOf` (also used for the `stackTrace` field of `JsonLogger`) returns the output of `printStackTrace` verbatim unless `exceptionExclude` or `exceptionMaxFrames` is set; only then does it use `ShortStackTrace`, Nanolog's own printer with the layout of `printStackTrace` (`Caused by:`, `Suppressed:` with indentation, `... N more` for frames shared with the enclosing trace, `[CIRCULAR REFERENCE: ...]` in the Java 9+ wording). Keeping the default on `printStackTrace` is what makes it byte-identical on every JDK and for throwables that override `printStackTrace`. `ShortStackTrace` lets every failure through and `stackTraceOf` falls back to `printStackTrace`, then to `[FAILED printStackTrace()]`. Because that fallback would hide a broken printer behind correct-looking output, `ShortStackTraceTest` tests `ShortStackTrace.of` directly; keep it that way when changing the printer.
+
 ### Message formatting: `LogEntry.formatMessage()`
 
 Parameterized messages use `{}` placeholders (SLF4J-style). Escaping is non-trivial and has dedicated tests in `LogEntryTest`:

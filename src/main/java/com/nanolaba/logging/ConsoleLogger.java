@@ -5,7 +5,10 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +68,14 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public static final String PROPERTY_STREAM = "nanolog.console.stream";
     /**
+     * Property for {@link #setExceptionExclude(String...)}: comma-separated package or class prefixes.
+     */
+    public static final String PROPERTY_EXCEPTION_EXCLUDE = "nanolog.exception.exclude";
+    /**
+     * Property for {@link #setExceptionMaxFrames(int)}: a number of frames, {@code 0} for no limit.
+     */
+    public static final String PROPERTY_EXCEPTION_MAX_FRAMES = "nanolog.exception.maxFrames";
+    /**
      * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
      */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
@@ -87,6 +98,9 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * {@code System.out}.
      */
     private int errThreshold = LogEntry.LogEntryLevel.ERROR.ordinal();
+
+    private List<String> exceptionExclude = Collections.emptyList();
+    private int exceptionMaxFrames = 0;
 
     // volatile: the levels may change at run time, and every logging thread must see the change on its next call
     private volatile boolean traceEnabled = true;
@@ -120,6 +134,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         applyStream();
+        applyExceptionSettings();
         applyDateFormat();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
@@ -599,10 +614,104 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
+     * The stack trace of a throwable as this logger writes it: the output of {@code printStackTrace} when neither
+     * {@code exceptionExclude} nor {@code exceptionMaxFrames} is set, a shortened one otherwise. A failure while
+     * shortening falls back to {@code printStackTrace}.
+     */
+    String stackTraceOf(Throwable throwable) {
+        if (exceptionExclude.isEmpty() && exceptionMaxFrames == 0) {
+            return printedStackTrace(throwable);
+        }
+        try {
+            return ShortStackTrace.of(throwable, exceptionExclude, exceptionMaxFrames);
+        } catch (Throwable t) {
+            return printedStackTrace(throwable);
+        }
+    }
+
+    /**
+     * Returns the package and class prefixes whose stack frames are excluded, as an unmodifiable list.
+     *
+     * @return the package and class prefixes whose stack frames are excluded; empty by default
+     */
+    public List<String> getExceptionExclude() {
+        return exceptionExclude;
+    }
+
+    /**
+     * Shortens stack traces by the frames of some packages or classes, such as test runners, reflection or proxies:
+     * a run of two or more consecutive frames that match becomes one line, {@code ... 14 frames excluded}. The first
+     * frame of each throwable is always kept. A prefix matches whole name segments, like a level rule:
+     * {@code org.junit} covers {@code org.junit.runners.ParentRunner}, not {@code org.junitx}. Also set by
+     * {@code nanolog.exception.exclude}; applies to the {@code stackTrace} field of {@link JsonLogger} too.
+     *
+     * @param prefixes package or class names; blank and {@code null} ones are ignored, none leaves traces unchanged
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setExceptionExclude(String... prefixes) {
+        this.exceptionExclude = prefixes == null ? Collections.<String>emptyList() : parsePrefixes(prefixes);
+        return this;
+    }
+
+    /**
+     * Returns the most stack frames printed per throwable.
+     *
+     * @return the most stack frames printed per throwable; {@code 0}, the default, for no limit
+     */
+    public int getExceptionMaxFrames() {
+        return exceptionMaxFrames;
+    }
+
+    /**
+     * Prints at most this many frames of each throwable, its causes and suppressed exceptions counted separately;
+     * the rest becomes {@code ... N more}. Also set by {@code nanolog.exception.maxFrames}; applies to the
+     * {@code stackTrace} field of {@link JsonLogger} too.
+     *
+     * @param maxFrames the most frames per throwable; zero or less for no limit
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setExceptionMaxFrames(int maxFrames) {
+        this.exceptionMaxFrames = Math.max(0, maxFrames);
+        return this;
+    }
+
+    private static List<String> parsePrefixes(String[] items) {
+        List<String> prefixes = new ArrayList<>();
+        for (String item : items) {
+            if (item != null && !item.trim().isEmpty()) {
+                prefixes.add(item.trim());
+            }
+        }
+        return Collections.unmodifiableList(prefixes);
+    }
+
+    private void applyExceptionSettings() {
+        String exclude = getProperty(PROPERTY_EXCEPTION_EXCLUDE);
+        if (exclude != null) {
+            exceptionExclude = parsePrefixes(exclude.split(","));
+        }
+        String maxFrames = getProperty(PROPERTY_EXCEPTION_MAX_FRAMES);
+        if (maxFrames != null) {
+            int frames = -1;
+            try {
+                frames = Integer.parseInt(maxFrames.trim());
+            } catch (NumberFormatException e) {
+                // reported below, like a negative number
+            }
+            if (frames < 0) {
+                printDiagnostic("Invalid value \"" + maxFrames + "\" of \"" + PROPERTY_EXCEPTION_MAX_FRAMES +
+                                "\": expected a number of frames, 0 for no limit");
+            } else {
+                exceptionMaxFrames = frames;
+            }
+        }
+    }
+
+    /**
      * The output of {@code printStackTrace}, or {@code [FAILED printStackTrace()]} if the throwable's own
      * {@code toString()} or stack trace code throws: logging never throws.
      */
-    static String stackTraceOf(Throwable throwable) {
+    static String printedStackTrace(Throwable throwable) {
         StringWriter out = new StringWriter();
         try (PrintWriter writer = new PrintWriter(out)) {
             throwable.printStackTrace(writer);

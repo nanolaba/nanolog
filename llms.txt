@@ -48,6 +48,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.level.com.acme.payments=DEBUG` or `NANOLOG_LEVELS=com.acme.payments=DEBUG,com.acme.db=TRACE`: the level of one package or class. It beats the global level, even one set in code.
 - `-Dnanolog.console.showLocation=true`: adds the call site, `[PaymentService.charge(PaymentService.java:87)]`, to every line.
 - `-Dnanolog.console.showThread=true` *1.3+*: adds the thread name, `[main]`, after the date, to tell the lines of a thread pool apart.
+- `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`.
 
 ## Changing levels at run time *1.3+*

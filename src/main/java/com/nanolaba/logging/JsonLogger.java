@@ -94,7 +94,7 @@ public class JsonLogger extends ConsoleLogger {
         out.append('}');
     }
 
-    private static void appendException(StringBuilder out, Throwable throwable) {
+    private void appendException(StringBuilder out, Throwable throwable) {
         out.append(",\"exception\":{\"class\":");
         appendString(out, throwable.getClass().getName());
         String message;

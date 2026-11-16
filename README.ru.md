@@ -44,6 +44,7 @@ logging
 ├── LogEntry.java
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
+├── ShortStackTrace.java
 ├── Slf4jLogger.java
 └── package-info.java
 ```
@@ -67,9 +68,10 @@ logging
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Уровни и настройки без кода](#уровни-и-настройки-без-кода)
 	- 4.3 [Изменение уровней во время работы](#изменение-уровней-во-время-работы)
-	- 4.4 [JsonLogger](#jsonlogger)
-	- 4.5 [Slf4jLogger](#slf4jlogger)
-	- 4.6 [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger)
+	- 4.4 [Короткие трассировки стека](#короткие-трассировки-стека)
+	- 4.5 [JsonLogger](#jsonlogger)
+	- 4.6 [Slf4jLogger](#slf4jlogger)
+	- 4.7 [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger)
 - 5 [Форматирование сообщений](#форматирование-сообщений)
 	- 5.1 [Проверка плейсхолдеров в тестах](#проверка-плейсхолдеров-в-тестах)
 - 6 [Ограничение частоты](#ограничение-частоты)
@@ -296,6 +298,7 @@ LOG.init(new ConsoleLogger()
 - `showLocation` — место вызова после имени класса в том же виде, что и в трассировках стека, поэтому IDE и терминалы превращают его в ссылку: `[PaymentService.charge(PaymentService.java:87)]`. По умолчанию выключено. У вызова с явным классом-источником места вызова нет, и остаётся обычный `[PaymentService]`.
 - `showThread` — имя потока, который записал строку, в квадратных скобках после даты: `[main]`, `[pool-1-thread-3]`. По умолчанию выключено; при пуле потоков помогает различать перемешанные строки разных задач. `JsonLogger` пишет поток всегда.
 - `stream` — какие уровни идут в `System.err`: `err@ERROR` (по умолчанию) отправляет туда только ошибки, `err@WARN` — предупреждения и ошибки, `err` — всё, `out` — ничего. Один поток сохраняет ошибки в конвейере и порядок строк, когда стандартный вывод и поток ошибок перехватываются раздельно.
+- `exceptionExclude` / `exceptionMaxFrames` — короткие трассировки стека, см. [Короткие трассировки стека](#короткие-трассировки-стека).
 - `traceEnabled` … `errorEnabled` — переключатели по уровням; по умолчанию включено всё, поэтому в продакшене отключите `TRACE` и `DEBUG` в коде или через `nanolog.level=INFO`. Отключённые уровни отсекаются до создания `LogEntry`, поэтому ленивые сообщения не вычисляются. `setLevel(level)` задаёт все пять сразу, а менять переключатели можно и пока другие потоки пишут в лог; см. [Изменение уровней во время работы](#изменение-уровней-во-время-работы).
 
 Для своего формата (цвет, JSON, другая раскладка) унаследуйтесь от `ConsoleLogger`
@@ -319,6 +322,8 @@ LOG.init(new ConsoleLogger()
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | то же |
 | `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` или `err@LEVEL` (по умолчанию `err@ERROR`), как одноимённый сеттер |
 | `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | шаблон `SimpleDateFormat` |
+| `nanolog.exception.exclude` | `NANOLOG_EXCEPTION_EXCLUDE` | префиксы пакетов или классов, чьи кадры стека сворачиваются, через запятую |
+| `nanolog.exception.maxFrames` | `NANOLOG_EXCEPTION_MAXFRAMES` | наибольшее число кадров стека на исключение; `0` (по умолчанию) — без ограничения |
 
 ```
 java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
@@ -356,6 +361,28 @@ try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE))
 - Уровень можно передать и строкой, как в настройках: от `TRACE` до `OFF`, без учёта регистра. `LOG.setLevel("com.acme.noisy", "OFF")` выключает пакет целиком, а значение из запроса или командной строки не нужно разбирать самому.
 - Пустое имя, `null` вместо имени или уровня и неизвестный уровень печатают диагностику `[NANOLOG]` и ничего не меняют.
 - Те же методы есть у самих `ConsoleLogger` и `CompositeLogger`. Свой логгер поддерживает `LOG.setLevel(...)`, если реализует `ILevelControl`.
+
+### Короткие трассировки стека
+
+Большинство кадров трассировки ничего не сообщают: запуск тестов, рефлексия, прокси. Две настройки укорачивают трассировки, которые печатают `ConsoleLogger` и `JsonLogger`:
+
+```
+-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect -Dnanolog.exception.maxFrames=40
+```
+
+```
+java.lang.IllegalStateException: connection refused
+	at com.acme.OrderService.load(OrderService.java:87)
+	at com.acme.OrderServiceTest.loads(OrderServiceTest.java:21)
+	... 68 frames excluded
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	... 23 frames excluded
+```
+
+- `exclude` — список префиксов пакетов или классов. Два и больше подряд идущих подходящих кадра превращаются в одну строку `... N frames excluded`; одиночный подходящий кадр остаётся, как и первый кадр каждого исключения. Префикс совпадает только с целыми частями имени, как правило уровня: `org.junit` распространяется на `org.junit.runners.ParentRunner`, но не на `org.junitx`.
+- `maxFrames` печатает не больше указанного числа кадров у каждого исключения, причины и подавленные исключения считаются отдельно; остальное превращается в `... N more`, как уже происходит с кадрами, общими с внешней трассировкой.
+- Раскладка остаётся как у `printStackTrace`: `Caused by:`, `Suppressed:` с отступом, циклические ссылки отмечаются. Без обеих настроек текст в точности тот, что печатает `printStackTrace`. Трассировка, которую не удалось укоротить, потому что исключение ломается при чтении, печатается как обычно.
+- В коде: `setExceptionExclude("org.junit", ...)` и `setExceptionMaxFrames(40)` у `ConsoleLogger` и `JsonLogger`. На `Slf4jLogger` это не влияет: исключения печатает его бэкенд.
 
 ### JsonLogger
 
@@ -626,6 +653,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
+- Короткие трассировки стека в `ConsoleLogger` и `JsonLogger`: `nanolog.exception.exclude` сворачивает подряд идущие кадры пакетов вроде `org.junit` или `jdk.internal.reflect` в `... N frames excluded`, `nanolog.exception.maxFrames` ограничивает число кадров каждого исключения. Без них вывод, как и раньше, совпадает с `printStackTrace`.
 - `LOG.once()` и `LOG.atMostEvery(period, unit)` ограничивают строку кода первым вызовом или одной записью за период, по месту вызова. Следующая прошедшая запись несёт число пропущенных вызовов, `LogEntry.getSkippedCount()`, и `ConsoleLogger`, `JsonLogger` и `Slf4jLogger` его печатают.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (или `setStream`) выбирает поток для каждого уровня: `out` отправляет всё в стандартный вывод, и `java -jar app.jar | jq` сохраняет строки `ERROR`, `err` отправляет всё в поток ошибок, `err@WARN` — предупреждения и ошибки. Значение по умолчанию `err@ERROR` повторяет прежнее поведение.
 - `ConsoleLogger`: `setShowThread(true)` или `nanolog.console.showThread=true` печатает имя потока после даты: `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. По умолчанию выключено, поэтому формат прежнего вывода не меняется.

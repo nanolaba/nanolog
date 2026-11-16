@@ -44,6 +44,7 @@ logging
 ├── LogEntry.java
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
+├── ShortStackTrace.java
 ├── Slf4jLogger.java
 └── package-info.java
 ```
@@ -67,9 +68,10 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Levels and options without code](#levels-and-options-without-code)
 	- 4.3 [Changing levels at run time](#changing-levels-at-run-time)
-	- 4.4 [JsonLogger](#jsonlogger)
-	- 4.5 [Slf4jLogger](#slf4jlogger)
-	- 4.6 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 4.4 [Shorter stack traces](#shorter-stack-traces)
+	- 4.5 [JsonLogger](#jsonlogger)
+	- 4.6 [Slf4jLogger](#slf4jlogger)
+	- 4.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 	- 5.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
 - 6 [Rate limiting](#rate-limiting)
@@ -296,6 +298,7 @@ LOG.init(new ConsoleLogger()
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
 - `showThread` — the name of the thread that logged, in square brackets after the date: `[main]`, `[pool-1-thread-3]`. Off by default; with a thread pool it tells the interleaved lines of different tasks apart. `JsonLogger` always writes the thread.
 - `stream` — which levels go to `System.err`: `err@ERROR` (the default) sends only errors there, `err@WARN` warnings and errors, `err` everything, `out` nothing. One stream keeps errors in a pipe and keeps the order of the lines when standard output and standard error are captured apart.
+- `exceptionExclude` / `exceptionMaxFrames` — shorter stack traces, see [Shorter stack traces](#shorter-stack-traces).
 - `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated. `setLevel(level)` sets all five at once, and the switches may change while other threads log; see [Changing levels at run time](#changing-levels-at-run-time).
 
 For a custom layout (colours, JSON, a different order) extend `ConsoleLogger` and
@@ -319,6 +322,8 @@ The constructor of `ConsoleLogger` reads these settings from system properties, 
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | the same |
 | `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` or `err@LEVEL` (default `err@ERROR`), like the setter |
 | `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | a `SimpleDateFormat` pattern |
+| `nanolog.exception.exclude` | `NANOLOG_EXCEPTION_EXCLUDE` | package or class prefixes whose stack frames are collapsed, comma-separated |
+| `nanolog.exception.maxFrames` | `NANOLOG_EXCEPTION_MAXFRAMES` | the most stack frames per throwable; `0` (default) for no limit |
 
 ```
 java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
@@ -356,6 +361,28 @@ try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE))
 - A level may also be given as a string, as in the settings: `TRACE` to `OFF`, ignoring case. `LOG.setLevel("com.acme.noisy", "OFF")` switches a package off, and a value from a request or a command line needs no parsing of your own.
 - A `null` or blank name and a `null` or unknown level print a `[NANOLOG]` diagnostic and change nothing.
 - The same methods exist on `ConsoleLogger` and `CompositeLogger`. A custom logger supports `LOG.setLevel(...)` by implementing `ILevelControl`.
+
+### Shorter stack traces
+
+Most frames of a stack trace carry no signal: test runners, reflection, proxies. Two settings shorten the traces that `ConsoleLogger` and `JsonLogger` print:
+
+```
+-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect -Dnanolog.exception.maxFrames=40
+```
+
+```
+java.lang.IllegalStateException: connection refused
+	at com.acme.OrderService.load(OrderService.java:87)
+	at com.acme.OrderServiceTest.loads(OrderServiceTest.java:21)
+	... 68 frames excluded
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	... 23 frames excluded
+```
+
+- `exclude` lists package or class prefixes. A run of two or more consecutive frames that match becomes one `... N frames excluded` line; a single matching frame stays, and so does the first frame of every throwable. A prefix matches whole name segments, like a level rule: `org.junit` covers `org.junit.runners.ParentRunner`, not `org.junitx`.
+- `maxFrames` prints at most that many frames of each throwable, its causes and suppressed exceptions counted separately; the rest becomes `... N more`, as the frames shared with the enclosing trace already do.
+- The layout stays that of `printStackTrace`: `Caused by:`, `Suppressed:` with its indentation, circular references marked. Without either setting the text is exactly what `printStackTrace` prints. A trace that cannot be shortened, because the throwable breaks while it is read, is printed the usual way.
+- In code: `setExceptionExclude("org.junit", ...)` and `setExceptionMaxFrames(40)` on `ConsoleLogger` and `JsonLogger`. `Slf4jLogger` is not affected: its backend prints exceptions itself.
 
 ### JsonLogger
 
@@ -626,6 +653,7 @@ dependencies {
 
 In development, not released yet.
 
+- Shorter stack traces in `ConsoleLogger` and `JsonLogger`: `nanolog.exception.exclude` collapses runs of frames from packages such as `org.junit` or `jdk.internal.reflect` into `... N frames excluded`, `nanolog.exception.maxFrames` caps the frames of each throwable. Without them the output is that of `printStackTrace`, as before.
 - `LOG.once()` and `LOG.atMostEvery(period, unit)` limit a statement to its first call or to one entry per period, keyed by the call site. The next entry that gets through carries the number of skipped calls, `LogEntry.getSkippedCount()`, which `ConsoleLogger`, `JsonLogger` and `Slf4jLogger` print.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (or `setStream`) chooses the stream of each level: `out` sends everything to standard output, so `java -jar app.jar | jq` keeps the `ERROR` lines, `err` sends everything to standard error, `err@WARN` warnings and errors. The default `err@ERROR` is the former behaviour.
 - `ConsoleLogger`: `setShowThread(true)` or `nanolog.console.showThread=true` prints the name of the thread after the date, `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. Off by default, so the format of existing output does not change.
