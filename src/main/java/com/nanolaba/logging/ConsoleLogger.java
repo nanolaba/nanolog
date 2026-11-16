@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVELS;
@@ -26,9 +27,11 @@ import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
  * ({@code nanolog.level.<package or class>}, {@code nanolog.levels}) and {@code nanolog.console.*}. All levels are
  * enabled by default. For a different layout extend it and override the protected {@code write*} methods.
  * <p>
- * Logging is thread-safe; the setters are meant for startup, not for concurrent reconfiguration.
+ * Logging is thread-safe. The levels may change at any time, through the level setters or {@link ILevelControl}, and
+ * every logging thread sees the change on its next call; the display setters are meant for startup, not for
+ * concurrent reconfiguration.
  */
-public class ConsoleLogger implements ILogger {
+public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * Property for {@link #setShowLevel(boolean)}: {@code true} or {@code false}.
@@ -67,24 +70,18 @@ public class ConsoleLogger implements ILogger {
     private boolean showSourceFullName = false;
     private boolean showLocation = false;
 
-    private boolean traceEnabled = true;
-    private boolean debugEnabled = true;
-    private boolean infoEnabled = true;
-    private boolean warnEnabled = true;
-    private boolean errorEnabled = true;
+    // volatile: the levels may change at run time, and every logging thread must see the change on its next call
+    private volatile boolean traceEnabled = true;
+    private volatile boolean debugEnabled = true;
+    private volatile boolean infoEnabled = true;
+    private volatile boolean warnEnabled = true;
+    private volatile boolean errorEnabled = true;
 
     /**
-     * Thresholds by package or class name, from {@code nanolog.levels} and {@code nanolog.level.<name>}; fixed at
-     * construction. The value is the ordinal of the lowest enabled level, {@code 5} for {@code OFF}.
+     * The package and class rules, from {@code nanolog.levels}, {@code nanolog.level.<name>} and the level methods.
+     * Never modified: a change builds new rules under the lock of {@link #replaceRule} and swaps the reference.
      */
-    private final Map<String, Integer> levelRules = new HashMap<>();
-    private final Map<Class, Integer> thresholdCache = new ConcurrentHashMap<>();
-
-    /**
-     * The lowest threshold among the rules, {@code Integer.MAX_VALUE} without rules: a level below it is enabled for no
-     * class unless its switch is on.
-     */
-    private final int lowestRuleThreshold;
+    private volatile Rules rules;
 
     /**
      * Set for a subclass with its own {@code isEnabled}, whose answers {@link #mayBeEnabled} cannot predict.
@@ -104,17 +101,8 @@ public class ConsoleLogger implements ILogger {
         showSourceFullName = readBoolean(PROPERTY_SHOW_SOURCE_FULL_NAME, showSourceFullName);
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         applyDateFormat();
-        readLevelRules();
-        lowestRuleThreshold = findLowestRuleThreshold();
+        rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
-    }
-
-    private int findLowestRuleThreshold() {
-        int lowest = Integer.MAX_VALUE;
-        for (int threshold : levelRules.values()) {
-            lowest = Math.min(lowest, threshold);
-        }
-        return lowest;
     }
 
     private void applyGlobalLevel() {
@@ -122,13 +110,17 @@ public class ConsoleLogger implements ILogger {
         if (value != null) {
             int threshold = parseThreshold(PROPERTY_LEVEL, value);
             if (threshold != NO_RULE) {
-                traceEnabled = isAtLeast(LogEntry.LogEntryLevel.TRACE, threshold);
-                debugEnabled = isAtLeast(LogEntry.LogEntryLevel.DEBUG, threshold);
-                infoEnabled = isAtLeast(LogEntry.LogEntryLevel.INFO, threshold);
-                warnEnabled = isAtLeast(LogEntry.LogEntryLevel.WARN, threshold);
-                errorEnabled = isAtLeast(LogEntry.LogEntryLevel.ERROR, threshold);
+                applyThreshold(threshold);
             }
         }
+    }
+
+    private void applyThreshold(int threshold) {
+        traceEnabled = isAtLeast(LogEntry.LogEntryLevel.TRACE, threshold);
+        debugEnabled = isAtLeast(LogEntry.LogEntryLevel.DEBUG, threshold);
+        infoEnabled = isAtLeast(LogEntry.LogEntryLevel.INFO, threshold);
+        warnEnabled = isAtLeast(LogEntry.LogEntryLevel.WARN, threshold);
+        errorEnabled = isAtLeast(LogEntry.LogEntryLevel.ERROR, threshold);
     }
 
     private void applyDateFormat() {
@@ -142,7 +134,8 @@ public class ConsoleLogger implements ILogger {
         }
     }
 
-    private void readLevelRules() {
+    private static Map<String, Integer> readLevelRules() {
+        Map<String, Integer> levelRules = new HashMap<>();
         String list = getProperty(PROPERTY_LEVELS);
         if (list != null) {
             for (String item : list.split(",")) {
@@ -155,18 +148,19 @@ public class ConsoleLogger implements ILogger {
                     printDiagnostic("Invalid item \"" + rule + "\" of \"" + PROPERTY_LEVELS + "\": expected <package or class>=<level>");
                     continue;
                 }
-                addLevelRule(rule.substring(0, separator).trim(), PROPERTY_LEVELS, rule.substring(separator + 1));
+                addLevelRule(levelRules, rule.substring(0, separator).trim(), PROPERTY_LEVELS, rule.substring(separator + 1));
             }
         }
         // single properties come last, so they override an entry of the list for the same name
         for (String key : System.getProperties().stringPropertyNames()) {
             if (key.startsWith(LEVEL_RULE_PREFIX)) {
-                addLevelRule(key.substring(LEVEL_RULE_PREFIX.length()), key, System.getProperty(key));
+                addLevelRule(levelRules, key.substring(LEVEL_RULE_PREFIX.length()), key, System.getProperty(key));
             }
         }
+        return levelRules;
     }
 
-    private void addLevelRule(String name, String property, String value) {
+    private static void addLevelRule(Map<String, Integer> levelRules, String name, String property, String value) {
         int threshold = parseThreshold(property, value);
         if (threshold != NO_RULE) {
             levelRules.put(name, threshold);
@@ -189,21 +183,55 @@ public class ConsoleLogger implements ILogger {
     }
 
     /**
-     * The threshold of the most specific rule for the class: the class itself, then its enclosing classes, then
-     * its packages from the innermost outwards. {@link #NO_RULE} if no rule matches.
+     * One state of the package and class rules, never modified once built, with the thresholds already resolved for
+     * classes. A change builds new rules, so a thread that resolved a class against the old rules can only fill the
+     * cache of the old ones.
      */
-    private int findThreshold(Class sourceClass) {
-        String name = sourceClass.getName();
-        while (true) {
-            Integer threshold = levelRules.get(name);
-            if (threshold != null) {
-                return threshold;
+    private static final class Rules {
+
+        /**
+         * Thresholds by package or class name: the ordinal of the lowest enabled level, {@code 5} for {@code OFF}.
+         */
+        final Map<String, Integer> thresholds;
+
+        /**
+         * The lowest of the thresholds, {@code Integer.MAX_VALUE} without rules: a level below it is enabled for no
+         * class unless its switch is on.
+         */
+        final int lowest;
+
+        private final Map<Class, Integer> resolved = new ConcurrentHashMap<>();
+
+        Rules(Map<String, Integer> thresholds) {
+            this.thresholds = thresholds;
+            int min = Integer.MAX_VALUE;
+            for (int threshold : thresholds.values()) {
+                min = Math.min(min, threshold);
             }
-            int cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
-            if (cut == -1) {
-                return NO_RULE;
+            this.lowest = min;
+        }
+
+        int thresholdOf(Class sourceClass) {
+            return resolved.computeIfAbsent(sourceClass, this::findThreshold);
+        }
+
+        /**
+         * The threshold of the most specific rule for the class: the class itself, then its enclosing classes, then
+         * its packages from the innermost outwards. {@link #NO_RULE} if no rule matches.
+         */
+        private int findThreshold(Class sourceClass) {
+            String name = sourceClass.getName();
+            while (true) {
+                Integer threshold = thresholds.get(name);
+                if (threshold != null) {
+                    return threshold;
+                }
+                int cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
+                if (cut == -1) {
+                    return NO_RULE;
+                }
+                name = name.substring(0, cut);
             }
-            name = name.substring(0, cut);
         }
     }
 
@@ -218,7 +246,8 @@ public class ConsoleLogger implements ILogger {
     }
 
     /**
-     * A package or class rule from the properties decides first; without one, the switch of the level does.
+     * A package or class rule, from the properties or set at run time, decides first; without one, the switch of the
+     * level does.
      *
      * @param level       the level of the entry
      * @param sourceClass the source class; {@code null} follows the switches
@@ -227,7 +256,7 @@ public class ConsoleLogger implements ILogger {
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         if (sourceClass != null) {
-            int threshold = thresholdCache.computeIfAbsent(sourceClass, this::findThreshold);
+            int threshold = rules.thresholdOf(sourceClass);
             if (threshold != NO_RULE) {
                 return isAtLeast(level, threshold);
             }
@@ -245,7 +274,7 @@ public class ConsoleLogger implements ILogger {
      */
     @Override
     public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
-        return isEnabledOverridden || isAtLeast(level, lowestRuleThreshold) || isSwitchedOn(level);
+        return isEnabledOverridden || isAtLeast(level, rules.lowest) || isSwitchedOn(level);
     }
 
     private boolean isSwitchedOn(LogEntry.LogEntryLevel level) {
@@ -262,6 +291,141 @@ public class ConsoleLogger implements ILogger {
 //            case ERROR:
                 return isErrorEnabled();
         }
+    }
+
+    /**
+     * Sets the five level switches at once: this level and above on, the levels below off. Packages and classes with
+     * a rule of their own keep it. Takes effect on the next call in every thread.
+     *
+     * @param level the lowest level to log; {@code null} prints a diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    @Override
+    public synchronized ConsoleLogger setLevel(LogEntry.LogEntryLevel level) {
+        if (isValidLevel("setLevel", level)) {
+            applyThreshold(level.ordinal());
+        }
+        return this;
+    }
+
+    /**
+     * Sets the level of a package or class, as {@code nanolog.level.<name>} does, and replaces its rule if it has
+     * one. Takes effect on the next call in every thread.
+     *
+     * @param name  the package or class; surrounding spaces are ignored
+     * @param level the lowest level to log for it
+     * @return this logger, for chaining
+     */
+    @Override
+    public ConsoleLogger setLevel(String name, LogEntry.LogEntryLevel level) {
+        if (isValidRule("setLevel", name, level)) {
+            replaceRule(name.trim(), level.ordinal());
+        }
+        return this;
+    }
+
+    /**
+     * Removes the rule of a package or class, whether it was configured or set at run time.
+     *
+     * @param name the package or class; a name without a rule is not an error
+     * @return this logger, for chaining
+     */
+    @Override
+    public ConsoleLogger clearLevel(String name) {
+        if (isValidName("clearLevel", name)) {
+            replaceRule(name.trim(), null);
+        }
+        return this;
+    }
+
+    /**
+     * Restores the level switches and the package and class rules from the settings, as the constructor read them,
+     * but with the current values of the system properties and environment variables. Undoes the level setters and
+     * every rule set at run time; the display options stay as they are.
+     *
+     * @return this logger, for chaining
+     */
+    @Override
+    public synchronized ConsoleLogger resetLevels() {
+        applyThreshold(LogEntry.LogEntryLevel.TRACE.ordinal());
+        applyGlobalLevel();
+        rules = new Rules(readLevelRules());
+        return this;
+    }
+
+    /**
+     * Sets the level of a package or class until the returned override is closed, then restores the rule it had.
+     *
+     * @param name  the package or class
+     * @param level the lowest level to log for it while the override is open
+     * @return the override to close
+     */
+    @Override
+    public LOG.LevelOverride withLevel(String name, LogEntry.LogEntryLevel level) {
+        if (!isValidRule("withLevel", name, level)) {
+            return () -> {
+            };
+        }
+        String rule = name.trim();
+        Integer previous = replaceRule(rule, level.ordinal());
+        AtomicBoolean closed = new AtomicBoolean();
+        return () -> {
+            if (closed.compareAndSet(false, true)) {
+                replaceRule(rule, previous);
+            }
+        };
+    }
+
+    /**
+     * Swaps in rules that differ in one name. Synchronized, so two concurrent changes cannot both start from the same
+     * rules and lose one of them.
+     *
+     * @param name      the package or class
+     * @param threshold the new threshold; {@code null} removes the rule
+     * @return the threshold the name had; {@code null} if it had no rule
+     */
+    private synchronized Integer replaceRule(String name, Integer threshold) {
+        Map<String, Integer> thresholds = new HashMap<>(rules.thresholds);
+        Integer previous = threshold == null ? thresholds.remove(name) : thresholds.put(name, threshold);
+        rules = new Rules(thresholds);
+        return previous;
+    }
+
+    /**
+     * Checks a global level for the level methods, here and in {@link CompositeLogger}.
+     */
+    static boolean isValidLevel(String operation, LogEntry.LogEntryLevel level) {
+        if (level == null) {
+            printDiagnostic("Invalid level null in " + operation + "; nothing changed");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks a package or class name for the level methods.
+     */
+    static boolean isValidName(String operation, String name) {
+        if (name == null || name.trim().isEmpty()) {
+            printDiagnostic("Invalid package or class name " + (name == null ? "null" : "\"" + name + "\"") +
+                            " in " + operation + "; nothing changed");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks a package or class name and its level for the level methods.
+     */
+    static boolean isValidRule(String operation, String name, LogEntry.LogEntryLevel level) {
+        if (!isValidName(operation, name)) {
+            return false;
+        }
+        if (level == null) {
+            printDiagnostic("Invalid level null for \"" + name.trim() + "\" in " + operation + "; nothing changed");
+            return false;
+        }
+        return true;
     }
 
     /**

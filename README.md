@@ -24,7 +24,8 @@ a logger field. It works on its own through `ConsoleLogger` or on top of
 - **Lazy messages.** `LOG.debug(() -> ...)` is evaluated only when the level is enabled.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
 - **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
-- **Zero dependencies.** Nine classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
+- **Levels change at run time.** `LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see [Changing levels at run time](#changing-levels-at-run-time).
+- **Zero dependencies.** Eleven classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
@@ -35,6 +36,7 @@ logging
 ├── CompositeLogger.java
 ├── ConsoleLogger.java
 ├── DefaultLoggerCreator.java
+├── ILevelControl.java
 ├── ILogger.java
 ├── JsonLogger.java
 ├── LOG.java
@@ -63,9 +65,10 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 - 4 [Choosing a logger](#choosing-a-logger)
 	- 4.1 [ConsoleLogger](#consolelogger)
 	- 4.2 [Levels and options without code](#levels-and-options-without-code)
-	- 4.3 [JsonLogger](#jsonlogger)
-	- 4.4 [Slf4jLogger](#slf4jlogger)
-	- 4.5 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 4.3 [Changing levels at run time](#changing-levels-at-run-time)
+	- 4.4 [JsonLogger](#jsonlogger)
+	- 4.5 [Slf4jLogger](#slf4jlogger)
+	- 4.6 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 	- 5.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
 - 6 [Caller detection](#caller-detection)
@@ -166,6 +169,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info("... {} ...", args, throwable)` | the SLF4J order: a trailing exception that no `{}` consumes becomes the exception of the entry |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
+| `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | change the global level or the level of a package while the application runs, see [Changing levels at run time](#changing-levels-at-run-time) |
+| `LOG.withLevel("com.acme", level)` | the same for a `try` block, restored at its end |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2), which IDEs also show from the sources jar.
@@ -183,7 +188,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
-- **The whole library fits in a context window.** Nine small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** Eleven small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
@@ -282,7 +287,7 @@ LOG.init(new ConsoleLogger()
 - `showDate` + `dateFormat` — the timestamp and its `SimpleDateFormat`; formatting is synchronized, so one shared format is safe.
 - `showSource` / `showSourceFullName` — the simple or the fully qualified source class name. An anonymous or local class passed explicitly has no such name and is shown by its binary name, `Foo$1` or `com.acme.Foo$1`.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
-- `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.
+- `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated. `setLevel(level)` sets all five at once, and the switches may change while other threads log; see [Changing levels at run time](#changing-levels-at-run-time).
 
 For a custom layout (colours, JSON, a different order) extend `ConsoleLogger` and
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
@@ -315,6 +320,29 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.
 - An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on.
 - `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
+
+### Changing levels at run time
+
+The levels of `ConsoleLogger` and `JsonLogger` can change while the application runs, for a verbose mode, an admin endpoint or a test:
+
+```java
+LOG.setLevel(LogEntryLevel.INFO);                         // the global level
+LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG);   // one package or class, like nanolog.level.<name>
+LOG.clearLevel("com.acme.payments");                      // the global level applies to it again
+LOG.resetLevels();                                        // back to -D, the environment and nanolog.properties
+
+try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE)) {
+    // TRACE for com.acme until the block ends
+}
+```
+
+- A change takes effect on the next logging call in every thread, threads that are already running included.
+- A level set for a package or class works exactly like `nanolog.level.<name>`: it beats the global level, and the most specific rule wins. `LOG.setLevel(level)` changes only the global level and leaves such rules alone.
+- `LOG.withLevel(...)` restores the rule the name had when the `try` block ends, also when it ends with an exception. The change is JVM-wide, not limited to the current thread. Nested overrides of the same name restore correctly when they close in reverse order, as try-with-resources does.
+- `LOG.resetLevels()` reads `nanolog.level`, `nanolog.levels` and `nanolog.level.<name>` again: from `-D` and the environment as they are now, from `nanolog.properties` as it was loaded at startup. It undoes every change made at run time, the level setters of `ConsoleLogger` included; the display options stay as they are.
+- `CompositeLogger` passes each change to those of its delegates that support it. The other loggers have no levels to change: `Slf4jLogger` takes them from the SLF4J backend, and `MemoryLogger` captures everything. When such a logger is installed directly, the first call prints one `[NANOLOG]` line and nothing changes.
+- A `null` or blank name and a `null` level print a `[NANOLOG]` diagnostic and change nothing. `OFF` exists only in the settings; at run time the highest level is `ERROR`.
+- The same methods exist on `ConsoleLogger` and `CompositeLogger`. A custom logger supports `LOG.setLevel(...)` by implementing `ILevelControl`.
 
 ### JsonLogger
 
@@ -517,7 +545,7 @@ A logger that throws does not break the code that logs. The first failure of eac
 ## Thread safety and performance
 
 - The static `LOG` methods are safe to call from any thread as long as the installed `ILogger` is; `ConsoleLogger` and `Slf4jLogger` are.
-- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is used by every thread from its next logging call, threads that are already running included. The `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
+- A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is used by every thread from its next logging call, threads that are already running included. Levels may change at any time, through `LOG.setLevel(...)` and the other level methods or the level setters of `ConsoleLogger`. The display setters (`setShowDate`, `setDateFormat` and the others) are meant for startup, not for concurrent reconfiguration.
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. A level that is on for some package or class costs a call without an explicit class one stack walk and an `isEnabled` check even where it is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
 ## Using SNAPSHOT versions
@@ -565,6 +593,7 @@ dependencies {
 
 In development, not released yet.
 
+- Levels change while the application runs, thread-safely: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()`, and `LOG.withLevel(name, level)` for a `try` block. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement the new `ILevelControl`, and the level setters of `ConsoleLogger` may now be called while other threads log.
 - Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.

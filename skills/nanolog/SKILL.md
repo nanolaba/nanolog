@@ -51,6 +51,10 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.console.showLocation=true`: adds the call site, `[PaymentService.charge(PaymentService.java:87)]`, to every line.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`.
 
+## Changing levels at run time *1.3+*
+
+`LOG.setLevel(LogEntryLevel.INFO)`, `LOG.setLevel("com.acme.payments", LogEntryLevel.DEBUG)`, `LOG.clearLevel(name)` and `LOG.resetLevels()` change the levels of `ConsoleLogger` and `JsonLogger` while the program runs, in every thread. In a test prefer `try (LOG.LevelOverride ignored = LOG.withLevel("com.acme", LogEntryLevel.TRACE)) { ... }`, which puts the previous level back. Like `LOG.init`, a change is JVM-wide.
+
 ## Asserting log output in tests *1.2+*
 
 `MemoryLogger` captures entries; `close()` puts the previous logger back, also when the test fails. `LOG.init` is JVM-wide, so such tests must not run in parallel.
@@ -71,4 +75,4 @@ void chargeIsRetried() {
 
 - [README](https://github.com/nanolaba/nanolog#readme): the full documentation, with the changelog
 - [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog): every class and method of the latest release
-- [Source](https://github.com/nanolaba/nanolog): nine small classes in `src/main/java/com/nanolaba/logging`
+- [Source](https://github.com/nanolaba/nanolog): eleven small classes in `src/main/java/com/nanolaba/logging`

@@ -1,5 +1,6 @@
 package com.nanolaba.logging;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -13,9 +14,14 @@ import java.util.Objects;
  * it has enabled itself. A composite without delegates logs nothing. The delegates are fixed at construction, so the
  * composite is as thread-safe as they are.
  */
-public class CompositeLogger implements ILogger {
+public class CompositeLogger implements ILogger, ILevelControl {
 
     private final ILogger[] loggers;
+
+    /**
+     * The delegates that support level changes at run time, in order.
+     */
+    private final List<ILevelControl> levelControls = new ArrayList<>();
 
     /**
      * Set for a subclass with its own {@code isEnabled}, whose answers {@link #mayBeEnabled} cannot predict.
@@ -32,6 +38,9 @@ public class CompositeLogger implements ILogger {
         this.loggers = loggers.clone();
         for (ILogger logger : this.loggers) {
             Objects.requireNonNull(logger, "a CompositeLogger delegate must not be null");
+            if (logger instanceof ILevelControl) {
+                levelControls.add((ILevelControl) logger);
+            }
         }
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, CompositeLogger.class);
     }
@@ -103,7 +112,93 @@ public class CompositeLogger implements ILogger {
         return false;
     }
 
-    private static final String DELEGATE_NOTE = "the other loggers of the CompositeLogger still receive its entries";
+    /**
+     * Sets the global level of every delegate that implements {@link ILevelControl}; the others are skipped.
+     *
+     * @param level the lowest level to log; {@code null} prints one diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    @Override
+    public CompositeLogger setLevel(LogEntry.LogEntryLevel level) {
+        if (ConsoleLogger.isValidLevel("setLevel", level)) {
+            for (ILevelControl control : levelControls) {
+                control.setLevel(level);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Sets the level of a package or class in every delegate that implements {@link ILevelControl}.
+     *
+     * @param name  the package or class
+     * @param level the lowest level to log for it
+     * @return this logger, for chaining
+     */
+    @Override
+    public CompositeLogger setLevel(String name, LogEntry.LogEntryLevel level) {
+        if (ConsoleLogger.isValidRule("setLevel", name, level)) {
+            for (ILevelControl control : levelControls) {
+                control.setLevel(name, level);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Removes the rule of a package or class in every delegate that implements {@link ILevelControl}.
+     *
+     * @param name the package or class
+     * @return this logger, for chaining
+     */
+    @Override
+    public CompositeLogger clearLevel(String name) {
+        if (ConsoleLogger.isValidName("clearLevel", name)) {
+            for (ILevelControl control : levelControls) {
+                control.clearLevel(name);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Restores the levels of every delegate that implements {@link ILevelControl} from the settings.
+     *
+     * @return this logger, for chaining
+     */
+    @Override
+    public CompositeLogger resetLevels() {
+        for (ILevelControl control : levelControls) {
+            control.resetLevels();
+        }
+        return this;
+    }
+
+    /**
+     * Sets the level of a package or class in every delegate that implements {@link ILevelControl} until the returned
+     * override is closed. Closing restores the delegates in reverse order, so a delegate listed twice ends up with its
+     * original rule.
+     *
+     * @param name  the package or class
+     * @param level the lowest level to log for it while the override is open
+     * @return the override to close
+     */
+    @Override
+    public LOG.LevelOverride withLevel(String name, LogEntry.LogEntryLevel level) {
+        List<LOG.LevelOverride> overrides = new ArrayList<>();
+        if (ConsoleLogger.isValidRule("withLevel", name, level)) {
+            for (ILevelControl control : levelControls) {
+                overrides.add(control.withLevel(name, level));
+            }
+        }
+        return () -> {
+            for (int i = overrides.size() - 1; i >= 0; i--) {
+                overrides.get(i).close();
+            }
+        };
+    }
+
+    private static final String DELEGATE_NOTE ="the other loggers of the CompositeLogger still receive its entries";
 
     private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass) {
         try {

@@ -9,6 +9,8 @@
  * <ul>
  *     <li>{@link com.nanolaba.logging.LOG} &mdash; the static entry point.</li>
  *     <li>{@link com.nanolaba.logging.ILogger} &mdash; the extension point; a lambda is enough.</li>
+ *     <li>{@link com.nanolaba.logging.ILevelControl} &mdash; levels that change while the application runs, behind
+ *     {@code LOG.setLevel} and {@code LOG.withLevel}.</li>
  *     <li>{@link com.nanolaba.logging.LogEntry} &mdash; one record and the message formatter.</li>
  *     <li>{@link com.nanolaba.logging.ConsoleLogger} (the default), {@link com.nanolaba.logging.JsonLogger},
  *     {@link com.nanolaba.logging.Slf4jLogger} &mdash; text, JSON lines and the bridge to SLF4J.</li>

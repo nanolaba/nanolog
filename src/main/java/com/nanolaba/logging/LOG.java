@@ -36,7 +36,9 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
  * <p>
  * The logger behind these methods is chosen at class initialisation by {@link DefaultLoggerCreator}
  * ({@code nanolog.logger}, {@code nanolog.properties}, {@link ConsoleLogger} by default) and can be replaced with
- * {@link #init(ILogger)}. All methods are thread-safe as long as the installed logger is.
+ * {@link #init(ILogger)}. Its levels can change while the application runs: {@link #setLevel(LogEntry.LogEntryLevel)},
+ * {@link #setLevel(String, LogEntry.LogEntryLevel)}, {@link #clearLevel(String)}, {@link #resetLevels()} and
+ * {@link #withLevel(String, LogEntry.LogEntryLevel)}. All methods are thread-safe as long as the installed logger is.
  */
 public class LOG {
 
@@ -96,6 +98,118 @@ public class LOG {
      */
     public static void init(ILogger logger) {
         LOG.logger = logger;
+    }
+
+    // LEVELS AT RUN TIME
+
+    /**
+     * Undoes a {@link #withLevel(String, LogEntry.LogEntryLevel)} change when closed; meant for try-with-resources.
+     */
+    public interface LevelOverride extends AutoCloseable {
+
+        /**
+         * Restores the rule the name had before the override; closing again changes nothing. Never throws.
+         */
+        @Override
+        void close();
+    }
+
+    /**
+     * Sets the global level of the installed logger while the application runs: entries of this level and above are
+     * logged, those below are not. Packages and classes with a rule of their own keep it. Takes effect on the next
+     * call in every thread.
+     * <p>
+     * This and the other level methods need a logger that implements {@link ILevelControl}: {@link ConsoleLogger},
+     * {@link JsonLogger}, or a {@link CompositeLogger}, which passes the change to those of its delegates that
+     * implement it. Any other logger is left unchanged and reported once with a {@code [NANOLOG]} line.
+     *
+     * @param level the lowest level to log; {@code null} prints a diagnostic and changes nothing
+     */
+    public static void setLevel(LogEntry.LogEntryLevel level) {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.setLevel(level);
+        }
+    }
+
+    /**
+     * Sets the level of a package or class while the application runs, as {@code nanolog.level.<name>} does at
+     * startup: it beats the global level, and the most specific rule wins. Replaces the rule the name had.
+     *
+     * @param name  the package or class, such as {@code com.acme.payments}
+     * @param level the lowest level to log for it
+     * @see #setLevel(LogEntry.LogEntryLevel)
+     */
+    public static void setLevel(String name, LogEntry.LogEntryLevel level) {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.setLevel(name, level);
+        }
+    }
+
+    /**
+     * Removes the rule of a package or class, configured or set at run time; the global level or a less specific
+     * rule applies to it again.
+     *
+     * @param name the package or class
+     * @see #setLevel(LogEntry.LogEntryLevel)
+     */
+    public static void clearLevel(String name) {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.clearLevel(name);
+        }
+    }
+
+    /**
+     * Restores the levels of the installed logger from the settings: {@code -D}, environment variables and
+     * {@code nanolog.properties}. Every change made at run time is undone.
+     *
+     * @see #setLevel(LogEntry.LogEntryLevel)
+     */
+    public static void resetLevels() {
+        ILevelControl control = levelControl();
+        if (control != null) {
+            control.resetLevels();
+        }
+    }
+
+    /**
+     * Sets the level of a package or class until the returned override is closed, for a block of code or a test:
+     * <pre>{@code
+     * try (LOG.LevelOverride ignored = LOG.withLevel("com.acme.payments", LogEntryLevel.TRACE)) {
+     *     ...
+     * }
+     * }</pre>
+     * The change is JVM-wide, not limited to the current thread. Closing restores the rule the name had before;
+     * nested overrides of the same name must close in reverse order, as try-with-resources does.
+     *
+     * @param name  the package or class
+     * @param level the lowest level to log for it while the override is open
+     * @return the override to close; it does nothing if the logger does not support level changes
+     * @see #setLevel(LogEntry.LogEntryLevel)
+     */
+    public static LevelOverride withLevel(String name, LogEntry.LogEntryLevel level) {
+        ILevelControl control = levelControl();
+        return control == null ? () -> {
+        } : control.withLevel(name, level);
+    }
+
+    /**
+     * Logger classes already reported as not supporting level changes.
+     */
+    private static final Set<Class> WITHOUT_LEVEL_CONTROL = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    private static ILevelControl levelControl() {
+        ILogger current = logger;
+        if (current instanceof ILevelControl) {
+            return (ILevelControl) current;
+        }
+        if (WITHOUT_LEVEL_CONTROL.add(current.getClass())) {
+            DefaultLoggerCreator.printDiagnostic("Logger " + current.getClass().getName() + " does not implement ILevelControl; " +
+                                                 "LOG.setLevel, clearLevel, resetLevels and withLevel change nothing");
+        }
+        return null;
     }
 
     /**
@@ -1034,10 +1148,11 @@ public class LOG {
     }
 
     /**
-     * Forgets the logger classes reported as failing; for tests.
+     * Forgets the logger classes reported as failing or as not supporting level changes; for tests.
      */
     static void clearReportedLoggerFailures() {
         FAILED_LOGGERS.clear();
+        WITHOUT_LEVEL_CONTROL.clear();
     }
 
     /**
