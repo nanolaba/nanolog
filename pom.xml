@@ -248,4 +248,81 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            JMH benchmarks in src/jmh/java, never part of the default build, CI or the published jar:
+                mvn -P benchmark test-compile exec:exec
+            -Djmh.java=<path to bin/java> runs them on another JVM, -Djmh.args="..." passes JMH options.
+        -->
+        <profile>
+            <id>benchmark</id>
+            <properties>
+                <jmh.version>1.37</jmh.version>
+                <jmh.java>${java.home}/bin/java</jmh.java>
+                <jmh.args/>
+                <build-helper-maven-plugin.version>3.6.0</build-helper-maven-plugin.version>
+                <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.openjdk.jmh</groupId>
+                    <artifactId>jmh-core</artifactId>
+                    <version>${jmh.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build-helper-maven-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>add-benchmark-sources</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/jmh/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-testCompile</id>
+                                <configuration>
+                                    <!-- an explicit processor path: javac 23+ no longer runs processors found on the classpath -->
+                                    <annotationProcessorPaths>
+                                        <path>
+                                            <groupId>org.openjdk.jmh</groupId>
+                                            <artifactId>jmh-generator-annprocess</artifactId>
+                                            <version>${jmh.version}</version>
+                                        </path>
+                                    </annotationProcessorPaths>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${exec-maven-plugin.version}</version>
+                        <configuration>
+                            <executable>${jmh.java}</executable>
+                            <classpathScope>test</classpathScope>
+                            <commandlineArgs>-classpath %classpath org.openjdk.jmh.Main ${jmh.args}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

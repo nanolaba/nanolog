@@ -27,6 +27,16 @@ The `test` phase is wired to run **pitest-maven** with `mutationThreshold=100`. 
 - If a mutant survives, add a test that would catch the mutation rather than weakening the threshold. "Mutations with no coverage" means a line is never executed by tests: cover it.
 - Pitest's default mutators do not remove `synchronized` blocks, so thread-safety fixes need a deterministic test of the contract instead (see `ConsoleLoggerTest.testDateFormatIsGuardedByItsMonitor`).
 
+### Benchmarks
+
+JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and build only with the `benchmark` profile, which adds JMH in `test` scope. The default build, CI, pitest and the published jar never see them.
+
+- Run all: `mvn -P benchmark test-compile exec:exec` (about 4 minutes).
+- Another JVM: `-Djmh.java="C:/Program Files/Java/jdk-17.0.2/bin/java"`; the classes are Java 8 bytecode, so one build runs on every JDK.
+- JMH options: `-Djmh.args="DisabledCallBenchmark -rf text -rff result.txt"`; `-Djmh.args=-l` lists the benchmarks.
+- Benchmarks use only the 1.2 API (`LOG.init`, the `ConsoleLogger` setters, `-Dnanolog.level.<name>` set before construction), so the same classes run against the sources of an older commit compiled on their own: that is how the "before #16" numbers were taken. Keep it that way.
+- Results, with the JDK, CPU and OS they were measured on, are in `src/jmh/RESULTS.md`. Re-measure and update it, and the numbers quoted in README *Thread safety and performance*, after a change to caller detection or the level check.
+
 ### README generation
 
 `README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, and `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`. Never edit the generated files.
@@ -107,6 +117,7 @@ Primitive arrays are rendered via `Arrays.toString`, object arrays via `Arrays.d
 
 - `slf4j-api` is **`provided`**: required only if the consumer uses `Slf4jLogger`. Do not promote it to `compile` scope; that would force SLF4J onto every downstream user and defeat the "zero dependencies" claim in the README.
 - `junit-jupiter`, `slf4j-simple`, `commons-lang3`, `pitest-junit5-plugin` are all test-scope.
+- JMH (`jmh-core`, and `jmh-generator-annprocess` as an annotation processor) exists only in the `benchmark` profile, in test scope; see [Benchmarks](#benchmarks).
 - The jar manifest declares `Automatic-Module-Name: com.nanolaba.nanolog` (configured on `maven-jar-plugin`); keep it stable, modular applications depend on it.
 
 ## Release build

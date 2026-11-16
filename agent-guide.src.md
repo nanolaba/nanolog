@@ -28,7 +28,7 @@ The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVer
 2. Placeholders are `{}`, as in SLF4J. A missing argument leaves `{}` in the text, an extra one is dropped. `\{}` is a literal `{}`, `\\{}` a literal backslash followed by a placeholder.
 3. Pass the exception first, `LOG.error(e, "Failed to load {}", id)`, or last, `LOG.error("Failed to load {}", id, e)` *1.2+*. Version 1.1 drops a trailing exception, so put it first there.
 4. Build expensive messages lazily: `LOG.debug(() -> "Report: " + buildReport())` runs the lambda only when `DEBUG` is enabled.
-5. In hot paths pass the class: `LOG.debug(MyClass.class, "...")`. Without it every call walks the stack, `LOG.isDebugEnabled()` included; only a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, skips the walk *1.3+*.
+5. In hot paths pass the class: `LOG.debug(MyClass.class, "...")`. Without it every call walks the stack, roughly 10 to 30 µs on JDK 17 and more on deeper stacks, `LOG.isDebugEnabled()` included; only a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, skips the walk *1.3+*.
 6. Call `LOG.init(...)` once at application startup and never from library code: it replaces the logger for the whole JVM.
 7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`, a lazy message whose lambda throws becomes `[FAILED supplier: <exception>]` *1.3+*. Do not wrap log calls in `try`/`catch`.
 8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class. If it throws, the call that logged does not fail: Nanolog prints one `[NANOLOG]` line per logger class and writes the entry to `System.err` instead *1.3+*.
