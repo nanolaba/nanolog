@@ -16,7 +16,9 @@ import java.util.function.Function;
  * <p>
  * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
  * after {@link LOG}, so its {@code %file:%line} or {@code %l} shows the code that called {@code LOG}. SLF4J markers
- * are not supported; MDC works as usual. {@code slf4j-api} is a {@code provided} dependency of Nanolog.
+ * are not supported. MDC values set through {@code org.slf4j.MDC} are printed by backends that support MDC (Logback,
+ * Log4j 2); slf4j-simple and slf4j-nop discard them, and the JUL binding stores them without printing.
+ * {@code slf4j-api} is a {@code provided} dependency of Nanolog.
  */
 public class Slf4jLogger implements ILogger {
 
