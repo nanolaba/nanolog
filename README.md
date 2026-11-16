@@ -279,7 +279,7 @@ LOG.init(new ConsoleLogger()
 
 - `showLevel` — the level name.
 - `showDate` + `dateFormat` — the timestamp and its `SimpleDateFormat`; formatting is synchronized, so one shared format is safe.
-- `showSource` / `showSourceFullName` — the simple or the fully qualified source class name.
+- `showSource` / `showSourceFullName` — the simple or the fully qualified source class name. An anonymous or local class passed explicitly has no such name and is shown by its binary name, `Foo$1` or `com.acme.Foo$1`.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
 - `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated.
 
@@ -557,6 +557,7 @@ In development, not released yet.
 
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
+- `ConsoleLogger`: an anonymous or local source class passed explicitly is printed as `[Foo$1]` instead of `[]` or `[null]`; `LogEntry.toString()` names it too.
 - A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is now guaranteed to be seen by threads that are already logging; before, a test could miss entries logged from an executor thread.
 - A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.
 - Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.

@@ -183,7 +183,7 @@ public class LogEntry {
     public String toString() {
         return "LogEntry{" +
                "level=" + getLevel() +
-               ", sourceClass=" + (getSourceClass() == null ? null : getSourceClass().getCanonicalName()) +
+               ", sourceClass=" + (getSourceClass() == null ? null : fullName(getSourceClass())) +
                ", throwable=" + safeToString(getThrowable()) +
                ", message=" + safeToString(getMessage()) +
                ", args=" + arrayToString(getArgs()) +
@@ -318,5 +318,27 @@ public class LogEntry {
         } catch (Throwable t) {
             return "[FAILED toString()]";
         }
+    }
+
+    /**
+     * The canonical name of a class, or its binary name ({@code com.acme.Foo$1}) for anonymous and local classes,
+     * which have no canonical name.
+     */
+    static String fullName(Class sourceClass) {
+        String canonical = sourceClass.getCanonicalName();
+        return canonical == null ? sourceClass.getName() : canonical;
+    }
+
+    /**
+     * The simple name of a class, or the last part of its binary name ({@code Foo$1}) for anonymous classes, whose
+     * simple name is empty.
+     */
+    static String simpleName(Class sourceClass) {
+        String simple = sourceClass.getSimpleName();
+        if (!simple.isEmpty()) {
+            return simple;
+        }
+        String name = sourceClass.getName();
+        return name.substring(name.lastIndexOf('.') + 1);
     }
 }

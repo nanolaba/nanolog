@@ -319,13 +319,14 @@ public class ConsoleLogger implements ILogger {
     }
 
     /**
-     * The name of the source class as printed: simple or fully qualified.
+     * The name of the source class as printed: simple or fully qualified. Anonymous and local classes, which have no
+     * canonical name and an empty or partial simple name, are printed by their binary name ({@code Foo$1}).
      *
      * @param sourceClass the source class, never {@code null}
      * @return the name
      */
     protected String getSourceName(Class sourceClass) {
-        return isShowSourceFullName() ? sourceClass.getCanonicalName() : sourceClass.getSimpleName();
+        return isShowSourceFullName() ? LogEntry.fullName(sourceClass) : LogEntry.simpleName(sourceClass);
     }
 
     /**

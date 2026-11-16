@@ -600,6 +600,24 @@ public class LOGTest {
     }
 
     /**
+     * An anonymous or local source class has no canonical name; {@code LogEntry.toString()} shows its binary name
+     * instead of {@code null}, which would look like a missing source class.
+     */
+    @Test
+    public void testEntryOfAnonymousOrLocalSourceClassNamesTheClass() {
+        Mutable<String> message = new MutableObject<>();
+        LOG.init(entry -> message.setValue(entry.toString()));
+
+        LOG.info(com.nanolaba.logging.util.AnonymousSource.ANONYMOUS, "anonymous");
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.util.AnonymousSource$1, throwable=null, message=anonymous, args=[]}",
+                     message.getValue());
+
+        LOG.info(com.nanolaba.logging.util.AnonymousSource.LOCAL, "local");
+        assertEquals("LogEntry{level=INFO, sourceClass=com.nanolaba.logging.util.AnonymousSource$1Local, throwable=null, message=local, args=[]}",
+                     message.getValue());
+    }
+
+    /**
      * {@code LOG.init(...)} and {@code MemoryLogger.install()} replace the logger while other threads may already be
      * logging (a test installs a {@code MemoryLogger} while the code under test logs from an executor). Without
      * {@code volatile} those threads are not guaranteed to ever see the new logger. A race cannot be provoked

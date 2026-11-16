@@ -1,5 +1,6 @@
 package com.nanolaba.logging;
 
+import com.nanolaba.logging.util.AnonymousSource;
 import com.nanolaba.logging.util.InfoObject;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -158,6 +159,25 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
 
         LOG.error(InfoObject.class, "");
         assertEquals("ERROR " + currentYear + " [InfoObject]" + System.lineSeparator(), getErrAndClear());
+    }
+
+    @Test
+    public void testAnonymousAndLocalSourceClassesArePrintedByName() {
+        ConsoleLogger logger = createLogger();
+        LOG.init(logger);
+
+        LOG.info(AnonymousSource.ANONYMOUS, "anonymous");
+        assertEquals("INFO 01.01.2010 00:00:00 [AnonymousSource$1] anonymous" + System.lineSeparator(), getOutAndClear());
+        LOG.info(AnonymousSource.LOCAL, "local");
+        assertEquals("INFO 01.01.2010 00:00:00 [Local] local" + System.lineSeparator(), getOutAndClear());
+
+        logger.setShowSourceFullName(true);
+        LOG.info(AnonymousSource.ANONYMOUS, "anonymous");
+        assertEquals("INFO 01.01.2010 00:00:00 [com.nanolaba.logging.util.AnonymousSource$1] anonymous" + System.lineSeparator(), getOutAndClear());
+        LOG.info(AnonymousSource.LOCAL, "local");
+        assertEquals("INFO 01.01.2010 00:00:00 [com.nanolaba.logging.util.AnonymousSource$1Local] local" + System.lineSeparator(), getOutAndClear());
+        LOG.info(InfoObject.class, "canonical");
+        assertEquals("INFO 01.01.2010 00:00:00 [com.nanolaba.logging.util.InfoObject] canonical" + System.lineSeparator(), getOutAndClear());
     }
 
     @Test
