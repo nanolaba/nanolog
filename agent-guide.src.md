@@ -17,7 +17,7 @@ description: Use when writing, reviewing or debugging Java code that logs throug
 <!--skill-->
 # Nanolog
 
-> Nanolog (`${coords}`) is a tiny logging facade for Java ${pom.properties.maven.compiler.release}+. Every call goes through the static methods of `com.nanolaba.logging.LOG`, and the source class is detected from the stack, so classes have no logger fields. It prints to the console by default, writes JSON lines or forwards to SLF4J, and has no runtime dependencies.<!--llms-->
+> Nanolog (`${coords}`) is a zero-dependency logging library for Java ${pom.properties.maven.compiler.release}+. Every call goes through the static methods of `com.nanolaba.logging.LOG`, and the source class is detected from the stack, so classes have no logger fields. It prints to the console by default, writes JSON lines, captures entries in tests or forwards to SLF4J. Not related to NanoLog, the C++ logger.<!--llms-->
 Nanolog (`${coords}`) is a tiny logging facade for Java ${pom.properties.maven.compiler.release}+: every call goes through the static methods of `com.nanolaba.logging.LOG`, and the source class is detected from the stack, so classes have no logger fields. Follow this guide whenever you add or change log calls in a project that depends on it.<!--skill-->
 
 The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; this guide describes the development version ${devVersion}")}. Features marked *1.2+* or *1.3+* need that version or newer.

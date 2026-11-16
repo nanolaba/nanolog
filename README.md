@@ -11,21 +11,25 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
 
-# Nanolaba logger (Nanolog)
+# Nanolog: Java logging without logger fields
 
-**Nanolog** is a tiny logging facade for Java 8+: every call goes through the static
-methods of `LOG`, the source class is detected automatically, so no class needs
-a logger field. It works on its own through `ConsoleLogger` or on top of
-**SLF4J**, and therefore on top of Logback, Log4j 2, JBoss Logging and others.
+**Nanolog** is a zero-dependency logging library for Java 8+: every call goes through
+the static methods of `LOG`, the source class is detected automatically, so no class
+needs a logger field. It prints to the console, writes JSON lines, captures entries
+in tests, and works on its own or on top of **SLF4J**, and therefore on top of
+Logback, Log4j 2, JBoss Logging and others.
+
+Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://github.com/PlatformLab/NanoLog), the nanosecond-scale logger for C++.
 
 ## Why Nanolog
 
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
-- **Lazy messages.** `LOG.debug(() -> ...)` is evaluated only when the level is enabled.
-- **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
-- **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
-- **Levels change at run time.** `LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see [Changing levels at run time](#changing-levels-at-run-time).
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
+- **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
+- **JSON lines and tests built in.** `JsonLogger` writes one JSON object per line for `jq` and log collectors; `MemoryLogger` captures entries in a test and asserts on them, with the whole log in the failure message; see [JsonLogger](#jsonlogger) and [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
+- **Levels change at run time.** `LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see [Changing levels at run time](#changing-levels-at-run-time).
+- **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
+- **Lazy messages.** `LOG.debug(() -> ...)` is evaluated only when the level is enabled.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 

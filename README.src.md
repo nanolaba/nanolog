@@ -22,25 +22,30 @@ ${widget:badge(type='custom', label='java', message='${pom.properties.maven.comp
 ${widget:badge(type='license', value='Apache-2.0', url='https://www.apache.org/licenses/LICENSE-2.0')}
 ${widget:badge(type='github-stars', repo='nanolaba/nanolog')}
 
-# Nanolaba logger (Nanolog)
+# ${en:'Nanolog: Java logging without logger fields', ru:'Nanolog: логирование в Java без полей логгера'}
 
-${name} — крошечный логгер для Java 8+: все вызовы идут через статические методы<!--ru-->
-класса `LOG`, класс-источник определяется автоматически, поэтому поле логгера<!--ru-->
-в каждом классе больше не нужно. Работает сам по себе через `ConsoleLogger`<!--ru-->
-или поверх **SLF4J**, а значит и поверх Logback, Log4j 2, JBoss Logging и других.<!--ru-->
-${name} is a tiny logging facade for Java 8+: every call goes through the static<!--en-->
-methods of `LOG`, the source class is detected automatically, so no class needs<!--en-->
-a logger field. It works on its own through `ConsoleLogger` or on top of<!--en-->
-**SLF4J**, and therefore on top of Logback, Log4j 2, JBoss Logging and others.<!--en-->
+${name} — библиотека логирования для Java 8+ без зависимостей: все вызовы идут<!--ru-->
+через статические методы класса `LOG`, класс-источник определяется автоматически,<!--ru-->
+поэтому поле логгера в каждом классе больше не нужно. Она печатает в консоль, пишет<!--ru-->
+JSON-строки, перехватывает записи в тестах и работает сама по себе или поверх<!--ru-->
+**SLF4J**, а значит и поверх Logback, Log4j 2, JBoss Logging и других.<!--ru-->
+${name} is a zero-dependency logging library for Java 8+: every call goes through<!--en-->
+the static methods of `LOG`, the source class is detected automatically, so no class<!--en-->
+needs a logger field. It prints to the console, writes JSON lines, captures entries<!--en-->
+in tests, and works on its own or on top of **SLF4J**, and therefore on top of<!--en-->
+Logback, Log4j 2, JBoss Logging and others.<!--en-->
+
+${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://github.com/PlatformLab/NanoLog), the nanosecond-scale logger for C++.', ru:'Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](https://github.com/PlatformLab/NanoLog), наносекундным логгером для C++.'}
 
 ## ${en:'Why Nanolog', ru:'Зачем нужен Nanolog'}
 
 - **${en:'No logger fields.', ru:'Нет полей логгера.'}** `LOG.info("...")` ${en:'works from any class; the caller is found by walking the stack', ru:'работает из любого класса, вызывающий определяется по стеку'}.
-- **${en:'Lazy messages.', ru:'Ленивые сообщения.'}** `LOG.debug(() -> ...)` ${en:'is evaluated only when the level is enabled', ru:'вычисляется только при включённом уровне'}.
-- **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
-- **${en:'Logging never throws.', ru:'Логирование никогда не падает.'}** ${en:'A broken', ru:'Сломанный'} `toString()` ${en:'becomes', ru:'превращается в'} `[FAILED toString()]` ${en:'instead of an exception in your code', ru:'вместо исключения в вашем коде'}.
-- **${en:'Levels change at run time.', ru:'Уровни меняются на лету.'}** ${en:'`LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see', ru:'`LOG.setLevel("com.acme.payments", DEBUG)` из админского эндпоинта или теста действует во всех потоках, а `LOG.withLevel(...)` возвращает прежний уровень в конце блока; см.'} [${en:'Changing levels at run time', ru:'Изменение уровней во время работы'}](#${en:'changing-levels-at-run-time', ru:'изменение-уровней-во-время-работы'}).
 - **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'No transitive libraries;', ru:'Никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
+- **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
+- **${en:'JSON lines and tests built in.', ru:'JSON и тесты из коробки.'}** ${en:'`JsonLogger` writes one JSON object per line for `jq` and log collectors; `MemoryLogger` captures entries in a test and asserts on them, with the whole log in the failure message; see', ru:'`JsonLogger` пишет один JSON-объект в строке для `jq` и сборщиков логов; `MemoryLogger` перехватывает записи в тесте и проверяет их, показывая весь лог в сообщении об ошибке; см.'} [JsonLogger](#jsonlogger) ${en:'and', ru:'и'} [MemoryLogger ${en:'and', ru:'и'} CompositeLogger](#${en:'memorylogger-and-compositelogger', ru:'memorylogger-и-compositelogger'}).
+- **${en:'Levels change at run time.', ru:'Уровни меняются на лету.'}** ${en:'`LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see', ru:'`LOG.setLevel("com.acme.payments", DEBUG)` из админского эндпоинта или теста действует во всех потоках, а `LOG.withLevel(...)` возвращает прежний уровень в конце блока; см.'} [${en:'Changing levels at run time', ru:'Изменение уровней во время работы'}](#${en:'changing-levels-at-run-time', ru:'изменение-уровней-во-время-работы'}).
+- **${en:'Logging never throws.', ru:'Логирование никогда не падает.'}** ${en:'A broken', ru:'Сломанный'} `toString()` ${en:'becomes', ru:'превращается в'} `[FAILED toString()]` ${en:'instead of an exception in your code', ru:'вместо исключения в вашем коде'}.
+- **${en:'Lazy messages.', ru:'Ленивые сообщения.'}** `LOG.debug(() -> ...)` ${en:'is evaluated only when the level is enabled', ru:'вычисляется только при включённом уровне'}.
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
 - **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
