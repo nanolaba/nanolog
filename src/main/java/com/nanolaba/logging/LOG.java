@@ -1058,20 +1058,23 @@ public class LOG {
 
     /**
      * Resolves a stack frame class, preferring the thread's context class loader (the application's loader in
-     * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see it.
+     * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see or
+     * load it, whatever the failure.
      */
     private static Class resolveClass(String className) {
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
         if (contextClassLoader != null) {
             try {
                 return Class.forName(className, false, contextClassLoader);
-            } catch (ClassNotFoundException e) {
-                // not visible from the context class loader, try our own
+            } catch (Throwable e) {
+                // not visible from the context class loader, or it fails to load the class: try our own
             }
         }
         try {
             return Class.forName(className, false, LOG.class.getClassLoader());
-        } catch (ClassNotFoundException e) {
+        } catch (Throwable e) {
+            // besides ClassNotFoundException: a LinkageError, GraalVM's MissingReflectionRegistrationError (an Error),
+            // a SecurityException. Logging never throws, so the frame is skipped instead
             return null;
         }
     }

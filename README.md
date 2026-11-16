@@ -455,7 +455,7 @@ and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogg
 
 - Nested, anonymous and lambda classes are attributed to their top-level enclosing class.
 - The frame found by the walk is kept as `LogEntry.getCaller()`: the exact class, method, file and line of the call, including nested classes and lambdas. It costs nothing extra, and it is `null` when the class was passed explicitly.
-- Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see is skipped.
+- Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see or load is skipped, whatever the failure: a missing class, a linkage error such as `NoClassDefFoundError`, or `MissingReflectionRegistrationError` from GraalVM in a native image.
 - The stack walk happens on every call without an explicit class, including `LOG.isDebugEnabled()`. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
 - Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.
 - If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the JVM records no stack traces (`-XX:-StackTraceInThrowable`) or when the code runs entirely inside an `ILogger` class. `Slf4jLogger` sends such entries to the `ROOT` logger.
@@ -555,6 +555,7 @@ In development, not released yet.
 
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
+- Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.
 
 ### 1.2
 

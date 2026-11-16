@@ -600,6 +600,59 @@ public class LOGTest {
     }
 
     /**
+     * The context class loader fails with something other than {@code ClassNotFoundException} while loading a frame's
+     * class: a linkage error (a child-first loader of an application server that cannot see a dependency), an
+     * {@code Error} such as GraalVM's {@code MissingReflectionRegistrationError}, or a runtime exception. Logging must
+     * not throw: the frame is resolved through LOG's own loader instead.
+     */
+    @Test
+    public void testCallerResolvedByOwnLoaderWhenContextLoaderFails() {
+        Mutable<Class> sourceClass = new MutableObject<>();
+        LOG.init(entry -> sourceClass.setValue(entry.getSourceClass()));
+
+        Throwable[] failures = {
+                new NoClassDefFoundError("simulated linkage failure"),
+                new Error("simulated MissingReflectionRegistrationError") {
+                },
+                new SecurityException("simulated access check")
+        };
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try {
+            for (Throwable failure : failures) {
+                sourceClass.setValue(null);
+                Thread.currentThread().setContextClassLoader(new FailingClassLoader(failure));
+
+                LOG.info("the context class loader fails with {}", failure);
+
+                assertEquals(LOGTest.class, sourceClass.getValue(), failure.toString());
+            }
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    /**
+     * A class loader whose every load attempt fails with the given throwable.
+     */
+    private static class FailingClassLoader extends ClassLoader {
+
+        private final Throwable failure;
+
+        FailingClassLoader(Throwable failure) {
+            super(null);
+            this.failure = failure;
+        }
+
+        @Override
+        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+            if (failure instanceof Error) {
+                throw (Error) failure;
+            }
+            throw (RuntimeException) failure;
+        }
+    }
+
+    /**
      * Compiles a class that calls {@code LOG.info(...)} into a temporary directory and loads it through a child-first
      * class loader, so that the class is invisible to the loader that loaded {@link LOG}.
      */
