@@ -444,13 +444,15 @@ void chargeIsRetried() {
     try (MemoryLogger log = MemoryLogger.install()) { // close() puts the previous logger back
         new PaymentService().charge(42); // the code under test
 
-        assertTrue(log.contains(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying"));
+        log.assertLogged(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying");
+        log.assertNoneAtOrAbove(LogEntry.LogEntryLevel.ERROR); // a failure lists everything that was logged
     }
 }
 ```
 
 - `install()` заменяет логгер `LOG` и запоминает прежний; `close()` возвращает его, даже если тест упал. `installForwarding()` делает то же самое, но продолжает передавать каждую запись прежнему логгеру, и обычный вывод остаётся на месте.
-- `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)`, `clear()` — снимки и короткие проверки; логгер потокобезопасен.
+- `getEntries()`, `getEntries(level)`, `getEntries(SomeClass.class)`, `getMessages()`, `contains(level, text)`, `clear()` — снимки и короткие проверки; логгер потокобезопасен.
+- `assertNoneAtOrAbove(WARN)`, `assertLogged(level, text)`, `assertTemplateLogged(level, "Retry {} of {}")` — проверки, которые бросают `AssertionError` без JUnit и AssertJ. Сообщение перечисляет все перехваченные записи с местом вызова и трассировкой стека, поэтому упавший тест сразу показывает, что было в логе, без повторного запуска. `assertNoneAtOrAbove(WARN)` проверяет, что код не записал ни одного предупреждения и ни одной ошибки; `assertTemplateLogged` сравнивает сообщение до подстановки аргументов.
 - `new MemoryLogger(capacity)` хранит только самые новые записи.
 - `LOG.init` действует на всю JVM, поэтому тесты, устанавливающие логгер, нельзя запускать параллельно друг с другом.
 
@@ -653,6 +655,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
+- `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` и `assertTemplateLogged(level, template)` падают с `AssertionError`, в котором перечислены все перехваченные записи вместе с трассировками и местами вызова; `getEntries(Class)` отбирает записи одного класса-источника.
 - Короткие трассировки стека в `ConsoleLogger` и `JsonLogger`: `nanolog.exception.exclude` сворачивает подряд идущие кадры пакетов вроде `org.junit` или `jdk.internal.reflect` в `... N frames excluded`, `nanolog.exception.maxFrames` ограничивает число кадров каждого исключения. Без них вывод, как и раньше, совпадает с `printStackTrace`.
 - `LOG.once()` и `LOG.atMostEvery(period, unit)` ограничивают строку кода первым вызовом или одной записью за период, по месту вызова. Следующая прошедшая запись несёт число пропущенных вызовов, `LogEntry.getSkippedCount()`, и `ConsoleLogger`, `JsonLogger` и `Slf4jLogger` его печатают.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (или `setStream`) выбирает поток для каждого уровня: `out` отправляет всё в стандартный вывод, и `java -jar app.jar | jq` сохраняет строки `ERROR`, `err` отправляет всё в поток ошибок, `err@WARN` — предупреждения и ошибки. Значение по умолчанию `err@ERROR` повторяет прежнее поведение.

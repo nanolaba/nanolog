@@ -79,7 +79,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 
 ${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='true')}
 
-`MemoryLogger.installForwarding()` captures and still prints. `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)` and `clear()` cover the usual assertions.
+`MemoryLogger.installForwarding()` captures and still prints. `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)` and `clear()` cover the usual assertions. *1.3+*: `assertNoneAtOrAbove(LogEntryLevel.WARN)`, `assertLogged(level, text)` and `assertTemplateLogged(level, "Retry {} of {}")` throw an `AssertionError` that lists every captured entry with its call site and stack trace, so a failing test shows the log without a rerun; `getEntries(SomeClass.class)` selects one source class.
 
 ## Links
 

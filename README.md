@@ -444,13 +444,15 @@ void chargeIsRetried() {
     try (MemoryLogger log = MemoryLogger.install()) { // close() puts the previous logger back
         new PaymentService().charge(42); // the code under test
 
-        assertTrue(log.contains(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying"));
+        log.assertLogged(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying");
+        log.assertNoneAtOrAbove(LogEntry.LogEntryLevel.ERROR); // a failure lists everything that was logged
     }
 }
 ```
 
 - `install()` replaces the logger of `LOG` and remembers the previous one; `close()` puts it back, also when the test fails. `installForwarding()` does the same but still passes every entry to the previous logger, so the usual output stays visible.
-- `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)`, `clear()` — snapshots and short assertions; the logger is thread-safe.
+- `getEntries()`, `getEntries(level)`, `getEntries(SomeClass.class)`, `getMessages()`, `contains(level, text)`, `clear()` — snapshots and short assertions; the logger is thread-safe.
+- `assertNoneAtOrAbove(WARN)`, `assertLogged(level, text)`, `assertTemplateLogged(level, "Retry {} of {}")` — assertions that throw `AssertionError` without JUnit or AssertJ. The message lists every captured entry with its call site and stack trace, so the failing test shows what was logged without a second run. `assertNoneAtOrAbove(WARN)` checks that the code logged no warning and no error; `assertTemplateLogged` matches the message before its arguments were substituted.
 - `new MemoryLogger(capacity)` keeps only the newest entries.
 - `LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.
 
@@ -653,6 +655,7 @@ dependencies {
 
 In development, not released yet.
 
+- `MemoryLogger`: `assertNoneAtOrAbove(level)`, `assertLogged(level, text)` and `assertTemplateLogged(level, template)` fail with an `AssertionError` that lists every captured entry, stack traces and call sites included; `getEntries(Class)` selects the entries of one source class.
 - Shorter stack traces in `ConsoleLogger` and `JsonLogger`: `nanolog.exception.exclude` collapses runs of frames from packages such as `org.junit` or `jdk.internal.reflect` into `... N frames excluded`, `nanolog.exception.maxFrames` caps the frames of each throwable. Without them the output is that of `printStackTrace`, as before.
 - `LOG.once()` and `LOG.atMostEvery(period, unit)` limit a statement to its first call or to one entry per period, keyed by the call site. The next entry that gets through carries the number of skipped calls, `LogEntry.getSkippedCount()`, which `ConsoleLogger`, `JsonLogger` and `Slf4jLogger` print.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (or `setStream`) chooses the stream of each level: `out` sends everything to standard output, so `java -jar app.jar | jq` keeps the `ERROR` lines, `err` sends everything to standard error, `err@WARN` warnings and errors. The default `err@ERROR` is the former behaviour.

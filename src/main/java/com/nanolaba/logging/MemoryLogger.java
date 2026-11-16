@@ -11,7 +11,8 @@ import java.util.List;
  * <pre>{@code
  * try (MemoryLogger log = MemoryLogger.install()) {
  *     service.charge(42);
- *     assertTrue(log.contains(LogEntryLevel.WARN, "retrying"));
+ *     log.assertLogged(LogEntryLevel.WARN, "retrying");
+ *     log.assertNoneAtOrAbove(LogEntryLevel.ERROR);
  * }
  * }</pre>
  * Every level is enabled, so the entries are captured whatever the production configuration says. The logger is
@@ -154,6 +155,93 @@ public class MemoryLogger implements ILogger, AutoCloseable {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns a snapshot of the captured entries of one source class, oldest first.
+     *
+     * @param sourceClass the source class to select, detected or passed explicitly; {@code null} selects the entries
+     *                    without one
+     * @return a snapshot of the captured entries of the class, oldest first
+     */
+    public List<LogEntry> getEntries(Class sourceClass) {
+        List<LogEntry> result = new ArrayList<>();
+        for (LogEntry entry : getEntries()) {
+            if (entry.getSourceClass() == sourceClass) {
+                result.add(entry);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * Fails unless no entry of this level or a more severe one was captured: {@code assertNoneAtOrAbove(WARN)} checks
+     * that the code logged no warning and no error.
+     *
+     * @param level the least severe level that fails the assertion
+     * @throws AssertionError with every captured entry in the console format, stack traces included
+     */
+    public void assertNoneAtOrAbove(LogEntry.LogEntryLevel level) {
+        List<LogEntry> captured = getEntries();
+        int found = 0;
+        for (LogEntry entry : captured) {
+            if (entry.getLevel() != null && entry.getLevel().compareTo(level) >= 0) {
+                found++;
+            }
+        }
+        if (found > 0) {
+            throw failure("Expected no entry at " + level + " or above, but " + found + (found == 1 ? " was" : " were") + " logged.",
+                          captured);
+        }
+    }
+
+    /**
+     * Fails unless an entry of this level has a formatted message containing {@code messagePart}, as
+     * {@link #contains(LogEntry.LogEntryLevel, String)} tells.
+     *
+     * @param level       the level the entry must have
+     * @param messagePart the text its formatted message must contain
+     * @throws AssertionError with every captured entry in the console format, stack traces included
+     */
+    public void assertLogged(LogEntry.LogEntryLevel level, String messagePart) {
+        if (!contains(level, messagePart)) {
+            throw failure("Expected a " + level + " entry containing \"" + messagePart + "\".", getEntries());
+        }
+    }
+
+    /**
+     * Fails unless an entry of this level has exactly this template, its message before the arguments were
+     * substituted: {@code assertTemplateLogged(WARN, "Retry {} of {}")} matches whatever the arguments were.
+     *
+     * @param level    the level the entry must have
+     * @param template the raw message the entry must have
+     * @throws AssertionError with every captured entry in the console format, stack traces included
+     */
+    public void assertTemplateLogged(LogEntry.LogEntryLevel level, String template) {
+        for (LogEntry entry : getEntries(level)) {
+            if (entry.getMessage() != null && LogEntry.safeToString(entry.getMessage()).equals(template)) {
+                return;
+            }
+        }
+        throw failure("Expected a " + level + " entry with the template \"" + template + "\".", getEntries());
+    }
+
+    /**
+     * An assertion failure that shows what was logged, so a failing test needs no second run to find out.
+     */
+    private static AssertionError failure(String expectation, List<LogEntry> captured) {
+        if (captured.isEmpty()) {
+            return new AssertionError(expectation + " Captured entries: none");
+        }
+        // the level, the source class with the call site, the message and the stack trace; no date, since the
+        // console prints the time of writing, not the time the entry was logged
+        ConsoleLogger format = new ConsoleLogger().setShowLevel(true).setShowDate(false).setShowThread(false)
+                                                  .setShowSource(true).setShowSourceFullName(false).setShowLocation(true);
+        StringBuilder message = new StringBuilder(expectation).append(" Captured entries:");
+        for (LogEntry entry : captured) {
+            message.append(System.lineSeparator()).append(format.createLogString(entry));
+        }
+        return new AssertionError(message.toString());
     }
 
     /**

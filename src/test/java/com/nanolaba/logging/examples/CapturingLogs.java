@@ -6,8 +6,6 @@ import com.nanolaba.logging.LOG;
 import com.nanolaba.logging.LogEntry;
 import com.nanolaba.logging.MemoryLogger;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 /**
  * Capturing log entries in a test without a mocking framework. The regions are imported into the README.
  * The methods carry no {@code @Test} annotation on purpose: examples only need to compile.
@@ -19,7 +17,8 @@ public class CapturingLogs {
         try (MemoryLogger log = MemoryLogger.install()) { // close() puts the previous logger back
             new PaymentService().charge(42); // the code under test
 
-            assertTrue(log.contains(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying"));
+            log.assertLogged(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying");
+            log.assertNoneAtOrAbove(LogEntry.LogEntryLevel.ERROR); // a failure lists everything that was logged
         }
     }
     // nrg:end:capture

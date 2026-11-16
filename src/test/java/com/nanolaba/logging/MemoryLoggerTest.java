@@ -221,6 +221,92 @@ class MemoryLoggerTest extends AbstractLoggerTest {
         assertSame(console, LOG.getLogger());
     }
 
+    private static final String N = System.lineSeparator();
+
+    @Test
+    public void testAssertNoneAtOrAbove() {
+        MemoryLogger memory = new MemoryLogger();
+        memory.log(new LogEntry(DEBUG, InfoObject.class, null, "loading"));
+        memory.log(new LogEntry(INFO, InfoObject.class, null, "loaded {} items", 3));
+        memory.log(new LogEntry(null, InfoObject.class, null, "no level"));
+
+        memory.assertNoneAtOrAbove(WARN);
+        memory.log(new LogEntry(WARN, InfoObject.class, null, "retrying"));
+        memory.assertNoneAtOrAbove(ERROR);
+
+        AssertionError error = assertThrows(AssertionError.class, () -> memory.assertNoneAtOrAbove(WARN));
+        assertEquals("Expected no entry at WARN or above, but 1 was logged. Captured entries:" + N +
+                     "DEBUG [InfoObject] loading" + N +
+                     "INFO [InfoObject] loaded 3 items" + N +
+                     "[InfoObject] no level" + N +
+                     "WARN [InfoObject] retrying",
+                     error.getMessage());
+
+        memory.log(new LogEntry(ERROR, InfoObject.class, null, "failed"));
+        assertTrue(assertThrows(AssertionError.class, () -> memory.assertNoneAtOrAbove(TRACE)).getMessage()
+                           .startsWith("Expected no entry at TRACE or above, but 4 were logged."));
+    }
+
+    @Test
+    public void testFailureMessageShowsStackTracesAndCallSites() {
+        MemoryLogger memory = new MemoryLogger();
+        LOG.init(memory);
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.error("failed {}", 42, new IllegalStateException("boom"));
+
+        String message = assertThrows(AssertionError.class, () -> memory.assertNoneAtOrAbove(ERROR)).getMessage();
+        assertTrue(message.startsWith("Expected no entry at ERROR or above, but 1 was logged. Captured entries:" + N +
+                                      "ERROR [MemoryLoggerTest.testFailureMessageShowsStackTracesAndCallSites(MemoryLoggerTest.java:" + line +
+                                      ")] failed 42 java.lang.IllegalStateException: boom" + N +
+                                      "\tat com.nanolaba.logging.MemoryLoggerTest.testFailureMessageShowsStackTracesAndCallSites"), message);
+    }
+
+    @Test
+    public void testAssertLogged() {
+        MemoryLogger memory = new MemoryLogger();
+        AssertionError empty = assertThrows(AssertionError.class, () -> memory.assertLogged(WARN, "retrying"));
+        assertEquals("Expected a WARN entry containing \"retrying\". Captured entries: none", empty.getMessage());
+
+        memory.log(new LogEntry(INFO, InfoObject.class, null, "Charge of {} failed, retrying", 42));
+        memory.assertLogged(INFO, "failed, retry");
+
+        AssertionError otherLevel = assertThrows(AssertionError.class, () -> memory.assertLogged(WARN, "retrying"));
+        assertEquals("Expected a WARN entry containing \"retrying\". Captured entries:" + N +
+                     "INFO [InfoObject] Charge of 42 failed, retrying",
+                     otherLevel.getMessage());
+    }
+
+    @Test
+    public void testAssertTemplateLogged() {
+        MemoryLogger memory = new MemoryLogger();
+        memory.log(new LogEntry(WARN, InfoObject.class, null, "Retry {} of {}", 1, 3));
+        memory.log(new LogEntry(WARN, InfoObject.class, new IllegalStateException(), null));
+
+        memory.assertTemplateLogged(WARN, "Retry {} of {}");
+
+        AssertionError formatted = assertThrows(AssertionError.class, () -> memory.assertTemplateLogged(WARN, "Retry 1 of 3"));
+        assertTrue(formatted.getMessage().startsWith("Expected a WARN entry with the template \"Retry 1 of 3\". Captured entries:" + N +
+                                                     "WARN [InfoObject] Retry 1 of 3" + N),
+                   "the template is the raw message, not the formatted one: " + formatted.getMessage());
+        assertThrows(AssertionError.class, () -> memory.assertTemplateLogged(ERROR, "Retry {} of {}"), "the level must match as well");
+    }
+
+    @Test
+    public void testEntriesOfAClass() {
+        MemoryLogger memory = new MemoryLogger();
+        LOG.init(memory);
+
+        LOG.info("from the test");
+        LOG.info(InfoObject.class, "explicit");
+        LOG.warn(InfoObject.class, "explicit again");
+        LOG.info((Class) null, "no class");
+
+        assertEquals(Arrays.asList("explicit", "explicit again"), messagesOf(memory.getEntries(InfoObject.class)));
+        assertEquals(Collections.singletonList("from the test"), messagesOf(memory.getEntries(MemoryLoggerTest.class)));
+        assertEquals(Collections.singletonList("no class"), messagesOf(memory.getEntries((Class) null)));
+    }
+
     private static List<String> messagesOf(List<LogEntry> entries) {
         List<String> result = new ArrayList<>();
         for (LogEntry entry : entries) {
