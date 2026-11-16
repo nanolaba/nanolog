@@ -9,12 +9,14 @@ import org.slf4j.LoggerFactory;
 import java.text.FieldPosition;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ConsoleLoggerTest extends AbstractLoggerTest {
@@ -106,6 +108,93 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
         LOG.init(createLogger());
         LOG.info("plain");
         assertEquals("INFO 01.01.2010 00:00:00 [ConsoleLoggerTest] plain" + System.lineSeparator(), getOutAndClear());
+    }
+
+    @Test
+    public void testStreamDefaultSendsOnlyErrorsToStandardError() {
+        ConsoleLogger logger = createLogger();
+        assertEquals("err@ERROR", logger.getStream());
+
+        assertStreams(logger, "out", "out", "out", "out", "err");
+    }
+
+    @Test
+    public void testStreamOutSendsEverythingToStandardOutput() {
+        ConsoleLogger logger = createLogger();
+        assertSame(logger, logger.setStream("out"));
+
+        assertEquals("out", logger.getStream());
+        assertStreams(logger, "out", "out", "out", "out", "out");
+
+        logger.setStream("err@OFF");
+        assertEquals("out", logger.getStream(), "no level goes to System.err");
+    }
+
+    @Test
+    public void testStreamErrSendsEverythingToStandardError() {
+        ConsoleLogger logger = createLogger().setStream(" ERR ");
+
+        assertEquals("err", logger.getStream());
+        assertStreams(logger, "err", "err", "err", "err", "err");
+
+        logger.setStream("err@trace");
+        assertEquals("err", logger.getStream(), "TRACE and above is every level");
+    }
+
+    @Test
+    public void testStreamErrAtALevel() {
+        ConsoleLogger logger = createLogger().setStream("Err@ warn ");
+
+        assertEquals("err@WARN", logger.getStream());
+        assertStreams(logger, "out", "out", "out", "err", "err");
+
+        logger.setStream("err@DEBUG");
+        assertEquals("err@DEBUG", logger.getStream());
+        assertStreams(logger, "out", "err", "err", "err", "err");
+    }
+
+    @Test
+    public void testInvalidStreamChangesNothing() {
+        ConsoleLogger logger = createLogger().setStream("err@WARN");
+
+        assertSame(logger, logger.setStream("both"));
+        logger.setStream("err@LOUD");
+        logger.setStream("err@");
+        logger.setStream(null);
+
+        assertEquals("err@WARN", logger.getStream());
+        assertEquals(Arrays.asList(
+                "[NANOLOG] Invalid stream \"both\" in setStream: expected out, err or err@<level>; nothing changed",
+                "[NANOLOG] Invalid stream \"err@LOUD\" in setStream: expected out, err or err@<level>; nothing changed",
+                "[NANOLOG] Invalid stream \"err@\" in setStream: expected out, err or err@<level>; nothing changed",
+                "[NANOLOG] Invalid stream null in setStream: expected out, err or err@<level>; nothing changed"),
+                     Arrays.asList(getErrAndClear().split(System.lineSeparator())));
+    }
+
+    @Test
+    public void testEntryWithoutALevelGoesToStandardOutput() {
+        ConsoleLogger logger = createLogger().setStream("err");
+
+        logger.log(new LogEntry(null, InfoObject.class, null, "no level"));
+
+        assertEquals("01.01.2010 00:00:00 [InfoObject] no level" + System.lineSeparator(), getOutAndClear());
+        assertEquals("", getErrAndClear());
+    }
+
+    /**
+     * Logs one entry per level and checks which stream each one reached.
+     */
+    private void assertStreams(ConsoleLogger logger, String trace, String debug, String info, String warn, String error) {
+        LOG.init(logger);
+        String[] expected = {trace, debug, info, warn, error};
+        LogEntry.LogEntryLevel[] levels = LogEntry.LogEntryLevel.values();
+        for (int i = 0; i < levels.length; i++) {
+            LOG.log(levels[i], InfoObject.class, null, () -> "line");
+            String out = getOutAndClear();
+            String err = getErrAndClear();
+            assertEquals(expected[i], out.isEmpty() ? "err" : "out", levels[i] + ": out=" + out + " err=" + err);
+            assertEquals(1, (out + err).split(System.lineSeparator()).length, levels[i].name());
+        }
     }
 
     @Test

@@ -59,6 +59,21 @@ class JsonLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testStreamOutKeepsErrorsInThePipe() {
+        // what `java -jar app.jar | jq` needs: every line, errors included, on standard output and in order
+        LOG.init(new JsonLogger().setStream("out"));
+
+        LOG.info(InfoObject.class, "before");
+        LOG.error(InfoObject.class, "broken");
+
+        String[] lines = getOutAndClear().split(System.lineSeparator());
+        assertEquals(2, lines.length);
+        assertEquals("INFO", StrictJson.parseObject(lines[0]).get("level"));
+        assertEquals("ERROR", StrictJson.parseObject(lines[1]).get("level"));
+        assertEquals("", getErrAndClear());
+    }
+
+    @Test
     public void testExceptionStaysOnOneLine() {
         LOG.init(new JsonLogger());
 

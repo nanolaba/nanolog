@@ -51,6 +51,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertFalse(logger.isShowSourceFullName());
         assertFalse(logger.isShowLocation());
         assertFalse(logger.isShowThread());
+        assertEquals("err@ERROR", logger.getStream());
         assertEquals("dd.MM.yyyy HH:mm:ss", logger.getDateFormat().toPattern());
         assertEquals("", getErrAndClear());
     }
@@ -99,6 +100,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         System.setProperty("nanolog.console.showSourceFullName", "true");
         System.setProperty("nanolog.console.showLocation", " True ");
         System.setProperty("nanolog.console.showThread", "true");
+        System.setProperty("nanolog.console.stream", "err@WARN");
         System.setProperty("nanolog.console.dateFormat", "yyyy-MM-dd");
         ConsoleLogger logger = new ConsoleLogger();
 
@@ -108,6 +110,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertTrue(logger.isShowSourceFullName());
         assertTrue(logger.isShowLocation());
         assertTrue(logger.isShowThread());
+        assertEquals("err@WARN", logger.getStream());
         assertEquals("yyyy-MM-dd", logger.getDateFormat().toPattern());
         assertEquals("", getErrAndClear());
     }
@@ -117,6 +120,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         System.setProperty("nanolog.console.showDate", "yes");
         System.setProperty("nanolog.console.showSourceFullName", "yes");
         System.setProperty("nanolog.console.showThread", "maybe");
+        System.setProperty("nanolog.console.stream", "both");
         System.setProperty("nanolog.console.dateFormat", "qqq");
         ConsoleLogger logger = new ConsoleLogger();
 
@@ -124,9 +128,11 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertTrue(logger.isShowDate());
         assertFalse(logger.isShowSourceFullName());
         assertFalse(logger.isShowThread());
+        assertEquals("err@ERROR", logger.getStream());
         assertEquals("dd.MM.yyyy HH:mm:ss", logger.getDateFormat().toPattern());
         String err = getErrAndClear();
         assertTrue(err.contains("[NANOLOG] Invalid value \"yes\" of \"nanolog.console.showDate\": expected true or false"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"both\" of \"nanolog.console.stream\": expected out, err or err@<level>"), err);
         assertTrue(err.contains("[NANOLOG] Invalid value \"maybe\" of \"nanolog.console.showThread\": expected true or false"), err);
         assertTrue(err.contains("[NANOLOG] Invalid value \"qqq\" of \"nanolog.console.dateFormat\": Illegal pattern character 'q'"), err);
     }
@@ -266,6 +272,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         environment.put("NANOLOG_CONSOLE_SHOWDATE", "false");
         environment.put("NANOLOG_CONSOLE_SHOWLOCATION", "true");
         environment.put("NANOLOG_CONSOLE_SHOWTHREAD", "true");
+        environment.put("NANOLOG_CONSOLE_STREAM", "out");
         environment.put("NANOLOG_CONSOLE_DATEFORMAT", "yyyy");
         ConsoleLogger logger = new ConsoleLogger();
 
@@ -274,6 +281,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertFalse(logger.isShowDate());
         assertTrue(logger.isShowLocation());
         assertTrue(logger.isShowThread());
+        assertEquals("out", logger.getStream());
         assertEquals("yyyy", logger.getDateFormat().toPattern());
     }
 

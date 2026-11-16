@@ -19,7 +19,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
 
 /**
  * The default logger: one line per entry, {@code ERROR} to {@code System.err} and everything else to
- * {@code System.out}, followed by the stack trace if there is one.
+ * {@code System.out} unless {@link #setStream(String)} says otherwise, followed by the stack trace if there is one.
  * <pre>
  * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message
  * </pre>
@@ -61,6 +61,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public static final String PROPERTY_SHOW_THREAD = "nanolog.console.showThread";
     /**
+     * Property for {@link #setStream(String)}: {@code out}, {@code err} or {@code err@LEVEL}.
+     */
+    public static final String PROPERTY_STREAM = "nanolog.console.stream";
+    /**
      * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
      */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
@@ -77,6 +81,12 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private boolean showSourceFullName = false;
     private boolean showLocation = false;
     private boolean showThread = false;
+
+    /**
+     * The ordinal of the lowest level written to {@code System.err}; {@code Integer.MAX_VALUE} writes everything to
+     * {@code System.out}.
+     */
+    private int errThreshold = LogEntry.LogEntryLevel.ERROR.ordinal();
 
     // volatile: the levels may change at run time, and every logging thread must see the change on its next call
     private volatile boolean traceEnabled = true;
@@ -109,6 +119,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showSourceFullName = readBoolean(PROPERTY_SHOW_SOURCE_FULL_NAME, showSourceFullName);
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
+        applyStream();
         applyDateFormat();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
@@ -130,6 +141,40 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         infoEnabled = isAtLeast(LogEntry.LogEntryLevel.INFO, threshold);
         warnEnabled = isAtLeast(LogEntry.LogEntryLevel.WARN, threshold);
         errorEnabled = isAtLeast(LogEntry.LogEntryLevel.ERROR, threshold);
+    }
+
+    private void applyStream() {
+        String value = getProperty(PROPERTY_STREAM);
+        if (value != null) {
+            int threshold = parseStream(value);
+            if (threshold == NO_RULE) {
+                printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_STREAM + "\": expected " + EXPECTED_STREAMS);
+            } else {
+                errThreshold = threshold;
+            }
+        }
+    }
+
+    private static final String EXPECTED_STREAMS = "out, err or err@<level>";
+    private static final String ERR_AT = "err@";
+
+    /**
+     * The ordinal of the lowest level a stream setting sends to {@code System.err}; {@link #NO_RULE} if the setting is
+     * invalid.
+     */
+    private static int parseStream(String stream) {
+        String value = stream.trim();
+        if ("out".equalsIgnoreCase(value)) {
+            return Integer.MAX_VALUE;
+        }
+        if ("err".equalsIgnoreCase(value)) {
+            // every level from the lowest one
+            value = ERR_AT + LogEntry.LogEntryLevel.TRACE.name();
+        }
+        if (value.regionMatches(true, 0, ERR_AT, 0, ERR_AT.length())) {
+            return thresholdNamed(value.substring(ERR_AT.length()));
+        }
+        return NO_RULE;
     }
 
     private void applyDateFormat() {
@@ -508,13 +553,15 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * The stream of an entry: {@code System.err} for {@code ERROR}, {@code System.out} otherwise.
+     * The stream of an entry, as {@link #setStream(String)} chooses it: by default {@code System.err} for
+     * {@code ERROR} and {@code System.out} otherwise. An entry without a level goes to {@code System.out}.
      *
      * @param entry the entry to write
      * @return the stream
      */
     protected PrintStream getOutputStream(LogEntry entry) {
-        return entry.getLevel() == LogEntry.LogEntryLevel.ERROR ? System.err : System.out;
+        LogEntry.LogEntryLevel level = entry.getLevel();
+        return level != null && level.ordinal() >= errThreshold ? System.err : System.out;
     }
 
     /**
@@ -814,6 +861,43 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public ConsoleLogger setShowLocation(boolean showLocation) {
         this.showLocation = showLocation;
+        return this;
+    }
+
+    /**
+     * Returns which levels go to {@code System.err}: {@code out}, {@code err} or {@code err@LEVEL}, in that form.
+     *
+     * @return the stream setting; {@code err@ERROR} by default
+     */
+    public String getStream() {
+        if (errThreshold == LogEntry.LogEntryLevel.TRACE.ordinal()) {
+            return "err";
+        }
+        if (errThreshold > LogEntry.LogEntryLevel.ERROR.ordinal()) {
+            return "out";
+        }
+        return ERR_AT + THRESHOLDS[errThreshold];
+    }
+
+    /**
+     * Chooses the stream of each entry: {@code out} writes everything to {@code System.out}, {@code err} everything to
+     * {@code System.err}, {@code err@LEVEL} that level and above to {@code System.err} and the rest to
+     * {@code System.out}. The default {@code err@ERROR} sends only errors to {@code System.err}. One stream keeps
+     * errors in a pipe ({@code java -jar app.jar | jq}) and keeps the order of the lines when the two streams are
+     * captured apart. Also set by {@code nanolog.console.stream}; applies to {@link JsonLogger} too.
+     *
+     * @param stream {@code out}, {@code err} or {@code err@LEVEL}, ignoring case and spaces around the parts; anything
+     *               else prints a diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setStream(String stream) {
+        int threshold = stream == null ? NO_RULE : parseStream(stream);
+        if (threshold == NO_RULE) {
+            printDiagnostic("Invalid stream " + (stream == null ? "null" : "\"" + stream + "\"") + " in setStream: expected " +
+                            EXPECTED_STREAMS + "; nothing changed");
+        } else {
+            errThreshold = threshold;
+        }
         return this;
     }
 

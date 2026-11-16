@@ -21,6 +21,7 @@ public class LoggerSetup {
                 .setShowSourceFullName(false)
                 .setShowLocation(false)
                 .setShowThread(false)
+                .setStream("err@ERROR")
                 .setTraceEnabled(false)
                 .setDebugEnabled(false));
         // nrg:end:console

@@ -281,6 +281,7 @@ LOG.init(new ConsoleLogger()
         .setShowSourceFullName(false)
         .setShowLocation(false)
         .setShowThread(false)
+        .setStream("err@ERROR")
         .setTraceEnabled(false)
         .setDebugEnabled(false));
 ```
@@ -290,6 +291,7 @@ LOG.init(new ConsoleLogger()
 - `showSource` / `showSourceFullName` — the simple or the fully qualified source class name. An anonymous or local class passed explicitly has no such name and is shown by its binary name, `Foo$1` or `com.acme.Foo$1`.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
 - `showThread` — the name of the thread that logged, in square brackets after the date: `[main]`, `[pool-1-thread-3]`. Off by default; with a thread pool it tells the interleaved lines of different tasks apart. `JsonLogger` always writes the thread.
+- `stream` — which levels go to `System.err`: `err@ERROR` (the default) sends only errors there, `err@WARN` warnings and errors, `err` everything, `out` nothing. One stream keeps errors in a pipe and keeps the order of the lines when standard output and standard error are captured apart.
 - `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated. `setLevel(level)` sets all five at once, and the switches may change while other threads log; see [Changing levels at run time](#changing-levels-at-run-time).
 
 For a custom layout (colours, JSON, a different order) extend `ConsoleLogger` and
@@ -311,6 +313,7 @@ The constructor of `ConsoleLogger` reads these settings from system properties, 
 | `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | the same |
 | `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | the same |
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | the same |
+| `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` or `err@LEVEL` (default `err@ERROR`), like the setter |
 | `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | a `SimpleDateFormat` pattern |
 
 ```
@@ -366,7 +369,8 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 - `template` and `args` — the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.
 - `caller` — the call site, when the source class was detected; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
 - Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
-- `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err`). The display options do not apply.
+- `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err` by default). The display options do not apply.
+- In a pipe only standard output reaches the next program, so `java -jar app.jar | jq` would lose every `ERROR` entry. `-Dnanolog.console.stream=out` writes them to standard output with the rest, in the order they were logged.
 
 ### Slf4jLogger
 
@@ -601,6 +605,7 @@ dependencies {
 
 In development, not released yet.
 
+- `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (or `setStream`) chooses the stream of each level: `out` sends everything to standard output, so `java -jar app.jar | jq` keeps the `ERROR` lines, `err` sends everything to standard error, `err@WARN` warnings and errors. The default `err@ERROR` is the former behaviour.
 - `ConsoleLogger`: `setShowThread(true)` or `nanolog.console.showThread=true` prints the name of the thread after the date, `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. Off by default, so the format of existing output does not change.
 - On Java 9+ caller detection uses `StackWalker`: it stops at the calling frame and loads no class by name, so a call without an explicit class costs about 3 µs instead of 9 to 26 µs on JDK 17 and hardly grows with the depth of the stack. A caller in a class loader that neither the context loader nor the loader of Nanolog can see is now found exactly instead of being skipped. Java 8 keeps the `Throwable` walk.
 - A `[NANOLOG]` diagnostic is always one line. Control characters in the values it repeats, such as a level passed to `LOG.setLevel` from a request, an exception message or a template, are printed as `\u000a` escapes, so such a value cannot forge a line of the log.
