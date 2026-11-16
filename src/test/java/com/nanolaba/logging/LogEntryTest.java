@@ -69,6 +69,20 @@ class LogEntryTest {
     }
 
     @Test
+    public void testToStringShowsTheSkippedCountOnlyWhenThereIsOne() {
+        LogEntry skipped = LogEntry.create(LogEntry.LogEntryLevel.WARN, LogEntryTest.class, null, null, "full", new Object[0], 3);
+        LogEntry plain = LogEntry.create(LogEntry.LogEntryLevel.WARN, LogEntryTest.class, null, null, "full", new Object[0], 0);
+
+        assertEquals(3, skipped.getSkippedCount());
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LogEntryTest, throwable=null, message=full, args=[], skipped=3}",
+                     skipped.toString());
+        assertEquals(0, plain.getSkippedCount());
+        assertEquals("LogEntry{level=WARN, sourceClass=com.nanolaba.logging.LogEntryTest, throwable=null, message=full, args=[]}",
+                     plain.toString());
+        assertEquals(0, new LogEntry(LogEntry.LogEntryLevel.WARN, LogEntryTest.class, null, "public constructor").getSkippedCount());
+    }
+
+    @Test
     public void testTrailingThrowableAfterSubstitutedArguments() {
         IOException e = new IOException("timeout");
         LogEntry entry = new LogEntry(ERROR, getClass(), null, "Failed to load {}", "order", e);

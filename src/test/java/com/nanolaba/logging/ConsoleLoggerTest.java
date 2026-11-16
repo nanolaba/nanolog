@@ -198,6 +198,21 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testSkippedCountFollowsTheMessage() {
+        ConsoleLogger logger = createLogger();
+        IllegalStateException e = new IllegalStateException("boom");
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, null, null, "Queue is full", new Object[0], 241));
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject] Queue is full [skipped 241]" + System.lineSeparator(), getOutAndClear());
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, null, e, "Queue is full", new Object[0], 1));
+        assertTrue(getOutAndClear().startsWith("INFO 01.01.2010 00:00:00 [InfoObject] Queue is full [skipped 1] java.lang.IllegalStateException: boom"));
+
+        logger.log(LogEntry.create(INFO, InfoObject.class, null, null, "Queue is full", new Object[0], 0));
+        assertEquals("INFO 01.01.2010 00:00:00 [InfoObject] Queue is full" + System.lineSeparator(), getOutAndClear());
+    }
+
+    @Test
     public void testThreadIsOffByDefault() {
         assertFalse(new ConsoleLogger().isShowThread());
     }

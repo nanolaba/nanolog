@@ -566,7 +566,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
-     * message, stack trace.
+     * message, skipped count, stack trace.
      *
      * @param entry the entry to write
      * @return the text without the final line break
@@ -579,6 +579,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeThread(out, entry);
         writeSource(out, entry);
         writeMessage(out, entry);
+        writeSkipped(out, entry);
         writeThrowable(out, entry);
 
         return out.toString();
@@ -609,6 +610,19 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             return "[FAILED printStackTrace()]";
         }
         return out.toString();
+    }
+
+    /**
+     * Writes {@code [skipped N]}, the number of calls a rate-limited statement skipped before this entry, if any.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeSkipped(StringWriter out, LogEntry entry) {
+        if (entry.getSkippedCount() > 0) {
+            addDelimiter(out);
+            out.append("[skipped ").append(String.valueOf(entry.getSkippedCount())).append(']');
+        }
     }
 
     /**

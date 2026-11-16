@@ -6,6 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
@@ -1099,6 +1102,329 @@ public class LOG {
         return isEnabledForCaller(ERROR);
     }
 
+    // RATE LIMITING
+
+    /**
+     * Logs a statement only the first time it runs, for a warning that a loop or a retry would otherwise repeat:
+     * {@code LOG.once().warn("Option {} is deprecated and ignored", key)}. Every later call of that statement is
+     * skipped before its message is built.
+     * <p>
+     * A statement is its call site, the file and line of the call: two calls on one line share it, and a helper
+     * method that logs for others shares it between all its callers. The source class is detected from the stack, so
+     * a disabled level costs as little as with the other methods; disabled calls are not counted. A call with no
+     * call site to tell it by, which happens only when the stack cannot be read, is not limited.
+     *
+     * @return the level methods of a statement logged once
+     */
+    public static Limited once() {
+        return Limited.ONCE;
+    }
+
+    /**
+     * Logs a statement at most once per period, for a message that a busy loop repeats:
+     * {@code LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item)}. The next entry that gets
+     * through carries the number of calls skipped since the previous one, {@link LogEntry#getSkippedCount()}, and the
+     * loggers print it: {@code Queue is full, dropping 17 [skipped 241]}.
+     * <p>
+     * Statements are told apart by their call site, as with {@link #once()}. A count left at the end of a burst is
+     * printed only when the statement runs again.
+     *
+     * @param period the minimum time between two entries of the statement; zero or less limits nothing
+     * @param unit   the unit of the period; {@code null} limits nothing
+     * @return the level methods of a statement logged at most once per period
+     */
+    public static Limited atMostEvery(long period, TimeUnit unit) {
+        return new Limited(unit == null ? 0 : unit.toNanos(period));
+    }
+
+    /**
+     * Reads the time for {@link #atMostEvery}, in nanoseconds. Tests replace it with a clock of their own and must
+     * restore it afterwards.
+     */
+    static LongSupplier nanoClock = System::nanoTime;
+
+    /**
+     * The state of every rate-limited statement, by call site. Call sites are bounded by the size of the code, so the
+     * map needs no eviction; a key built from data could grow without bound.
+     */
+    private static final Map<StackTraceElement, RateState> LIMITS = new ConcurrentHashMap<>();
+
+    /**
+     * Forgets the state of every rate-limited statement; for tests.
+     */
+    static void clearLimits() {
+        LIMITS.clear();
+    }
+
+    /**
+     * Decides whether a call of a rate-limited statement gets through.
+     *
+     * @return the number of calls skipped since the previous entry of the statement, or {@code -1} to skip this one
+     */
+    private static long acquire(StackTraceElement callSite, long periodNanos) {
+        return LIMITS.computeIfAbsent(callSite, site -> new RateState()).acquire(nanoClock.getAsLong(), periodNanos);
+    }
+
+    /**
+     * The time of the last entry of a statement and the number of calls skipped since. Updated without locks: a call
+     * gets through only by winning the compare-and-set of the time, and every other call adds one to the count, so each
+     * call is either logged or counted exactly once.
+     */
+    private static final class RateState {
+
+        private static final long NEVER = Long.MIN_VALUE;
+
+        private final AtomicLong lastEntry = new AtomicLong(NEVER);
+        private final AtomicLong skipped = new AtomicLong();
+
+        long acquire(long now, long periodNanos) {
+            long last = lastEntry.get();
+            if ((last == NEVER || now - last >= periodNanos) && lastEntry.compareAndSet(last, now)) {
+                return skipped.getAndSet(0);
+            }
+            skipped.incrementAndGet();
+            return -1;
+        }
+    }
+
+    /**
+     * The level methods of a rate-limited statement, returned by {@link LOG#once()} and
+     * {@link LOG#atMostEvery(long, TimeUnit)}. Each method detects its call site and logs or skips the call; the
+     * message is built only for a call that gets through.
+     */
+    public static final class Limited {
+
+        static final Limited ONCE = new Limited(Long.MAX_VALUE);
+
+        /**
+         * Calls of these methods pass through this class, so a location-aware SLF4J backend must look past it, not
+         * only past {@code LOG}, to find the call site.
+         */
+        private static final String CALLER_BOUNDARY = Limited.class.getName();
+
+        private final long periodNanos;
+
+        private Limited(long periodNanos) {
+            this.periodNanos = periodNanos;
+        }
+
+        private void log(LogEntry.LogEntryLevel level, Throwable throwable, Supplier<Object> message, Object[] args) {
+            ILogger current = logger;
+            if (mayBeEnabled(current, level)) {
+                CallerDetection.Caller caller = findCaller();
+                if (isEnabled(current, level, caller.sourceClass)) {
+                    long skipped = caller.frame == null ? 0 : acquire(caller.frame, periodNanos);
+                    if (skipped >= 0) {
+                        write(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
+                                                       CALLER_BOUNDARY));
+                    }
+                }
+            }
+        }
+
+        /**
+         * Logs a parameterized message at {@code TRACE} level, unless the statement is skipped.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void trace(String message, Object... args) {
+            log(TRACE, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message at {@code TRACE} level, unless the statement is skipped.
+         *
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void trace(Supplier<Object> message) {
+            log(TRACE, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message at {@code TRACE} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void trace(Throwable t, String message, Object... args) {
+            log(TRACE, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message at {@code TRACE} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void trace(Throwable t, Supplier<Object> message) {
+            log(TRACE, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message at {@code DEBUG} level, unless the statement is skipped.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void debug(String message, Object... args) {
+            log(DEBUG, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message at {@code DEBUG} level, unless the statement is skipped.
+         *
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void debug(Supplier<Object> message) {
+            log(DEBUG, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message at {@code DEBUG} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void debug(Throwable t, String message, Object... args) {
+            log(DEBUG, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message at {@code DEBUG} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void debug(Throwable t, Supplier<Object> message) {
+            log(DEBUG, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message at {@code INFO} level, unless the statement is skipped.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void info(String message, Object... args) {
+            log(INFO, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message at {@code INFO} level, unless the statement is skipped.
+         *
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void info(Supplier<Object> message) {
+            log(INFO, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message at {@code INFO} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void info(Throwable t, String message, Object... args) {
+            log(INFO, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message at {@code INFO} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void info(Throwable t, Supplier<Object> message) {
+            log(INFO, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message at {@code WARN} level, unless the statement is skipped.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void warn(String message, Object... args) {
+            log(WARN, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message at {@code WARN} level, unless the statement is skipped.
+         *
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void warn(Supplier<Object> message) {
+            log(WARN, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message at {@code WARN} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void warn(Throwable t, String message, Object... args) {
+            log(WARN, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message at {@code WARN} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void warn(Throwable t, Supplier<Object> message) {
+            log(WARN, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message at {@code ERROR} level, unless the statement is skipped.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void error(String message, Object... args) {
+            log(ERROR, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message at {@code ERROR} level, unless the statement is skipped.
+         *
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void error(Supplier<Object> message) {
+            log(ERROR, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message at {@code ERROR} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void error(Throwable t, String message, Object... args) {
+            log(ERROR, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message at {@code ERROR} level, unless the statement is skipped.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled and the statement is not skipped
+         */
+        public void error(Throwable t, Supplier<Object> message) {
+            log(ERROR, t, message, NO_ARGS);
+        }
+    }
+
+    private static final Object[] NO_ARGS = new Object[0];
+
     // UNIVERSAL LOG
 
     /**
@@ -1134,16 +1460,23 @@ public class LOG {
 
     private static void doLog(ILogger current, LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (isEnabled(current, level, loggedClass)) {
-            LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args);
-            if (strict) {
-                checkPlaceholders(entry);
-            }
-            try {
-                current.log(entry);
-            } catch (Throwable t) {
-                reportLoggerFailure(current, t, FALLBACK_NOTE);
-                Fallback.LOGGER.log(entry);
-            }
+            write(current, LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args, 0));
+        }
+    }
+
+    /**
+     * Hands an entry whose level is enabled to the logger: checks its placeholders in strict mode, and writes it to
+     * {@code System.err} if the logger throws.
+     */
+    private static void write(ILogger current, LogEntry entry) {
+        if (strict) {
+            checkPlaceholders(entry);
+        }
+        try {
+            current.log(entry);
+        } catch (Throwable t) {
+            reportLoggerFailure(current, t, FALLBACK_NOTE);
+            Fallback.LOGGER.log(entry);
         }
     }
 

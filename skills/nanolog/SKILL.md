@@ -19,6 +19,7 @@ The latest stable version is 1.2; this guide describes the development version 1
 6. Call `LOG.init(...)` once at application startup and never from library code: it replaces the logger for the whole JVM.
 7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`, a lazy message whose lambda throws becomes `[FAILED supplier: <exception>]` *1.3+*. Do not wrap log calls in `try`/`catch`.
 8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class. If it throws, the call that logged does not fail: Nanolog prints one `[NANOLOG]` line per logger class and writes the entry to `System.err` instead *1.3+*.
+9. In a loop, a retry or a poll, log through `LOG.once()` or `LOG.atMostEvery(...)` *1.3+*: a line repeated thousands of times crowds the context window and pushes out the one that matters. The next line that gets through says how many were skipped, `[skipped 241]`.
 
 ## Call shapes
 
@@ -33,6 +34,8 @@ LOG.info(e, "Failed to load {}", id);                // exception first
 LOG.info("Failed to load {}", id, e);                // exception last (1.2+)
 LOG.info(MyClass.class, "...");                      // any form above with an explicit source class
 LOG.isInfoEnabled();                                 // level check, with or without a class
+LOG.once().warn("Option {} is deprecated", key);     // only the first time this line runs (1.3+)
+LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period, then "[skipped N]" (1.3+)
 ```
 
 ## Choosing the output

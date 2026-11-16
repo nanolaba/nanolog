@@ -85,6 +85,39 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testRateLimitedCallTellsTheBackendItsOwnBoundary() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+        LOG.clearLimits();
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.once().info("limited");
+
+        LocationAwareRecorder.Call call = recorder.calls.get(0);
+        // the call passes through LOG.Limited, so a boundary of LOG alone would point the backend at that class
+        assertEquals(LOG.Limited.class.getName(), call.fqcn);
+        assertEquals(Slf4jLoggerTest.class.getName(), call.location.getClassName());
+        assertEquals("testRateLimitedCallTellsTheBackendItsOwnBoundary", call.location.getMethodName());
+        assertEquals(line, call.location.getLineNumber());
+        LOG.clearLimits();
+    }
+
+    @Test
+    public void testSkippedCountIsAppendedToTheMessage() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        Slf4jLogger logger = new Slf4jLogger(recorder::loggerFor);
+
+        logger.log(LogEntry.create(LogEntry.LogEntryLevel.WARN, InfoObject.class, null, null, "Queue is full", new Object[0], 241));
+        logger.log(LogEntry.create(LogEntry.LogEntryLevel.WARN, InfoObject.class, null, new IllegalStateException(), null, new Object[0], 2));
+        logger.log(LogEntry.create(LogEntry.LogEntryLevel.WARN, InfoObject.class, null, null, "Queue is full", new Object[0], 0));
+
+        assertEquals("Queue is full [skipped 241]", recorder.calls.get(0).message);
+        assertEquals("[skipped 2]", recorder.calls.get(1).message, "an entry without a message gets the count alone");
+        assertEquals("Queue is full", recorder.calls.get(2).message);
+        assertEquals(LOG.class.getName(), recorder.calls.get(2).fqcn, "an entry that did not come through LOG.Limited keeps LOG");
+    }
+
+    @Test
     public void testLocationAwareBackendLevelsAndThrowables() {
         LocationAwareRecorder recorder = new LocationAwareRecorder();
         LOG.init(new Slf4jLogger(recorder::loggerFor));

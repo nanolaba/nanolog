@@ -15,18 +15,14 @@ import java.util.function.Function;
  * configured in the backend; {@link #isEnabled} asks the backend.
  * <p>
  * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
- * after {@link LOG}, so its {@code %file:%line} or {@code %l} shows the code that called {@code LOG}. SLF4J markers
- * are not supported. MDC values set through {@code org.slf4j.MDC} are printed by backends that support MDC (Logback,
- * Log4j 2); slf4j-simple and slf4j-nop discard them, and the JUL binding stores them without printing.
+ * after {@link LOG} (after {@link LOG.Limited} for a rate-limited call), so its {@code %file:%line} or {@code %l}
+ * shows the code that called {@code LOG}. The number of calls a rate-limited statement skipped is appended to the
+ * message as {@code [skipped N]}. SLF4J markers are not supported. MDC values set through {@code org.slf4j.MDC} are
+ * printed by backends that support MDC (Logback, Log4j 2); slf4j-simple and slf4j-nop discard them, and the JUL
+ * binding stores them without printing.
  * {@code slf4j-api} is a {@code provided} dependency of Nanolog.
  */
 public class Slf4jLogger implements ILogger {
-
-    /**
-     * The caller boundary for location-aware backends: the call site is the first frame after the frames of
-     * {@code LOG}, so {@code %file:%line} (Logback) or {@code %l} (Log4j 2) point at the code that called {@code LOG}.
-     */
-    private static final String CALLER_BOUNDARY = LOG.class.getName();
 
     private final Map<Class, Logger> loggers = new ConcurrentHashMap<>();
     private final Function<String, Logger> factory;
@@ -58,10 +54,16 @@ public class Slf4jLogger implements ILogger {
         Logger logger = getLogger(entry.getSourceClass());
         // an entry may carry only a throwable; SLF4J backends would print the literal word "null" otherwise
         String message = entry.getMessage() == null ? "" : entry.getFormattedMessage();
+        if (entry.getSkippedCount() > 0) {
+            String skipped = "[skipped " + entry.getSkippedCount() + "]";
+            message = message.isEmpty() ? skipped : message + " " + skipped;
+        }
 
         if (logger instanceof LocationAwareLogger) {
             // no arguments: the message is formatted already, and a backend must not format its {} again
-            ((LocationAwareLogger) logger).log(null, CALLER_BOUNDARY, toLocationAwareLevel(entry.getLevel()), message, null, entry.getThrowable());
+            // the boundary: the call site is the first frame after it, so %file:%line (Logback) or %l (Log4j 2) point at
+            // the code that called LOG, also when the call passed through LOG.Limited
+            ((LocationAwareLogger) logger).log(null, entry.getCallerBoundary(), toLocationAwareLevel(entry.getLevel()), message, null, entry.getThrowable());
             return;
         }
 

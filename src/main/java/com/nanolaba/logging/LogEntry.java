@@ -44,6 +44,8 @@ public class LogEntry {
     private final StackTraceElement caller;
     private final long timestamp;
     private final String threadName;
+    private final long skippedCount;
+    private final String callerBoundary;
 
     private static final char ESCAPE_CHAR = '\\';
 
@@ -59,16 +61,19 @@ public class LogEntry {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
-        this(level, sourceClass, null, throwable, message, args);
+        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY);
     }
 
-    private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args) {
+    private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
+                     long skippedCount, String callerBoundary) {
         this.level = level;
         this.sourceClass = sourceClass;
         this.caller = caller;
         this.message = message;
         this.timestamp = System.currentTimeMillis();
         this.threadName = Thread.currentThread().getName();
+        this.skippedCount = skippedCount;
+        this.callerBoundary = callerBoundary;
 
         String pattern = message == null ? null : safeToString(message);
         // formatted with the original arguments: an unused trailing throwable changes nothing in the text
@@ -134,7 +139,47 @@ public class LogEntry {
      * Creates an entry that also carries the frame of the logging call. Package-private: only {@link LOG} knows it.
      */
     static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args) {
-        return new LogEntry(level, sourceClass, caller, throwable, message, args);
+        return create(level, sourceClass, caller, throwable, message, args, 0);
+    }
+
+    /**
+     * Creates an entry that also carries the frame of the logging call and the number of calls skipped before it.
+     * Package-private: only {@link LOG} knows them.
+     */
+    static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
+                           long skippedCount) {
+        return create(level, sourceClass, caller, throwable, message, args, skippedCount, LOG_BOUNDARY);
+    }
+
+    /**
+     * Like {@link #create(LogEntryLevel, Class, StackTraceElement, Throwable, Object, Object[], long)}, for an entry
+     * that entered Nanolog through another class than {@code LOG}.
+     *
+     * @param callerBoundary the class whose frames end Nanolog's part of the stack, see {@link #getCallerBoundary()}
+     */
+    static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
+                           long skippedCount, String callerBoundary) {
+        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary);
+    }
+
+    private static final String LOG_BOUNDARY = LOG.class.getName();
+
+    /**
+     * The number of calls of a rate-limited statement ({@code LOG.once()}, {@code LOG.atMostEvery(...)}) that were
+     * skipped since the previous entry of that statement; {@code 0} for every other entry.
+     *
+     * @return the number of skipped calls
+     */
+    public long getSkippedCount() {
+        return skippedCount;
+    }
+
+    /**
+     * The class whose frames end Nanolog's part of the stack: {@code LOG}, or {@code LOG.Limited} for a rate-limited
+     * call. A location-aware SLF4J backend takes the first frame after it as the call site.
+     */
+    String getCallerBoundary() {
+        return callerBoundary;
     }
 
     /**
@@ -187,6 +232,7 @@ public class LogEntry {
                ", throwable=" + safeToString(getThrowable()) +
                ", message=" + safeToString(getMessage()) +
                ", args=" + arrayToString(getArgs()) +
+               (getSkippedCount() > 0 ? ", skipped=" + getSkippedCount() : "") +
                '}';
     }
 

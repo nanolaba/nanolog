@@ -72,17 +72,18 @@ The latest stable version is **1.2**; the version under development is **1.3-SNA
 	- 4.6 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 5 [Message formatting](#message-formatting)
 	- 5.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 6 [Caller detection](#caller-detection)
-- 7 [Writing your own logger](#writing-your-own-logger)
-- 8 [Thread safety and performance](#thread-safety-and-performance)
-- 9 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 10 [Changelog](#changelog)
-	- 10.1 [1.3-SNAPSHOT](#13-snapshot)
-	- 10.2 [1.2](#12)
-	- 10.3 [1.1](#11)
-	- 10.4 [1.0](#10)
-- 11 [Contributing](#contributing)
-- 12 [License](#license)
+- 6 [Rate limiting](#rate-limiting)
+- 7 [Caller detection](#caller-detection)
+- 8 [Writing your own logger](#writing-your-own-logger)
+- 9 [Thread safety and performance](#thread-safety-and-performance)
+- 10 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 11 [Changelog](#changelog)
+	- 11.1 [1.3-SNAPSHOT](#13-snapshot)
+	- 11.2 [1.2](#12)
+	- 11.3 [1.1](#11)
+	- 11.4 [1.0](#10)
+- 12 [Contributing](#contributing)
+- 13 [License](#license)
 
 
 ## Installation
@@ -172,6 +173,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | change the global level or the level of a package while the application runs, see [Changing levels at run time](#changing-levels-at-run-time) |
 | `LOG.withLevel("com.acme", level)` | the same for a `try` block, restored at its end |
+| `LOG.once().warn(...)` | log a statement only the first time it runs, see [Rate limiting](#rate-limiting) |
+| `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2), which IDEs also show from the sources jar.
@@ -189,6 +192,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
+- **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
@@ -487,6 +491,23 @@ test {
 }
 ```
 
+## Rate limiting
+
+A retry loop, a full queue or a deprecated option can print the same line thousands of times, and the line that matters scrolls away. `LOG.once()` and `LOG.atMostEvery(...)` limit one statement:
+
+```java
+LOG.once().warn("Option {} is deprecated and ignored", key);
+LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item);
+// the next line that gets through says how many were skipped:
+// WARN 16.11.2026 10:15:02 [Worker] Queue is full, dropping 17 [skipped 241]
+```
+
+- A statement is its call site, the file and line of the call. Two calls on one line share one limit, and so do all the callers of a helper method that logs for them.
+- The next entry that gets through carries the number of calls skipped since the previous one: `ConsoleLogger` prints `[skipped 241]` after the message, `JsonLogger` writes `"skipped":241`, `Slf4jLogger` appends `[skipped 241]` to the message, and any logger reads `LogEntry.getSkippedCount()`.
+- The level is checked first, the limit last: a call at a disabled level is not counted, and a skipped call builds no message and formats nothing.
+- `once()` and `atMostEvery(...)` offer four shapes at every level: `("... {} ...", args)`, `(() -> message)` and both with an exception first. The state of each call site takes a few bytes, without locks, and the number of call sites is bounded by the code.
+- A count left at the end of a burst is printed only when the statement runs again. A period of zero or less limits nothing.
+
 ## Caller detection
 
 When no class is passed explicitly, `LOG` walks the stack and takes the first frame
@@ -605,6 +626,7 @@ dependencies {
 
 In development, not released yet.
 
+- `LOG.once()` and `LOG.atMostEvery(period, unit)` limit a statement to its first call or to one entry per period, keyed by the call site. The next entry that gets through carries the number of skipped calls, `LogEntry.getSkippedCount()`, which `ConsoleLogger`, `JsonLogger` and `Slf4jLogger` print.
 - `ConsoleLogger`, `JsonLogger`: `nanolog.console.stream` (or `setStream`) chooses the stream of each level: `out` sends everything to standard output, so `java -jar app.jar | jq` keeps the `ERROR` lines, `err` sends everything to standard error, `err@WARN` warnings and errors. The default `err@ERROR` is the former behaviour.
 - `ConsoleLogger`: `setShowThread(true)` or `nanolog.console.showThread=true` prints the name of the thread after the date, `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. Off by default, so the format of existing output does not change.
 - On Java 9+ caller detection uses `StackWalker`: it stops at the calling frame and loads no class by name, so a call without an explicit class costs about 3 µs instead of 9 to 26 µs on JDK 17 and hardly grows with the depth of the stack. A caller in a class loader that neither the context loader nor the loader of Nanolog can see is now found exactly instead of being skipped. Java 8 keeps the `Throwable` walk.

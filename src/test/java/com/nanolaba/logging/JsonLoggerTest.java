@@ -59,6 +59,17 @@ class JsonLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testSkippedCountIsAField() {
+        JsonLogger logger = new JsonLogger();
+
+        logger.log(LogEntry.create(LogEntry.LogEntryLevel.INFO, InfoObject.class, null, null, "Queue is full", new Object[0], 241));
+        assertEquals(new BigDecimal(241), StrictJson.parseObject(getOutAndClear().trim()).get("skipped"));
+
+        logger.log(LogEntry.create(LogEntry.LogEntryLevel.INFO, InfoObject.class, null, null, "Queue is full", new Object[0], 0));
+        assertFalse(StrictJson.parseObject(getOutAndClear().trim()).containsKey("skipped"), "no field when nothing was skipped");
+    }
+
+    @Test
     public void testStreamOutKeepsErrorsInThePipe() {
         // what `java -jar app.jar | jq` needs: every line, errors included, on standard output and in order
         LOG.init(new JsonLogger().setStream("out"));

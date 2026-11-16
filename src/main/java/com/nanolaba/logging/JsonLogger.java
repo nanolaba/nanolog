@@ -69,6 +69,9 @@ public class JsonLogger extends ConsoleLogger {
             }
             out.append(']');
         }
+        if (entry.getSkippedCount() > 0) {
+            out.append(",\"skipped\":").append(entry.getSkippedCount());
+        }
         if (entry.getCaller() != null) {
             appendCaller(out, entry.getCaller());
         }
