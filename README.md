@@ -384,7 +384,7 @@ void chargeIsRetried() {
 - `new MemoryLogger(capacity)` keeps only the newest entries.
 - `LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.
 
-`CompositeLogger` sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it:
+`CompositeLogger` sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it. A logger that throws is reported once with a `[NANOLOG]` line and skipped; the others still receive the entry:
 
 ```java
 MemoryLogger memory = new MemoryLogger(1000); // keeps the newest 1000 entries
@@ -502,6 +502,8 @@ What a `LogEntry` carries:
 
 `isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message.
 
+A logger that throws does not break the code that logs. The first failure of each logger class prints one line to `System.err`, for example `[NANOLOG] Logger com.acme.AuditLogger threw java.io.UncheckedIOException: disk full; entries it fails to write are printed to System.err`. Every entry the logger fails to write then goes to `System.err` in the `ConsoleLogger` format, so nothing is lost. If `isEnabled(...)` throws, the level counts as enabled.
+
 ## Thread safety and performance
 
 - The static `LOG` methods are safe to call from any thread as long as the installed `ILogger` is; `ConsoleLogger` and `Slf4jLogger` are.
@@ -555,6 +557,7 @@ In development, not released yet.
 
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
+- A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.
 - Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.
 
 ### 1.2

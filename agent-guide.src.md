@@ -31,7 +31,7 @@ The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVer
 5. In hot paths pass the class: `LOG.debug(MyClass.class, "...")`. Without it every call walks the stack, `LOG.isDebugEnabled()` included.
 6. Call `LOG.init(...)` once at application startup and never from library code: it replaces the logger for the whole JVM.
 7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`, a lazy message whose lambda throws becomes `[FAILED supplier: <exception>]` *1.3+*. Do not wrap log calls in `try`/`catch`.
-8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class.
+8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class. If it throws, the call that logged does not fail: Nanolog prints one `[NANOLOG]` line per logger class and writes the entry to `System.err` instead *1.3+*.
 
 ## Call shapes
 

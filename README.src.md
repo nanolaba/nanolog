@@ -345,7 +345,7 @@ ${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='t
 - `new MemoryLogger(capacity)` ${en:'keeps only the newest entries.', ru:'хранит только самые новые записи.'}
 - ${en:'`LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.', ru:'`LOG.init` действует на всю JVM, поэтому тесты, устанавливающие логгер, нельзя запускать параллельно друг с другом.'}
 
-`CompositeLogger` ${en:'sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it:', ru:'отправляет каждую запись в несколько логгеров. Каждый получает только включённые у него уровни, а ленивое сообщение вычисляется, только если оно нужно хотя бы одному из них:'}
+`CompositeLogger` ${en:'sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it. A logger that throws is reported once with a `[NANOLOG]` line and skipped; the others still receive the entry:', ru:'отправляет каждую запись в несколько логгеров. Каждый получает только включённые у него уровни, а ленивое сообщение вычисляется, только если оно нужно хотя бы одному из них. Логгер, который бросает исключение, один раз отмечается строкой `[NANOLOG]` и пропускается, остальные запись всё равно получают:'}
 
 ${widget:import(path='${examples}/CapturingLogs.java', region='composite', wrap='true')}
 
@@ -436,6 +436,8 @@ ${en:'What a `LogEntry` carries:', ru:'Что содержит `LogEntry`:'}
 
 ${en:'`isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message.', ru:'`isEnabled(...)` вызывается до создания `LogEntry` и до раскрытия `Supplier`, поэтому возврат `false` избавляет от всей стоимости сообщения.'}
 
+${en:'A logger that throws does not break the code that logs. The first failure of each logger class prints one line to `System.err`, for example', ru:'Логгер, который бросает исключение, не ломает код, который пишет в лог. Первый сбой каждого класса логгера печатает одну строку в `System.err`, например'} `[NANOLOG] Logger com.acme.AuditLogger threw java.io.UncheckedIOException: disk full; entries it fails to write are printed to System.err`. ${en:'Every entry the logger fails to write then goes to `System.err` in the `ConsoleLogger` format, so nothing is lost. If `isEnabled(...)` throws, the level counts as enabled.', ru:'Каждая запись, которую логгер не смог записать, уходит в `System.err` в формате `ConsoleLogger`, так что ничего не теряется. Если бросает `isEnabled(...)`, уровень считается включённым.'}
+
 ## ${en:'Thread safety and performance', ru:'Потокобезопасность и производительность'}
 
 - ${en:'The static', ru:'Статические методы'} `LOG` ${en:'methods are safe to call from any thread as long as the installed', ru:'можно вызывать из любого потока, пока установленный'} `ILogger` ${en:'is;', ru:'потокобезопасен;'} `ConsoleLogger` ${en:'and', ru:'и'} `Slf4jLogger` ${en:'are.', ru:'таковы.'}
@@ -492,6 +494,7 @@ ${en:'In development, not released yet.', ru:'В разработке, ещё н
 
 - ${en:'A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.', ru:'Ленивое сообщение, у которого `Supplier` бросает исключение, больше не роняет вызов логирования: запись попадает в лог с сообщением `[FAILED supplier: <исключение>]`.'}
 - ${en:'When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.', ru:'Если в стеке нет подходящего вызывающего кадра (`-XX:-StackTraceInThrowable` или код целиком внутри `ILogger`), запись логируется без класса-источника, а не падает с `IllegalStateException`.'}
+- ${en:'A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.', ru:'Логгер, который бросает исключение, больше не роняет вызов логирования: сбой один раз на класс логгера отмечается строкой `[NANOLOG]`, а запись печатается в `System.err`. Внутри `CompositeLogger` упавший делегат больше не останавливает остальных.'}
 - ${en:'Caller detection no longer lets an error from a class loader escape: a frame whose class fails to load with `NoClassDefFoundError`, `MissingReflectionRegistrationError` from GraalVM or any other throwable is resolved through the other loader or skipped.', ru:'Определение вызывающего класса больше не выпускает наружу ошибки загрузчика классов: кадр, класс которого не загружается из-за `NoClassDefFoundError`, `MissingReflectionRegistrationError` от GraalVM или любой другой ошибки, ищется вторым загрузчиком или пропускается.'}
 ${widget:endIf}
 

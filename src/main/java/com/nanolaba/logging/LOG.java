@@ -1,8 +1,11 @@
 package com.nanolaba.logging;
 
+import java.io.PrintStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -256,7 +259,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code TRACE} enabled for the class
      */
     public static boolean isTraceEnabled(Class targetClass) {
-        return logger.isEnabled(TRACE, targetClass);
+        return isEnabled(logger, TRACE, targetClass);
     }
 
     /**
@@ -266,7 +269,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code TRACE} enabled for the calling class
      */
     public static boolean isTraceEnabled() {
-        return logger.isEnabled(TRACE, getCurrentClass());
+        return isEnabled(logger, TRACE, getCurrentClass());
     }
 
     // DEBUG
@@ -420,7 +423,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code DEBUG} enabled for the class
      */
     public static boolean isDebugEnabled(Class targetClass) {
-        return logger.isEnabled(DEBUG, targetClass);
+        return isEnabled(logger, DEBUG, targetClass);
     }
 
     /**
@@ -430,7 +433,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code DEBUG} enabled for the calling class
      */
     public static boolean isDebugEnabled() {
-        return logger.isEnabled(DEBUG, getCurrentClass());
+        return isEnabled(logger, DEBUG, getCurrentClass());
     }
 
     // INFO
@@ -585,7 +588,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code INFO} enabled for the class
      */
     public static boolean isInfoEnabled(Class targetClass) {
-        return logger.isEnabled(INFO, targetClass);
+        return isEnabled(logger, INFO, targetClass);
     }
 
     /**
@@ -595,7 +598,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code INFO} enabled for the calling class
      */
     public static boolean isInfoEnabled() {
-        return logger.isEnabled(INFO, getCurrentClass());
+        return isEnabled(logger, INFO, getCurrentClass());
     }
 
     // WARN
@@ -749,7 +752,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code WARN} enabled for the class
      */
     public static boolean isWarnEnabled(Class targetClass) {
-        return logger.isEnabled(WARN, targetClass);
+        return isEnabled(logger, WARN, targetClass);
     }
 
     /**
@@ -759,7 +762,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code WARN} enabled for the calling class
      */
     public static boolean isWarnEnabled() {
-        return logger.isEnabled(WARN, getCurrentClass());
+        return isEnabled(logger, WARN, getCurrentClass());
     }
 
     // ERROR
@@ -913,7 +916,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code ERROR} enabled for the class
      */
     public static boolean isErrorEnabled(Class targetClass) {
-        return logger.isEnabled(ERROR, targetClass);
+        return isEnabled(logger, ERROR, targetClass);
     }
 
     /**
@@ -923,7 +926,7 @@ public class LOG {
      * @return {@code true} if the installed logger has {@code ERROR} enabled for the calling class
      */
     public static boolean isErrorEnabled() {
-        return logger.isEnabled(ERROR, getCurrentClass());
+        return isEnabled(logger, ERROR, getCurrentClass());
     }
 
     // UNIVERSAL LOG
@@ -947,13 +950,73 @@ public class LOG {
     }
 
     private static void doLog(LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
-        if (logger.isEnabled(level, loggedClass)) {
+        ILogger current = logger;
+        if (isEnabled(current, level, loggedClass)) {
             LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args);
             if (strict) {
                 checkPlaceholders(entry);
             }
-            logger.log(entry);
+            try {
+                current.log(entry);
+            } catch (Throwable t) {
+                reportLoggerFailure(current, t, FALLBACK_NOTE);
+                Fallback.LOGGER.log(entry);
+            }
         }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    private static final String FALLBACK_NOTE = "entries it fails to write are printed to System.err";
+
+    /**
+     * Logger classes already reported as failing, so a broken logger produces one diagnostic, not one per entry.
+     */
+    private static final Set<Class> FAILED_LOGGERS = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    /**
+     * Asks a logger whether a level is enabled. A logger whose check throws is reported, and the level counts as
+     * enabled, so the entry still gets a chance to be written.
+     */
+    private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
+        try {
+            return current.isEnabled(level, sourceClass);
+        } catch (Throwable t) {
+            reportLoggerFailure(current, t, FALLBACK_NOTE);
+            return true;
+        }
+    }
+
+    /**
+     * Prints one {@code [NANOLOG]} line the first time a logger of a given class throws; later failures of the same
+     * class are silent. Also used by {@link CompositeLogger} for its delegates.
+     */
+    static void reportLoggerFailure(ILogger failed, Throwable t, String consequence) {
+        if (FAILED_LOGGERS.add(failed.getClass())) {
+            DefaultLoggerCreator.printDiagnostic("Logger " + failed.getClass().getName() + " threw " + LogEntry.safeToString(t) +
+                                                 "; " + consequence);
+        }
+    }
+
+    /**
+     * Forgets the logger classes reported as failing; for tests.
+     */
+    static void clearReportedLoggerFailures() {
+        FAILED_LOGGERS.clear();
+    }
+
+    /**
+     * Writes the entries a failing logger could not write: the {@link ConsoleLogger} format, every level to
+     * {@code System.err}. Created on first use.
+     */
+    private static final class Fallback {
+
+        static final ConsoleLogger LOGGER = new ConsoleLogger() {
+            @Override
+            protected PrintStream getOutputStream(LogEntry entry) {
+                return System.err;
+            }
+        };
     }
 
     /**

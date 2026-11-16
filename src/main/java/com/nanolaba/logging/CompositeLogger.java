@@ -40,21 +40,27 @@ public class CompositeLogger implements ILogger {
     }
 
     /**
-     * Passes the entry to every delegate that has its level enabled, in order.
+     * Passes the entry to every delegate that has its level enabled, in order. A delegate that throws is reported once
+     * per class and skipped; the others still receive the entry.
      *
      * @param entry the entry
      */
     @Override
     public void log(LogEntry entry) {
         for (ILogger logger : loggers) {
-            if (logger.isEnabled(entry.getLevel(), entry.getSourceClass())) {
-                logger.log(entry);
+            if (isEnabled(logger, entry.getLevel(), entry.getSourceClass())) {
+                try {
+                    logger.log(entry);
+                } catch (Throwable t) {
+                    LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
+                }
             }
         }
     }
 
     /**
-     * Returns {@code true} if at least one delegate has the level enabled.
+     * Returns {@code true} if at least one delegate has the level enabled. A delegate whose check throws counts as
+     * enabled.
      *
      * @param level       the level of the entry
      * @param sourceClass the source class; may be {@code null}
@@ -63,10 +69,21 @@ public class CompositeLogger implements ILogger {
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
         for (ILogger logger : loggers) {
-            if (logger.isEnabled(level, sourceClass)) {
+            if (isEnabled(logger, level, sourceClass)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static final String DELEGATE_NOTE = "the other loggers of the CompositeLogger still receive its entries";
+
+    private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass) {
+        try {
+            return logger.isEnabled(level, sourceClass);
+        } catch (Throwable t) {
+            LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
+            return true;
+        }
     }
 }

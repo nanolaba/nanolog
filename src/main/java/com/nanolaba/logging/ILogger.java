@@ -6,7 +6,8 @@ package com.nanolaba.logging;
  * <p>
  * Implementations are called from every logging thread and must be thread-safe. Every class implementing this
  * interface is skipped by caller detection, so a logger that itself logs through {@code LOG} must pass its source
- * class explicitly.
+ * class explicitly. An exception thrown by an implementation does not reach the code that logged: {@code LOG} reports
+ * it once per logger class with a {@code [NANOLOG]} line and prints the entry to {@code System.err} instead.
  */
 public interface ILogger {
 
