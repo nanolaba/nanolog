@@ -3,6 +3,7 @@ package com.nanolaba.logging;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
@@ -41,6 +42,12 @@ public class LOG {
      * {@code nanolog.strict}: report calls whose placeholders and arguments do not match. Read by {@link #init()}.
      */
     private static boolean strict;
+
+    /**
+     * Reads the frames of the {@code Throwable} that caller detection creates. Tests replace it to simulate a JVM
+     * that records no frames ({@code -XX:-StackTraceInThrowable}) and must restore it afterwards.
+     */
+    static Function<Throwable, StackTraceElement[]> stackTraceOf = Throwable::getStackTrace;
 
     private static final int REPORTED_TEMPLATES_LIMIT = 1000;
 
@@ -1005,13 +1012,14 @@ public class LOG {
 
     /**
      * Walks the stack to the first frame outside Nanolog: {@code LOG}, {@code LogEntry} and any {@code ILogger}.
-     * The source class is the top-level class of that frame, the frame itself is kept as the call site.
+     * The source class is the top-level class of that frame, the frame itself is kept as the call site. When no frame
+     * qualifies, the caller has neither a class nor a frame.
      */
     private static Caller findCaller() {
         try {
             throw new Throwable();
         } catch (Throwable t) {
-            for (StackTraceElement element : t.getStackTrace()) {
+            for (StackTraceElement element : stackTraceOf.apply(t)) {
                 Class result = resolveClass(element.getClassName());
                 if (result == null) {
                     // the frame belongs to a class loader we cannot see (e.g. a child loader in an app server): skip it
@@ -1030,8 +1038,12 @@ public class LOG {
             }
         }
 
-        throw new IllegalStateException("Unable to determine the current class");
+        // no frame qualifies (stack traces disabled, or the code runs entirely inside an ILogger): logging must not
+        // throw, so the entry goes out without a source class and call site, like LOG.log(level, null, ...)
+        return NO_CALLER;
     }
+
+    private static final Caller NO_CALLER = new Caller(null, null);
 
     private static final class Caller {
 

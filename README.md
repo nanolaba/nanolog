@@ -458,6 +458,7 @@ and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogg
 - Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see is skipped.
 - The stack walk happens on every call without an explicit class, including `LOG.isDebugEnabled()`. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
 - Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.
+- If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the JVM records no stack traces (`-XX:-StackTraceInThrowable`) or when the code runs entirely inside an `ILogger` class. `Slf4jLogger` sends such entries to the `ROOT` logger.
 
 ## Writing your own logger
 
@@ -553,6 +554,7 @@ dependencies {
 In development, not released yet.
 
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
+- When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
 
 ### 1.2
 

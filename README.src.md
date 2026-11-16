@@ -411,6 +411,7 @@ and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogg
 - ${en:'Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see is skipped.', ru:'Классы кадров ищутся сначала контекстным загрузчиком потока, затем загрузчиком `LOG`, поэтому определение работает, когда Nanolog лежит в общем загрузчике сервера приложений, а вызывающий код — в веб-приложении. Кадр, невидимый обоим загрузчикам, пропускается.'}
 - ${en:'The stack walk happens on every call without an explicit class, including', ru:'Обход стека происходит при каждом вызове без явного класса, включая'} `LOG.isDebugEnabled()`. ${en:'In hot paths pass the class explicitly:', ru:'В горячих местах передавайте класс явно:'} `LOG.debug(MyClass.class, ...)`.
 - ${en:'Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.', ru:'Любой класс, реализующий `ILogger`, пропускается, поэтому свой логгер, который сам пишет через `LOG`, должен передавать класс-источник явно.'}
+- ${en:'If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the JVM records no stack traces (`-XX:-StackTraceInThrowable`) or when the code runs entirely inside an `ILogger` class. `Slf4jLogger` sends such entries to the `ROOT` logger.', ru:'Если подходящего кадра нет, запись всё равно попадает в лог, но без класса-источника и места вызова, как при `LOG.log(level, null, ...)`. Так бывает, когда JVM не записывает стек (`-XX:-StackTraceInThrowable`) или код целиком выполняется внутри класса, реализующего `ILogger`. `Slf4jLogger` отправляет такие записи в логгер `ROOT`.'}
 
 ## ${en:'Writing your own logger', ru:'Собственный логгер'}
 
@@ -490,6 +491,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 ${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
 
 - ${en:'A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.', ru:'Ленивое сообщение, у которого `Supplier` бросает исключение, больше не роняет вызов логирования: запись попадает в лог с сообщением `[FAILED supplier: <исключение>]`.'}
+- ${en:'When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.', ru:'Если в стеке нет подходящего вызывающего кадра (`-XX:-StackTraceInThrowable` или код целиком внутри `ILogger`), запись логируется без класса-источника, а не падает с `IllegalStateException`.'}
 ${widget:endIf}
 
 ### 1.2
