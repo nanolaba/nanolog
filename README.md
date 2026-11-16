@@ -25,7 +25,7 @@ a logger field. It works on its own through `ConsoleLogger` or on top of
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
 - **Logging never throws.** A broken `toString()` becomes `[FAILED toString()]` instead of an exception in your code.
 - **Levels change at run time.** `LOG.setLevel("com.acme.payments", DEBUG)` from an admin endpoint or a test takes effect in every thread, and `LOG.withLevel(...)` puts the old level back when the block ends; see [Changing levels at run time](#changing-levels-at-run-time).
-- **Zero dependencies.** Eleven classes, no transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
+- **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
@@ -188,7 +188,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
-- **The whole library fits in a context window.** Eleven small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.2). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 

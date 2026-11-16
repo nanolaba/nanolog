@@ -70,4 +70,4 @@ void chargeIsRetried() {
 
 - [README](https://github.com/nanolaba/nanolog#readme): the full documentation, with the changelog
 - [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog): every class and method of the latest release
-- [Source](https://github.com/nanolaba/nanolog): eleven small classes in `src/main/java/com/nanolaba/logging`
+- [Source](https://github.com/nanolaba/nanolog): one package of small classes, `src/main/java/com/nanolaba/logging`

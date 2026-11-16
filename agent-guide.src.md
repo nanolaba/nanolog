@@ -80,4 +80,4 @@ ${widget:import(path='${examples}/CapturingLogs.java', region='capture', wrap='t
 
 - [README](${repo}#readme): the full documentation, with the changelog
 - [Javadoc](${javadoc}): every class and method of the latest release
-- [Source](${repo}): eleven small classes in `src/main/java/com/nanolaba/logging`
+- [Source](${repo}): one package of small classes, `src/main/java/com/nanolaba/logging`
