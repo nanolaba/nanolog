@@ -20,6 +20,7 @@ public class LoggerSetup {
                 .setShowSource(true)
                 .setShowSourceFullName(false)
                 .setShowLocation(false)
+                .setShowThread(false)
                 .setTraceEnabled(false)
                 .setDebugEnabled(false));
         // nrg:end:console

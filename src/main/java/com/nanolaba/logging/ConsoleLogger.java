@@ -23,6 +23,8 @@ import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
  * <pre>
  * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message
  * </pre>
+ * The name of the thread ({@link #setShowThread(boolean)}) and the call site ({@link #setShowLocation(boolean)}) can
+ * be added.
  * Every part is switched by a fluent setter, and the constructor reads the same settings from system properties,
  * environment variables and {@code nanolog.properties}: {@code nanolog.level}, per-package rules
  * ({@code nanolog.level.<package or class>}, {@code nanolog.levels}) and {@code nanolog.console.*}. All levels are
@@ -55,6 +57,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public static final String PROPERTY_SHOW_LOCATION = "nanolog.console.showLocation";
     /**
+     * Property for {@link #setShowThread(boolean)}: {@code true} or {@code false}.
+     */
+    public static final String PROPERTY_SHOW_THREAD = "nanolog.console.showThread";
+    /**
      * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
      */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
@@ -70,6 +76,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private boolean showSource = true;
     private boolean showSourceFullName = false;
     private boolean showLocation = false;
+    private boolean showThread = false;
 
     // volatile: the levels may change at run time, and every logging thread must see the change on its next call
     private volatile boolean traceEnabled = true;
@@ -101,6 +108,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showSource = readBoolean(PROPERTY_SHOW_SOURCE, showSource);
         showSourceFullName = readBoolean(PROPERTY_SHOW_SOURCE_FULL_NAME, showSourceFullName);
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
+        showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         applyDateFormat();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
@@ -510,8 +518,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Builds the text of an entry from the {@code write*} methods, in this order: level, date, source, message,
-     * stack trace.
+     * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
+     * message, stack trace.
      *
      * @param entry the entry to write
      * @return the text without the final line break
@@ -521,6 +529,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         StringWriter out = new StringWriter();
         writeLevel(out, entry);
         writeDate(out, entry);
+        writeThread(out, entry);
         writeSource(out, entry);
         writeMessage(out, entry);
         writeThrowable(out, entry);
@@ -568,6 +577,19 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 addDelimiter(out);
                 out.append(formattedMessage);
             }
+        }
+    }
+
+    /**
+     * Writes {@code [thread name]} when {@code showThread} is on.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeThread(StringWriter out, LogEntry entry) {
+        if (isShowThread()) {
+            addDelimiter(out);
+            out.append('[').append(entry.getThreadName()).append(']');
         }
     }
 
@@ -792,6 +814,28 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public ConsoleLogger setShowLocation(boolean showLocation) {
         this.showLocation = showLocation;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} if the name of the thread that logged is printed.
+     *
+     * @return {@code true} if the name of the thread that logged is printed
+     */
+    public boolean isShowThread() {
+        return showThread;
+    }
+
+    /**
+     * Whether to print the name of the thread that logged, as {@code [main]} between the date and the source class, so
+     * the interleaved lines of a thread pool can be told apart. Off by default; also set by
+     * {@code nanolog.console.showThread}. {@link JsonLogger} always writes the thread.
+     *
+     * @param showThread the new value
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setShowThread(boolean showThread) {
+        this.showThread = showThread;
         return this;
     }
 

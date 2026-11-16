@@ -280,6 +280,7 @@ LOG.init(new ConsoleLogger()
         .setShowSource(true)
         .setShowSourceFullName(false)
         .setShowLocation(false)
+        .setShowThread(false)
         .setTraceEnabled(false)
         .setDebugEnabled(false));
 ```
@@ -288,6 +289,7 @@ LOG.init(new ConsoleLogger()
 - `showDate` + `dateFormat` — временная метка и её `SimpleDateFormat`; форматирование синхронизировано, общий экземпляр безопасен.
 - `showSource` / `showSourceFullName` — короткое или полное имя класса-источника. У анонимного или локального класса, переданного явно, такого имени нет, и он показывается по двоичному имени: `Foo$1` или `com.acme.Foo$1`.
 - `showLocation` — место вызова после имени класса в том же виде, что и в трассировках стека, поэтому IDE и терминалы превращают его в ссылку: `[PaymentService.charge(PaymentService.java:87)]`. По умолчанию выключено. У вызова с явным классом-источником места вызова нет, и остаётся обычный `[PaymentService]`.
+- `showThread` — имя потока, который записал строку, в квадратных скобках после даты: `[main]`, `[pool-1-thread-3]`. По умолчанию выключено; при пуле потоков помогает различать перемешанные строки разных задач. `JsonLogger` пишет поток всегда.
 - `traceEnabled` … `errorEnabled` — переключатели по уровням; по умолчанию включено всё, поэтому в продакшене отключите `TRACE` и `DEBUG` в коде или через `nanolog.level=INFO`. Отключённые уровни отсекаются до создания `LogEntry`, поэтому ленивые сообщения не вычисляются. `setLevel(level)` задаёт все пять сразу, а менять переключатели можно и пока другие потоки пишут в лог; см. [Изменение уровней во время работы](#изменение-уровней-во-время-работы).
 
 Для своего формата (цвет, JSON, другая раскладка) унаследуйтесь от `ConsoleLogger`
@@ -308,6 +310,7 @@ LOG.init(new ConsoleLogger()
 | `nanolog.console.showSource` | `NANOLOG_CONSOLE_SHOWSOURCE` | то же |
 | `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | то же |
 | `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | то же |
+| `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | то же |
 | `nanolog.console.dateFormat` | `NANOLOG_CONSOLE_DATEFORMAT` | шаблон `SimpleDateFormat` |
 
 ```
@@ -598,6 +601,7 @@ dependencies {
 
 В разработке, ещё не выпущена.
 
+- `ConsoleLogger`: `setShowThread(true)` или `nanolog.console.showThread=true` печатает имя потока после даты: `INFO 16.11.2026 10:15:02 [main] [PaymentService] Charged 42`. По умолчанию выключено, поэтому формат прежнего вывода не меняется.
 - На Java 9+ вызывающий класс определяется через `StackWalker`: обход останавливается на кадре вызова и не загружает классы по имени, поэтому вызов без явного класса стоит около 3 мкс вместо 9–26 мкс на JDK 17 и почти не дорожает с глубиной стека. Вызывающий класс в загрузчике, который не видят ни контекстный загрузчик, ни загрузчик Nanolog, теперь находится точно, а не пропускается. На Java 8 остаётся обход через `Throwable`.
 - Диагностика `[NANOLOG]` всегда занимает одну строку. Управляющие символы в значениях, которые она повторяет, например в уровне из запроса, переданном в `LOG.setLevel`, в сообщении исключения или в шаблоне, печатаются как `\u000a`, поэтому такое значение не может подделать строку лога.
 - Уровни меняются во время работы приложения, потокобезопасно: `LOG.setLevel(level)`, `LOG.setLevel(name, level)`, `LOG.clearLevel(name)`, `LOG.resetLevels()` и `LOG.withLevel(name, level)` для блока `try`. Уровень задаётся как `LogEntryLevel` или строкой вроде `"OFF"`, как в настройках. `ConsoleLogger`, `JsonLogger` и `CompositeLogger` реализуют новый `ILevelControl`, а сеттеры уровней `ConsoleLogger` теперь можно вызывать, пока другие потоки пишут в лог.

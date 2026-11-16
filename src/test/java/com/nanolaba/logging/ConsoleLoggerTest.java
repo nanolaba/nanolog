@@ -109,6 +109,36 @@ public class ConsoleLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testThreadIsOffByDefault() {
+        assertFalse(new ConsoleLogger().isShowThread());
+    }
+
+    @Test
+    public void testShowThread() throws InterruptedException {
+        ConsoleLogger logger = createLogger().setShowThread(true);
+        assertTrue(logger.isShowThread());
+        LOG.init(logger);
+
+        LOG.info(InfoObject.class, "from the test thread");
+        assertEquals("INFO 01.01.2010 00:00:00 [" + Thread.currentThread().getName() + "] [InfoObject] from the test thread" +
+                     System.lineSeparator(), getOutAndClear());
+
+        Thread worker = new Thread(() -> LOG.info(InfoObject.class, "from a worker"), "worker-1");
+        worker.start();
+        worker.join();
+        assertEquals("INFO 01.01.2010 00:00:00 [worker-1] [InfoObject] from a worker" + System.lineSeparator(), getOutAndClear());
+
+        // the thread keeps its place between the level and the message when the parts around it are off
+        logger.setShowDate(false).setShowSource(false);
+        LOG.info("bare");
+        assertEquals("INFO [" + Thread.currentThread().getName() + "] bare" + System.lineSeparator(), getOutAndClear());
+
+        logger.setShowThread(false);
+        LOG.info("bare");
+        assertEquals("INFO bare" + System.lineSeparator(), getOutAndClear());
+    }
+
+    @Test
     public void testShowLocation() {
         ConsoleLogger logger = createLogger().setShowLocation(true);
         assertTrue(logger.isShowLocation());
