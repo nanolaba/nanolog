@@ -100,6 +100,32 @@ class FailingLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testThrowingMayBeEnabledCountsAsEnabled() {
+        ThrowingMayBeEnabledLogger logger = new ThrowingMayBeEnabledLogger();
+        LOG.init(logger);
+
+        LOG.debug("debug message");
+
+        assertTrue(LOG.isTraceEnabled());
+        assertEquals(Collections.singletonList("debug message"), logger.messages);
+        assertEquals(Collections.singletonList("[NANOLOG] Logger com.nanolaba.logging.FailingLoggerTest$ThrowingMayBeEnabledLogger " +
+                                               "threw java.lang.IllegalStateException: mayBeEnabled failed; " +
+                                               "entries it fails to write are printed to System.err"),
+                     lines(getErrAndClear()));
+    }
+
+    @Test
+    public void testCompositeTreatsThrowingMayBeEnabledAsEnabled() {
+        CompositeLogger composite = new CompositeLogger(new ThrowingMayBeEnabledLogger());
+
+        assertTrue(composite.mayBeEnabled(DEBUG));
+        assertEquals(Collections.singletonList("[NANOLOG] Logger com.nanolaba.logging.FailingLoggerTest$ThrowingMayBeEnabledLogger " +
+                                               "threw java.lang.IllegalStateException: mayBeEnabled failed; " +
+                                               "the other loggers of the CompositeLogger still receive its entries"),
+                     lines(getErrAndClear()));
+    }
+
+    @Test
     public void testCompositeKeepsFeedingTheOtherLoggersWhenOneThrows() {
         ThrowingIsEnabledLogger recording = new ThrowingIsEnabledLogger();
         LOG.init(new CompositeLogger(new ThrowingLogger(new RuntimeException("logger failed")), recording));
@@ -158,6 +184,24 @@ class FailingLoggerTest extends AbstractLoggerTest {
         @Override
         public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
             throw new IllegalStateException("isEnabled failed");
+        }
+    }
+
+    /**
+     * Throws from {@code mayBeEnabled}, but accepts and writes every entry.
+     */
+    static class ThrowingMayBeEnabledLogger implements ILogger {
+
+        final List<String> messages = new ArrayList<>();
+
+        @Override
+        public void log(LogEntry entry) {
+            messages.add(entry.getFormattedMessage());
+        }
+
+        @Override
+        public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+            throw new IllegalStateException("mayBeEnabled failed");
         }
     }
 }

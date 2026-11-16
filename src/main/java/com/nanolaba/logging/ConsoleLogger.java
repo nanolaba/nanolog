@@ -81,6 +81,17 @@ public class ConsoleLogger implements ILogger {
     private final Map<Class, Integer> thresholdCache = new ConcurrentHashMap<>();
 
     /**
+     * The lowest threshold among the rules, {@code Integer.MAX_VALUE} without rules: a level below it is enabled for no
+     * class unless its switch is on.
+     */
+    private final int lowestRuleThreshold;
+
+    /**
+     * Set for a subclass with its own {@code isEnabled}, whose answers {@link #mayBeEnabled} cannot predict.
+     */
+    private final boolean isEnabledOverridden;
+
+    /**
      * Creates a logger configured from system properties, environment variables and {@code nanolog.properties}
      * (in this order of precedence); everything not configured keeps its default. Setters called afterwards override
      * the configuration, except that a package or class rule always beats the global level switches.
@@ -94,6 +105,16 @@ public class ConsoleLogger implements ILogger {
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         applyDateFormat();
         readLevelRules();
+        lowestRuleThreshold = findLowestRuleThreshold();
+        isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
+    }
+
+    private int findLowestRuleThreshold() {
+        int lowest = Integer.MAX_VALUE;
+        for (int threshold : levelRules.values()) {
+            lowest = Math.min(lowest, threshold);
+        }
+        return lowest;
     }
 
     private void applyGlobalLevel() {
@@ -211,6 +232,23 @@ public class ConsoleLogger implements ILogger {
                 return isAtLeast(level, threshold);
             }
         }
+        return isSwitchedOn(level);
+    }
+
+    /**
+     * {@code false} only when the switch of the level is off and no package or class rule enables it, so {@code LOG}
+     * skips such a call before it walks the stack. A subclass that overrides {@link #isEnabled} without overriding
+     * this method always gets {@code true}.
+     *
+     * @param level the level
+     * @return {@code false} if no entry of the level is logged, whatever its source class
+     */
+    @Override
+    public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+        return isEnabledOverridden || isAtLeast(level, lowestRuleThreshold) || isSwitchedOn(level);
+    }
+
+    private boolean isSwitchedOn(LogEntry.LogEntryLevel level) {
         switch (level) {
             case TRACE:
                 return isTraceEnabled();

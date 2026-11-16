@@ -18,5 +18,12 @@ public class CustomLogger implements ILogger {
         // return false to suppress entries of this level for this class
         return level != LogEntry.LogEntryLevel.TRACE;
     }
+
+    @Override
+    public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+        // asked before the source class is detected: false spares the stack walk too,
+        // so return false only for a level that isEnabled rejects for every class
+        return level != LogEntry.LogEntryLevel.TRACE;
+    }
 }
 // nrg:end:custom

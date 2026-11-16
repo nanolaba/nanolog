@@ -308,6 +308,71 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertEquals("DEBUG", System.getProperty("nanolog.level.com.nanolaba.logging.util"));
     }
 
+    @Test
+    public void testMayBeEnabledFollowsTheSwitches() {
+        ConsoleLogger logger = new ConsoleLogger();
+        assertMayBeEnabled(logger, true, true, true, true, true);
+
+        logger.setDebugEnabled(false).setWarnEnabled(false);
+        assertMayBeEnabled(logger, true, false, true, false, true);
+    }
+
+    @Test
+    public void testMayBeEnabledWithEverythingOff() {
+        System.setProperty("nanolog.level", "OFF");
+        ConsoleLogger logger = new ConsoleLogger();
+        assertMayBeEnabled(logger, false, false, false, false, false);
+
+        logger.setErrorEnabled(true);
+        assertMayBeEnabled(logger, false, false, false, false, true);
+    }
+
+    @Test
+    public void testMayBeEnabledIncludesTheLowestRule() {
+        System.setProperty("nanolog.level", "WARN");
+        System.setProperty("nanolog.level.com.nanolaba.logging.util", "DEBUG");
+        System.setProperty("nanolog.level.com.nanolaba.logging.LOG", "OFF");
+
+        assertMayBeEnabled(new ConsoleLogger(), false, true, true, true, true);
+    }
+
+    @Test
+    public void testRuleAtOffEnablesNothing() {
+        System.setProperty("nanolog.level", "OFF");
+        System.setProperty("nanolog.level.com.nanolaba", "OFF");
+
+        assertMayBeEnabled(new ConsoleLogger(), false, false, false, false, false);
+    }
+
+    @Test
+    public void testSubclassOverridingIsEnabledMayAlwaysBeEnabled() {
+        System.setProperty("nanolog.level", "OFF");
+        ConsoleLogger ownFilter = new ConsoleLogger() {
+            @Override
+            public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+                return sourceClass == InfoObject.class || super.isEnabled(level, sourceClass);
+            }
+        };
+        ConsoleLogger ownLayout = new ConsoleLogger() {
+            @Override
+            protected String createLogString(LogEntry entry) {
+                return entry.getFormattedMessage();
+            }
+        };
+
+        assertMayBeEnabled(ownFilter, true, true, true, true, true);
+        assertMayBeEnabled(ownLayout, false, false, false, false, false);
+        assertMayBeEnabled(new JsonLogger(), false, false, false, false, false);
+    }
+
+    private static void assertMayBeEnabled(ConsoleLogger logger, boolean trace, boolean debug, boolean info, boolean warn, boolean error) {
+        assertEquals(trace, logger.mayBeEnabled(TRACE), "TRACE");
+        assertEquals(debug, logger.mayBeEnabled(DEBUG), "DEBUG");
+        assertEquals(info, logger.mayBeEnabled(INFO), "INFO");
+        assertEquals(warn, logger.mayBeEnabled(WARN), "WARN");
+        assertEquals(error, logger.mayBeEnabled(ERROR), "ERROR");
+    }
+
     private static void assertLevels(ConsoleLogger logger, boolean trace, boolean debug, boolean info, boolean warn, boolean error) {
         assertEquals(trace, logger.isTraceEnabled(), "TRACE");
         assertEquals(debug, logger.isDebugEnabled(), "DEBUG");

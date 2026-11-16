@@ -25,7 +25,8 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
  *     {@code {}} placeholders followed by its arguments;</li>
  *     <li>an exception may be passed first, or last after the arguments (the SLF4J order);</li>
  *     <li>the source class is detected from the stack unless it is passed as the first argument. Detection walks
- *     the stack on every call, so pass the class in hot paths.</li>
+ *     the stack on every call whose level the logger may have enabled for some class
+ *     ({@link ILogger#mayBeEnabled}), so pass the class in hot paths.</li>
  * </ul>
  * Formatting rules: {@code {}} takes the next argument, {@code \{}} is a literal {@code {}}, {@code \\{}} is a
  * literal backslash followed by a placeholder, missing arguments leave {@code {}} in place, extra ones are ignored,
@@ -184,7 +185,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code TRACE} is enabled
      */
     public static void trace(Throwable t, Supplier<Object> message) {
-        logFromCaller(TRACE, findCaller(), t, message);
+        logFromCaller(TRACE,t, message);
     }
 
     /**
@@ -194,7 +195,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void trace(Throwable t, Object message) {
-        logFromCaller(TRACE, findCaller(), t, () -> message);
+        logFromCaller(TRACE,t, () -> message);
     }
 
     /**
@@ -203,7 +204,7 @@ public class LOG {
      * @param t           the exception, logged with its stack trace
      */
     public static void trace(Throwable t) {
-        logFromCaller(TRACE, findCaller(), t, null);
+        logFromCaller(TRACE,t, null);
     }
 
     /**
@@ -212,7 +213,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code TRACE} is enabled
      */
     public static void trace(Supplier<Object> message) {
-        logFromCaller(TRACE, findCaller(), null, message);
+        logFromCaller(TRACE,null, message);
     }
 
     /**
@@ -221,7 +222,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void trace(Object message) {
-        logFromCaller(TRACE, findCaller(), null, () -> message);
+        logFromCaller(TRACE,null, () -> message);
     }
 
     /**
@@ -231,7 +232,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void trace(String message, Object... args) {
-        logFromCaller(TRACE, findCaller(), null, () -> message, args);
+        logFromCaller(TRACE,null, () -> message, args);
     }
 
     /**
@@ -242,7 +243,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void trace(Throwable t, String message, Object... args) {
-        logFromCaller(TRACE, findCaller(), t, () -> message, args);
+        logFromCaller(TRACE,t, () -> message, args);
     }
 
     /**
@@ -268,13 +269,14 @@ public class LOG {
     }
 
     /**
-     * Checks whether {@code TRACE} entries of the calling class would be logged. The class is detected from the
-     * stack, which costs one stack walk per call; in hot paths prefer {@link #isTraceEnabled(Class)}.
+     * Checks whether {@code TRACE} entries of the calling class would be logged. Unless the installed logger has
+     * {@code TRACE} off for every class ({@link ILogger#mayBeEnabled}), the class is detected from the stack, which
+     * costs one stack walk per call; in hot paths prefer {@link #isTraceEnabled(Class)}.
      *
      * @return {@code true} if the installed logger has {@code TRACE} enabled for the calling class
      */
     public static boolean isTraceEnabled() {
-        return isEnabled(logger, TRACE, getCurrentClass());
+        return isEnabledForCaller(TRACE);
     }
 
     // DEBUG
@@ -348,7 +350,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code DEBUG} is enabled
      */
     public static void debug(Throwable t, Supplier<Object> message) {
-        logFromCaller(DEBUG, findCaller(), t, message);
+        logFromCaller(DEBUG,t, message);
     }
 
     /**
@@ -358,7 +360,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void debug(Throwable t, Object message) {
-        logFromCaller(DEBUG, findCaller(), t, () -> message);
+        logFromCaller(DEBUG,t, () -> message);
     }
 
     /**
@@ -367,7 +369,7 @@ public class LOG {
      * @param t           the exception, logged with its stack trace
      */
     public static void debug(Throwable t) {
-        logFromCaller(DEBUG, findCaller(), t, null);
+        logFromCaller(DEBUG,t, null);
     }
 
     /**
@@ -376,7 +378,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code DEBUG} is enabled
      */
     public static void debug(Supplier<Object> message) {
-        logFromCaller(DEBUG, findCaller(), null, message);
+        logFromCaller(DEBUG,null, message);
     }
 
     /**
@@ -385,7 +387,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void debug(Object message) {
-        logFromCaller(DEBUG, findCaller(), null, () -> message);
+        logFromCaller(DEBUG,null, () -> message);
     }
 
     /**
@@ -395,7 +397,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void debug(String message, Object... args) {
-        logFromCaller(DEBUG, findCaller(), null, () -> message, args);
+        logFromCaller(DEBUG,null, () -> message, args);
     }
 
     /**
@@ -406,7 +408,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void debug(Throwable t, String message, Object... args) {
-        logFromCaller(DEBUG, findCaller(), t, () -> message, args);
+        logFromCaller(DEBUG,t, () -> message, args);
     }
 
     /**
@@ -432,13 +434,14 @@ public class LOG {
     }
 
     /**
-     * Checks whether {@code DEBUG} entries of the calling class would be logged. The class is detected from the
-     * stack, which costs one stack walk per call; in hot paths prefer {@link #isDebugEnabled(Class)}.
+     * Checks whether {@code DEBUG} entries of the calling class would be logged. Unless the installed logger has
+     * {@code DEBUG} off for every class ({@link ILogger#mayBeEnabled}), the class is detected from the stack, which
+     * costs one stack walk per call; in hot paths prefer {@link #isDebugEnabled(Class)}.
      *
      * @return {@code true} if the installed logger has {@code DEBUG} enabled for the calling class
      */
     public static boolean isDebugEnabled() {
-        return isEnabled(logger, DEBUG, getCurrentClass());
+        return isEnabledForCaller(DEBUG);
     }
 
     // INFO
@@ -512,7 +515,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code INFO} is enabled
      */
     public static void info(Throwable t, Supplier<Object> message) {
-        logFromCaller(INFO, findCaller(), t, message);
+        logFromCaller(INFO,t, message);
     }
 
     /**
@@ -522,7 +525,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void info(Throwable t, Object message) {
-        logFromCaller(INFO, findCaller(), t, () -> message);
+        logFromCaller(INFO,t, () -> message);
     }
 
     /**
@@ -531,7 +534,7 @@ public class LOG {
      * @param t           the exception, logged with its stack trace
      */
     public static void info(Throwable t) {
-        logFromCaller(INFO, findCaller(), t, null);
+        logFromCaller(INFO,t, null);
     }
 
     /**
@@ -540,7 +543,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code INFO} is enabled
      */
     public static void info(Supplier<Object> message) {
-        logFromCaller(INFO, findCaller(), null, message);
+        logFromCaller(INFO,null, message);
     }
 
 
@@ -550,7 +553,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void info(Object message) {
-        logFromCaller(INFO, findCaller(), null, () -> message);
+        logFromCaller(INFO,null, () -> message);
     }
 
     /**
@@ -560,7 +563,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void info(String message, Object... args) {
-        logFromCaller(INFO, findCaller(), null, () -> message, args);
+        logFromCaller(INFO,null, () -> message, args);
     }
 
     /**
@@ -571,7 +574,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void info(Throwable t, String message, Object... args) {
-        logFromCaller(INFO, findCaller(), t, () -> message, args);
+        logFromCaller(INFO,t, () -> message, args);
     }
 
     /**
@@ -597,13 +600,14 @@ public class LOG {
     }
 
     /**
-     * Checks whether {@code INFO} entries of the calling class would be logged. The class is detected from the
-     * stack, which costs one stack walk per call; in hot paths prefer {@link #isInfoEnabled(Class)}.
+     * Checks whether {@code INFO} entries of the calling class would be logged. Unless the installed logger has
+     * {@code INFO} off for every class ({@link ILogger#mayBeEnabled}), the class is detected from the stack, which
+     * costs one stack walk per call; in hot paths prefer {@link #isInfoEnabled(Class)}.
      *
      * @return {@code true} if the installed logger has {@code INFO} enabled for the calling class
      */
     public static boolean isInfoEnabled() {
-        return isEnabled(logger, INFO, getCurrentClass());
+        return isEnabledForCaller(INFO);
     }
 
     // WARN
@@ -677,7 +681,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code WARN} is enabled
      */
     public static void warn(Throwable t, Supplier<Object> message) {
-        logFromCaller(WARN, findCaller(), t, message);
+        logFromCaller(WARN,t, message);
     }
 
     /**
@@ -687,7 +691,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void warn(Throwable t, Object message) {
-        logFromCaller(WARN, findCaller(), t, () -> message);
+        logFromCaller(WARN,t, () -> message);
     }
 
     /**
@@ -696,7 +700,7 @@ public class LOG {
      * @param t           the exception, logged with its stack trace
      */
     public static void warn(Throwable t) {
-        logFromCaller(WARN, findCaller(), t, null);
+        logFromCaller(WARN,t, null);
     }
 
     /**
@@ -705,7 +709,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code WARN} is enabled
      */
     public static void warn(Supplier<Object> message) {
-        logFromCaller(WARN, findCaller(), null, message);
+        logFromCaller(WARN,null, message);
     }
 
     /**
@@ -714,7 +718,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void warn(Object message) {
-        logFromCaller(WARN, findCaller(), null, () -> message);
+        logFromCaller(WARN,null, () -> message);
     }
 
     /**
@@ -724,7 +728,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void warn(String message, Object... args) {
-        logFromCaller(WARN, findCaller(), null, () -> message, args);
+        logFromCaller(WARN,null, () -> message, args);
     }
 
     /**
@@ -735,7 +739,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void warn(Throwable t, String message, Object... args) {
-        logFromCaller(WARN, findCaller(), t, () -> message, args);
+        logFromCaller(WARN,t, () -> message, args);
     }
 
     /**
@@ -761,13 +765,14 @@ public class LOG {
     }
 
     /**
-     * Checks whether {@code WARN} entries of the calling class would be logged. The class is detected from the
-     * stack, which costs one stack walk per call; in hot paths prefer {@link #isWarnEnabled(Class)}.
+     * Checks whether {@code WARN} entries of the calling class would be logged. Unless the installed logger has
+     * {@code WARN} off for every class ({@link ILogger#mayBeEnabled}), the class is detected from the stack, which
+     * costs one stack walk per call; in hot paths prefer {@link #isWarnEnabled(Class)}.
      *
      * @return {@code true} if the installed logger has {@code WARN} enabled for the calling class
      */
     public static boolean isWarnEnabled() {
-        return isEnabled(logger, WARN, getCurrentClass());
+        return isEnabledForCaller(WARN);
     }
 
     // ERROR
@@ -841,7 +846,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code ERROR} is enabled
      */
     public static void error(Throwable t, Supplier<Object> message) {
-        logFromCaller(ERROR, findCaller(), t, message);
+        logFromCaller(ERROR,t, message);
     }
 
     /**
@@ -851,7 +856,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void error(Throwable t, Object message) {
-        logFromCaller(ERROR, findCaller(), t, () -> message);
+        logFromCaller(ERROR,t, () -> message);
     }
 
     /**
@@ -860,7 +865,7 @@ public class LOG {
      * @param t           the exception, logged with its stack trace
      */
     public static void error(Throwable t) {
-        logFromCaller(ERROR, findCaller(), t, null);
+        logFromCaller(ERROR,t, null);
     }
 
     /**
@@ -869,7 +874,7 @@ public class LOG {
      * @param message     builds the message; called only if {@code ERROR} is enabled
      */
     public static void error(Supplier<Object> message) {
-        logFromCaller(ERROR, findCaller(), null, message);
+        logFromCaller(ERROR,null, message);
     }
 
     /**
@@ -878,7 +883,7 @@ public class LOG {
      * @param message     the message: any object, converted with a guarded {@code toString()}
      */
     public static void error(Object message) {
-        logFromCaller(ERROR, findCaller(), null, () -> message);
+        logFromCaller(ERROR,null, () -> message);
     }
 
     /**
@@ -888,7 +893,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void error(String message, Object... args) {
-        logFromCaller(ERROR, findCaller(), null, () -> message, args);
+        logFromCaller(ERROR,null, () -> message, args);
     }
 
     /**
@@ -899,7 +904,7 @@ public class LOG {
      * @param args        the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
      */
     public static void error(Throwable t, String message, Object... args) {
-        logFromCaller(ERROR, findCaller(), t, () -> message, args);
+        logFromCaller(ERROR,t, () -> message, args);
     }
 
     /**
@@ -925,13 +930,14 @@ public class LOG {
     }
 
     /**
-     * Checks whether {@code ERROR} entries of the calling class would be logged. The class is detected from the
-     * stack, which costs one stack walk per call; in hot paths prefer {@link #isErrorEnabled(Class)}.
+     * Checks whether {@code ERROR} entries of the calling class would be logged. Unless the installed logger has
+     * {@code ERROR} off for every class ({@link ILogger#mayBeEnabled}), the class is detected from the stack, which
+     * costs one stack walk per call; in hot paths prefer {@link #isErrorEnabled(Class)}.
      *
      * @return {@code true} if the installed logger has {@code ERROR} enabled for the calling class
      */
     public static boolean isErrorEnabled() {
-        return isEnabled(logger, ERROR, getCurrentClass());
+        return isEnabledForCaller(ERROR);
     }
 
     // UNIVERSAL LOG
@@ -947,15 +953,27 @@ public class LOG {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public static void log(LogEntry.LogEntryLevel level, Class loggedClass, Throwable throwable, Supplier<Object> message, Object... args) {
-        doLog(level, loggedClass, null, throwable, message, args);
+        doLog(logger, level, loggedClass, null, throwable, message, args);
     }
 
-    private static void logFromCaller(LogEntry.LogEntryLevel level, Caller caller, Throwable throwable, Supplier<Object> message, Object... args) {
-        doLog(level, caller.sourceClass, caller.frame, throwable, message, args);
-    }
-
-    private static void doLog(LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
+    /**
+     * Logs with the source class detected from the stack. The level is checked against every class first, so a level
+     * the logger has off everywhere costs no stack walk.
+     */
+    private static void logFromCaller(LogEntry.LogEntryLevel level, Throwable throwable, Supplier<Object> message, Object... args) {
         ILogger current = logger;
+        if (mayBeEnabled(current, level)) {
+            Caller caller = findCaller();
+            doLog(current, level, caller.sourceClass, caller.frame, throwable, message, args);
+        }
+    }
+
+    private static boolean isEnabledForCaller(LogEntry.LogEntryLevel level) {
+        ILogger current = logger;
+        return mayBeEnabled(current, level) && isEnabled(current, level, findCaller().sourceClass);
+    }
+
+    private static void doLog(ILogger current, LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (isEnabled(current, level, loggedClass)) {
             LogEntry entry = LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args);
             if (strict) {
@@ -986,6 +1004,18 @@ public class LOG {
     private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
         try {
             return current.isEnabled(level, sourceClass);
+        } catch (Throwable t) {
+            reportLoggerFailure(current, t, FALLBACK_NOTE);
+            return true;
+        }
+    }
+
+    /**
+     * Asks a logger whether a level may be enabled for any class, with the same guard as {@link #isEnabled}.
+     */
+    private static boolean mayBeEnabled(ILogger current, LogEntry.LogEntryLevel level) {
+        try {
+            return current.mayBeEnabled(level);
         } catch (Throwable t) {
             reportLoggerFailure(current, t, FALLBACK_NOTE);
             return true;
@@ -1071,11 +1101,6 @@ public class LOG {
 
     private static String count(int number, String noun) {
         return number + " " + noun + (number == 1 ? "" : "s");
-    }
-
-
-    private static Class getCurrentClass() {
-        return findCaller().sourceClass;
     }
 
     /**

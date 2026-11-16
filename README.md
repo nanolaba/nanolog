@@ -39,6 +39,7 @@ logging
 ├── JsonLogger.java
 ├── LOG.java
 ├── LogEntry.java
+├── LoggerIntrospection.java
 ├── MemoryLogger.java
 ├── Slf4jLogger.java
 └── package-info.java
@@ -456,7 +457,7 @@ and takes the first frame that does not belong to `LOG`, `LogEntry` or an `ILogg
 - Nested, anonymous and lambda classes are attributed to their top-level enclosing class.
 - The frame found by the walk is kept as `LogEntry.getCaller()`: the exact class, method, file and line of the call, including nested classes and lambdas. It costs nothing extra, and it is `null` when the class was passed explicitly.
 - Frame classes are resolved through the context class loader of the thread first and the class loader of `LOG` second, so the detection works when Nanolog lives in a shared loader of an application server and the caller in a web application. A frame neither loader can see or load is skipped, whatever the failure: a missing class, a linkage error such as `NoClassDefFoundError`, or `MissingReflectionRegistrationError` from GraalVM in a native image.
-- The stack walk happens on every call without an explicit class, including `LOG.isDebugEnabled()`. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
+- The stack is walked only for a level the logger may have enabled: `LOG` first asks `ILogger.mayBeEnabled(level)`, so a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, costs no walk. `LOG.isDebugEnabled()` follows the same rule. Once a level is on anywhere, even for one package (`nanolog.level.com.acme.db=TRACE`), every call at that level walks the stack, because only the class tells whether it is enabled. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
 - Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.
 - If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the JVM records no stack traces (`-XX:-StackTraceInThrowable`) or when the code runs entirely inside an `ILogger` class. `Slf4jLogger` sends such entries to the `ROOT` logger.
 
@@ -486,6 +487,13 @@ public class CustomLogger implements ILogger {
         // return false to suppress entries of this level for this class
         return level != LogEntry.LogEntryLevel.TRACE;
     }
+
+    @Override
+    public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+        // asked before the source class is detected: false spares the stack walk too,
+        // so return false only for a level that isEnabled rejects for every class
+        return level != LogEntry.LogEntryLevel.TRACE;
+    }
 }
 ```
 
@@ -502,13 +510,15 @@ What a `LogEntry` carries:
 
 `isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message. It does not skip caller detection: for a call without an explicit class the source class is found first, so the stack has already been walked; see [Caller detection](#caller-detection).
 
+To spare the walk as well, override `mayBeEnabled(level)`, as the example above does: `LOG` asks it before caller detection, and `false` means that no class has the level enabled. The default `true` is always safe; `false` for a level that `isEnabled(...)` accepts for some class loses those entries. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` implement it; a subclass that overrides `isEnabled(...)` but not `mayBeEnabled(...)` gets `true`.
+
 A logger that throws does not break the code that logs. The first failure of each logger class prints one line to `System.err`, for example `[NANOLOG] Logger com.acme.AuditLogger threw java.io.UncheckedIOException: disk full; entries it fails to write are printed to System.err`. Every entry the logger fails to write then goes to `System.err` in the `ConsoleLogger` format, so nothing is lost. If `isEnabled(...)` throws, the level counts as enabled.
 
 ## Thread safety and performance
 
 - The static `LOG` methods are safe to call from any thread as long as the installed `ILogger` is; `ConsoleLogger` and `Slf4jLogger` are.
 - A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is used by every thread from its next logging call, threads that are already running included. The `ConsoleLogger` setters are meant for startup, not for concurrent reconfiguration.
-- A call with a disabled level costs one `isEnabled` check plus, without an explicit class, one stack walk. Message formatting and `Supplier` evaluation happen only for enabled levels.
+- A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. A level that is on for some package or class costs a call without an explicit class one stack walk and an `isEnabled` check even where it is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 
 ## Using SNAPSHOT versions
 
@@ -555,6 +565,7 @@ dependencies {
 
 In development, not released yet.
 
+- Calls without an explicit class no longer walk the stack when their level is off for every class: `LOG` asks the new `ILogger.mayBeEnabled(level)` first. `ConsoleLogger`, `JsonLogger` and `CompositeLogger` answer it from their switches, package rules and delegates; other loggers keep the default `true` and work as before.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
 - Documentation: the `Slf4jLogger` section no longer says that MDC works with every backend; slf4j-simple and slf4j-nop discard MDC values.

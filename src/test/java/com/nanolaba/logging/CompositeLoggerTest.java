@@ -9,7 +9,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.DEBUG;
+import static com.nanolaba.logging.LogEntry.LogEntryLevel.ERROR;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
+import static com.nanolaba.logging.LogEntry.LogEntryLevel.TRACE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,6 +40,33 @@ class CompositeLoggerTest {
 
         assertTrue(new CompositeLogger(new RecordingLogger(false), new RecordingLogger(true)).isEnabled(DEBUG, InfoObject.class));
         assertFalse(new CompositeLogger().isEnabled(INFO, InfoObject.class), "no delegates, nothing to log");
+    }
+
+    @Test
+    public void testMayBeEnabledIfAnyDelegateMayBe() {
+        ConsoleLogger infoAndAbove = new ConsoleLogger().setTraceEnabled(false).setDebugEnabled(false);
+        ConsoleLogger debugAndAbove = new ConsoleLogger().setTraceEnabled(false);
+        CompositeLogger composite = new CompositeLogger(infoAndAbove, debugAndAbove);
+
+        assertFalse(composite.mayBeEnabled(TRACE));
+        assertTrue(composite.mayBeEnabled(DEBUG));
+        assertTrue(composite.mayBeEnabled(INFO));
+
+        assertFalse(new CompositeLogger().mayBeEnabled(ERROR), "no delegates, nothing to log");
+        assertTrue(new CompositeLogger(new RecordingLogger(false)).mayBeEnabled(TRACE),
+                   "a delegate that does not implement mayBeEnabled may always be enabled");
+    }
+
+    @Test
+    public void testSubclassOverridingIsEnabledMayAlwaysBeEnabled() {
+        CompositeLogger ownFilter = new CompositeLogger() {
+            @Override
+            public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+                return true;
+            }
+        };
+
+        assertTrue(ownFilter.mayBeEnabled(TRACE));
     }
 
     @Test

@@ -18,6 +18,11 @@ public class CompositeLogger implements ILogger {
     private final ILogger[] loggers;
 
     /**
+     * Set for a subclass with its own {@code isEnabled}, whose answers {@link #mayBeEnabled} cannot predict.
+     */
+    private final boolean isEnabledOverridden;
+
+    /**
      * Creates a composite of the given loggers.
      *
      * @param loggers the delegates, in the order they receive each entry; none of them may be {@code null}
@@ -28,6 +33,7 @@ public class CompositeLogger implements ILogger {
         for (ILogger logger : this.loggers) {
             Objects.requireNonNull(logger, "a CompositeLogger delegate must not be null");
         }
+        isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, CompositeLogger.class);
     }
 
     /**
@@ -76,11 +82,41 @@ public class CompositeLogger implements ILogger {
         return false;
     }
 
+    /**
+     * Returns {@code true} if at least one delegate may have the level enabled for some class. A delegate whose check
+     * throws counts as enabled. A subclass that overrides {@link #isEnabled} without overriding this method always
+     * gets {@code true}.
+     *
+     * @param level the level
+     * @return {@code false} if no delegate logs entries of the level, whatever their source class
+     */
+    @Override
+    public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+        if (isEnabledOverridden) {
+            return true;
+        }
+        for (ILogger logger : loggers) {
+            if (mayBeEnabled(logger, level)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static final String DELEGATE_NOTE = "the other loggers of the CompositeLogger still receive its entries";
 
     private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass) {
         try {
             return logger.isEnabled(level, sourceClass);
+        } catch (Throwable t) {
+            LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
+            return true;
+        }
+    }
+
+    private static boolean mayBeEnabled(ILogger logger, LogEntry.LogEntryLevel level) {
+        try {
+            return logger.mayBeEnabled(level);
         } catch (Throwable t) {
             LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
             return true;
