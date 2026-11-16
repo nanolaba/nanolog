@@ -500,7 +500,7 @@ What a `LogEntry` carries:
 - `getArgs()` — the substitution arguments.
 - `getFormattedMessage()` — the final string with `{}` substituted.
 
-`isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message.
+`isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message. It does not skip caller detection: for a call without an explicit class the source class is found first, so the stack has already been walked; see [Caller detection](#caller-detection).
 
 A logger that throws does not break the code that logs. The first failure of each logger class prints one line to `System.err`, for example `[NANOLOG] Logger com.acme.AuditLogger threw java.io.UncheckedIOException: disk full; entries it fails to write are printed to System.err`. Every entry the logger fails to write then goes to `System.err` in the `ConsoleLogger` format, so nothing is lost. If `isEnabled(...)` throws, the level counts as enabled.
 
@@ -558,6 +558,7 @@ In development, not released yet.
 - A lazy message whose `Supplier` throws no longer escapes from the logging call: the entry is logged with the message `[FAILED supplier: <exception>]`.
 - When no stack frame qualifies as the caller (`-XX:-StackTraceInThrowable`, or code running entirely inside an `ILogger`), the entry is logged without a source class instead of throwing `IllegalStateException`.
 - Documentation: the `Slf4jLogger` section no longer says that MDC works with every backend; slf4j-simple and slf4j-nop discard MDC values.
+- Documentation: `ILogger.isEnabled` no longer promises that returning `false` skips the whole cost of a call; caller detection has already walked the stack by then.
 - `ConsoleLogger`: an anonymous or local source class passed explicitly is printed as `[Foo$1]` instead of `[]` or `[null]`; `LogEntry.toString()` names it too.
 - A logger installed with `LOG.init(...)` or `MemoryLogger.install()` is now guaranteed to be seen by threads that are already logging; before, a test could miss entries logged from an executor thread.
 - A logger that throws no longer breaks the logging call: the failure is reported once per logger class with a `[NANOLOG]` line, and the entry is printed to `System.err` instead. Inside `CompositeLogger` a throwing delegate no longer stops the others.

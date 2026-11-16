@@ -19,8 +19,9 @@ public interface ILogger {
     void log(LogEntry entry);
 
     /**
-     * Decides whether an entry is logged at all. {@code LOG} asks before it builds the {@link LogEntry} and before a
-     * lazy message is evaluated, so returning {@code false} skips the whole cost of the call.
+     * Decides whether an entry is logged at all. {@code LOG} asks before it builds the {@link LogEntry}, evaluates a
+     * lazy message or formats the arguments, so returning {@code false} skips all of that. For a call without an
+     * explicit source class the class is detected first, so the stack walk of caller detection has already happened.
      *
      * @param level       the level of the entry
      * @param sourceClass the source class; may be {@code null}
