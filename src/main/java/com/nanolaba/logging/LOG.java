@@ -90,8 +90,8 @@ public class LOG {
 
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
-     * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent} and
-     * {@code nanolog.unit.*}. Called once when the
+     * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
+     * {@code nanolog.unit.*} and {@code nanolog.buffer.*}. Called once when the
      * class initialises.
      */
     public static void init() {
@@ -105,6 +105,7 @@ public class LOG {
         Dbg.ignoreLevels = agent;
         Summary.mode = DefaultLoggerCreator.readSummaryMode(agent);
         Units.configure();
+        Breadcrumbs.configure();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -1197,14 +1198,14 @@ public class LOG {
      * except in agent mode, where it ignores the levels. Checked before anything is allocated or the stack is walked.
      */
     private static boolean mayPrintDbg(ILogger current) {
-        return Dbg.mode != Dbg.Mode.OFF && (Dbg.ignoreLevels || mayBeEnabled(current, DEBUG));
+        return Dbg.mode != Dbg.Mode.OFF && (Dbg.ignoreLevels || mayTake(current, DEBUG));
     }
 
     /**
      * Whether a {@code dbg} call of a class prints: if {@code DEBUG} is enabled for it, or always in agent mode.
      */
     private static boolean printsDbg(ILogger current, Class sourceClass) {
-        return Dbg.ignoreLevels || isEnabled(current, DEBUG, sourceClass);
+        return Dbg.ignoreLevels || takes(current, DEBUG, sourceClass);
     }
 
     /**
@@ -1917,7 +1918,8 @@ public class LOG {
         List<MemoryLogger> captures = captures();
         if (captures != null) {
             // the levels may have been passed only for a capture that takes every level: ask the logger itself
-            boolean accepted = entry.isDbg() && Dbg.ignoreLevels || accepts(current, entry.getLevel(), entry.getSourceClass());
+            boolean accepted = entry.isDbg() && Dbg.ignoreLevels || Breadcrumbs.buffers(entry) ||
+                               accepts(current, entry.getLevel(), entry.getSourceClass());
             for (MemoryLogger capture : captures) {
                 if (capture.everyLevel || accepted) {
                     capture.log(entry);
@@ -1927,6 +1929,34 @@ public class LOG {
                 return;
             }
         }
+        if (Breadcrumbs.buffers(entry)) {
+            Breadcrumbs.keep(entry);
+            return;
+        }
+        if (entry.getLevel() == ERROR && entry.getUnit() == null) {
+            // outside units the error brings the breadcrumbs of its thread along; a unit writes its own when it fails
+            deliver(current, Breadcrumbs.drainThread());
+        }
+        deliver(current, entry);
+    }
+
+    /**
+     * Writes the breadcrumbs of a failed unit to the installed logger: they were counted when they were held back.
+     */
+    static void deliver(List<LogEntry> entries) {
+        deliver(logger, entries);
+    }
+
+    private static void deliver(ILogger current, List<LogEntry> entries) {
+        for (LogEntry entry : entries) {
+            deliver(current, entry);
+        }
+    }
+
+    /**
+     * Hands an entry to the logger, and to {@code System.err} if the logger throws.
+     */
+    private static void deliver(ILogger current, LogEntry entry) {
         try {
             current.log(entry);
         } catch (Throwable t) {
@@ -1946,9 +1976,18 @@ public class LOG {
 
     /**
      * Asks a logger whether a level is enabled. A logger whose check throws is reported, and the level counts as
-     * enabled, so the entry still gets a chance to be written.
+     * enabled, so the entry still gets a chance to be written. A level held back by {@code nanolog.buffer} is enabled
+     * too.
      */
     private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
+        return Breadcrumbs.buffers(level) || takes(current, level, sourceClass);
+    }
+
+    /**
+     * Whether a capture or the logger itself takes a level, whatever {@code nanolog.buffer} holds back; for
+     * {@code LOG.dbg}, which is never held back.
+     */
+    private static boolean takes(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
         return takesEveryLevel(captures()) || accepts(current, level, sourceClass);
     }
 
@@ -1965,9 +2004,17 @@ public class LOG {
     }
 
     /**
-     * Asks a logger whether a level may be enabled for any class, with the same guard as {@link #isEnabled}.
+     * Asks a logger whether a level may be enabled for any class, with the same guard as {@link #isEnabled}; a level
+     * held back by {@code nanolog.buffer} may be.
      */
     private static boolean mayBeEnabled(ILogger current, LogEntry.LogEntryLevel level) {
+        return Breadcrumbs.buffers(level) || mayTake(current, level);
+    }
+
+    /**
+     * Like {@link #mayBeEnabled}, whatever {@code nanolog.buffer} holds back; for {@code LOG.dbg}.
+     */
+    private static boolean mayTake(ILogger current, LogEntry.LogEntryLevel level) {
         if (takesEveryLevel(captures())) {
             return true;
         }

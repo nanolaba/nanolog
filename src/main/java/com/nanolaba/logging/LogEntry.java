@@ -59,6 +59,7 @@ public class LogEntry {
      */
     private final Units.Scope unit;
     private final boolean unitLine;
+    private final boolean breadcrumb;
     private final Map<String, Object> fields;
     private final Map<String, Object> trailingFields;
 
@@ -93,6 +94,7 @@ public class LogEntry {
         this.context = Contexts.pairs(state);
         this.unit = unitLine ? null : Contexts.unit(state);
         this.unitLine = unitLine;
+        this.breadcrumb = false;
         this.skippedCount = skippedCount;
         this.callerBoundary = callerBoundary;
         this.dbg = dbg;
@@ -310,6 +312,80 @@ public class LogEntry {
      */
     public Map<String, Object> getContext() {
         return context;
+    }
+
+    /**
+     * Whether the entry was held back by {@code nanolog.buffer} and written only when an error followed. Its values
+     * were rendered when it was held back, and its time is that of the logging call, not of the writing.
+     *
+     * @return {@code true} for an entry written from the buffer
+     */
+    public boolean isBreadcrumb() {
+        return breadcrumb;
+    }
+
+    /**
+     * A copy to hold back in the buffer of {@code nanolog.buffer}: the arguments, fields and context rendered to text,
+     * as a {@code {}} argument would be, except {@code null}, strings, booleans, characters and the numbers of the JDK,
+     * which cannot change; text longer than {@link Breadcrumbs#MAX_CHARS} cut. The time, thread, call site and
+     * exception stay those of this entry.
+     */
+    LogEntry snapshot() {
+        return new LogEntry(this);
+    }
+
+    private LogEntry(LogEntry source) {
+        this.level = source.level;
+        this.sourceClass = source.sourceClass;
+        this.caller = source.caller;
+        this.throwable = source.throwable;
+        this.message = source.message == null || source.message instanceof String ? source.message : safeToString(source.message);
+        this.formattedMessage = cut(source.formattedMessage);
+        this.args = source.args == null ? null : snapshotAll(source.args);
+        this.timestamp = source.timestamp;
+        this.threadName = source.threadName;
+        this.skippedCount = source.skippedCount;
+        this.callerBoundary = source.callerBoundary;
+        this.dbg = source.dbg;
+        this.context = snapshotAll(source.context);
+        this.unit = source.unit;
+        this.unitLine = source.unitLine;
+        this.breadcrumb = true;
+        this.fields = snapshotAll(source.fields);
+        this.trailingFields = snapshotAll(source.trailingFields);
+    }
+
+    private static Object[] snapshotAll(Object[] values) {
+        Object[] copy = new Object[values.length];
+        for (int i = 0; i < values.length; i++) {
+            copy[i] = snapshotOf(values[i]);
+        }
+        return copy;
+    }
+
+    private static Map<String, Object> snapshotAll(Map<String, Object> values) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> value : values.entrySet()) {
+            copy.put(value.getKey(), snapshotOf(value.getValue()));
+        }
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static Object snapshotOf(Object value) {
+        if (value instanceof LOG.Field) {
+            return LOG.kv(((LOG.Field) value).getKey(), snapshotOf(((LOG.Field) value).getValue()));
+        } else if (value instanceof String) {
+            return cut((String) value);
+        } else if (value == null || value instanceof Boolean || value instanceof Character || JsonLogger.isNumber(value)) {
+            return value;
+        }
+        return cut(argToString(value));
+    }
+
+    private static String cut(String text) {
+        return text.length() <= Breadcrumbs.MAX_CHARS ? text
+                                                      : text.substring(0, Breadcrumbs.MAX_CHARS) + "... (+" +
+                                                        (text.length() - Breadcrumbs.MAX_CHARS) + " more chars)";
     }
 
     /**

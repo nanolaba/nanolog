@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -975,7 +974,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Writes the timestamp of {@link #getCurrentDate()} in the date format.
+     * Writes the timestamp of {@link #getCurrentDate()} in the date format; for an entry held back by
+     * {@code nanolog.buffer} the time of its logging call, since it is written later.
      *
      * @param out   the text being built
      * @param entry the entry to write
@@ -986,8 +986,9 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             addDelimiter(out);
             String date;
             // SimpleDateFormat is not thread-safe and the instance is shared by all logging threads
+            Date time = entry.isBreadcrumb() ? new Date(entry.getTimestamp()) : getCurrentDate();
             synchronized (format) {
-                date = format.format(getCurrentDate());
+                date = format.format(time);
             }
             out.append(date);
         }

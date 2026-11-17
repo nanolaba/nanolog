@@ -20,7 +20,8 @@ import java.util.Map;
  * }</pre>
  * (shown on several lines here; the real output is a single line). Fields without a value are left out:
  * {@code template} and {@code args} appear only for parameterized messages, {@code dbg} (always {@code true}) only for
- * entries of {@code LOG.dbg(...)}, {@code fields} only with arguments of {@link LOG#kv(String, Object)},
+ * entries of {@code LOG.dbg(...)}, {@code breadcrumb} (always {@code true}) only for entries held back by
+ * {@code nanolog.buffer}, {@code fields} only with arguments of {@link LOG#kv(String, Object)},
  * {@code context} only within {@link LOG#context(String, Object)}, {@code caller} only when the source class was
  * detected, {@code exception} only with a throwable. {@code args} leaves out the fields that no placeholder takes,
  * and {@code fields} has them all. The values of {@code fields} and {@code context} keep their type: integers, {@code BigDecimal} and finite floating-point numbers are JSON numbers, booleans are
@@ -67,6 +68,9 @@ public class JsonLogger extends ConsoleLogger {
         }
         if (entry.isDbg()) {
             out.append(",\"dbg\":true");
+        }
+        if (entry.isBreadcrumb()) {
+            out.append(",\"breadcrumb\":true");
         }
         if (entry.getSourceClass() != null) {
             appendField(out, "logger", entry.getSourceClass().getName());
@@ -133,7 +137,11 @@ public class JsonLogger extends ConsoleLogger {
         }
     }
 
-    private static boolean isNumber(Object value) {
+    /**
+     * Whether a value is written as a JSON number: an exact number class of the JDK, or a finite {@code Double} or
+     * {@code Float}. Such values cannot change.
+     */
+    static boolean isNumber(Object value) {
         if (value instanceof Double || value instanceof Float) {
             return Double.isFinite(((Number) value).doubleValue());
         }

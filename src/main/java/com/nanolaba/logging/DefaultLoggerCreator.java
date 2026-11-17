@@ -88,6 +88,15 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_JUNIT_OUTPUT = PROPERTY_PREFIX + "junit.output";
     /**
+     * The breadcrumbs: entries at this level and below ({@code TRACE}, {@code DEBUG}, {@code INFO} or {@code WARN})
+     * are held back and written only when an {@code ERROR} follows; {@code off}, the default, holds nothing back.
+     */
+    public static final String PROPERTY_BUFFER = PROPERTY_PREFIX + "buffer";
+    /**
+     * How many entries the buffer of {@value #PROPERTY_BUFFER} keeps per thread or unit, the newest; 200 by default.
+     */
+    public static final String PROPERTY_BUFFER_SIZE = PROPERTY_BUFFER + ".size";
+    /**
      * The share of the units of {@code LOG.unit(...)} that succeed fast which are written, from {@code 0} to
      * {@code 1}; {@code 1}, every unit, by default. Failed and slow units are always written.
      */

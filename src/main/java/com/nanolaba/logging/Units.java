@@ -2,6 +2,7 @@ package com.nanolaba.logging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -193,6 +194,10 @@ final class Units {
         private final AtomicReference<String[]> firstError = new AtomicReference<>();
         private final AtomicReference<Throwable> failure = new AtomicReference<>();
         private final AtomicBoolean closed = new AtomicBoolean();
+        /**
+         * The breadcrumbs of the unit, created by the first entry held back.
+         */
+        private Breadcrumbs.Ring ring;
 
         Scope(String name, Scope parent, CallerDetection.Caller caller, long start) {
             this.name = name;
@@ -251,6 +256,20 @@ final class Units {
         }
 
         /**
+         * The ring of the breadcrumbs held back inside this unit.
+         */
+        synchronized Breadcrumbs.Ring ring() {
+            if (ring == null) {
+                ring = new Breadcrumbs.Ring();
+            }
+            return ring;
+        }
+
+        private synchronized List<LogEntry> takeBreadcrumbs() {
+            return ring == null ? Collections.<LogEntry>emptyList() : ring.drain();
+        }
+
+        /**
          * The nearest unit around this one that is still open; {@code null} if there is none.
          */
         Scope openAncestor() {
@@ -280,18 +299,23 @@ final class Units {
         }
 
         /**
-         * Writes the line of the unit, once: unless sampling drops a unit that succeeded fast.
+         * Writes the line of the unit, once: unless sampling drops a unit that succeeded fast. A failed unit writes the
+         * breadcrumbs held back inside it after its line; a successful one drops them.
          */
         void finish(boolean interrupted) {
             if (closed.compareAndSet(false, true)) {
                 OPEN.remove(this);
                 long nanos = LOG.nanoClock.getAsLong() - start;
                 String outcome = interrupted ? INTERRUPTED : errors.get() > 0 || failure.get() != null ? ERROR : OK;
+                List<LogEntry> breadcrumbs = takeBreadcrumbs();
                 if (outcome.equals(OK) && nanos < slowNanos && random.getAsDouble() >= sample) {
                     return;
                 }
                 LOG.writeUnit(outcome.equals(OK) ? LogEntry.LogEntryLevel.INFO : LogEntry.LogEntryLevel.ERROR,
                               sourceClass, frame, failure.get(), arguments(outcome, nanos / 1_000_000));
+                if (!outcome.equals(OK)) {
+                    LOG.deliver(breadcrumbs);
+                }
             }
         }
 
