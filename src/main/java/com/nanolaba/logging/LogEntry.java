@@ -1,11 +1,12 @@
 package com.nanolaba.logging;
 
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * One log record, as {@link ILogger#log(LogEntry)} receives it: level, source class, call site, exception, message
- * and its arguments, creation time and thread. The message is resolved from its {@code Supplier} and formatted once,
- * when the entry is created. Entries are immutable.
+ * and its arguments, creation time, thread and the context of that thread. The message is resolved from its
+ * {@code Supplier} and formatted once, when the entry is created. Entries are immutable.
  */
 public class LogEntry {
 
@@ -47,6 +48,7 @@ public class LogEntry {
     private final long skippedCount;
     private final String callerBoundary;
     private final boolean dbg;
+    private final Map<String, Object> context;
 
     private static final char ESCAPE_CHAR = '\\';
 
@@ -73,6 +75,7 @@ public class LogEntry {
         this.message = message;
         this.timestamp = System.currentTimeMillis();
         this.threadName = Thread.currentThread().getName();
+        this.context = Contexts.current();
         this.skippedCount = skippedCount;
         this.callerBoundary = callerBoundary;
         this.dbg = dbg;
@@ -229,6 +232,16 @@ public class LogEntry {
      */
     public Object[] getArgs() {
         return args;
+    }
+
+    /**
+     * The context of the thread that created the entry: the pairs of the {@link LOG#context(String, Object)} scopes
+     * open at that moment, the oldest key first.
+     *
+     * @return an unmodifiable map, empty when there was no context
+     */
+    public Map<String, Object> getContext() {
+        return context;
     }
 
     /**

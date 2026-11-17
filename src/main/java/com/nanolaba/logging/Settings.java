@@ -32,7 +32,8 @@ final class Settings {
             PROPERTY_RUN, PROPERTY_RUN_DIR, PROPERTY_RUN_FORMAT, PROPERTY_RUN_KEEP, PROPERTY_RUN_MAX_SIZE,
             ConsoleLogger.PROPERTY_SHOW_LEVEL, ConsoleLogger.PROPERTY_SHOW_DATE, ConsoleLogger.PROPERTY_SHOW_SOURCE,
             ConsoleLogger.PROPERTY_SHOW_SOURCE_FULL_NAME, ConsoleLogger.PROPERTY_SHOW_LOCATION,
-            ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_STREAM, ConsoleLogger.PROPERTY_DATE_FORMAT,
+            ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_SHOW_CONTEXT, ConsoleLogger.PROPERTY_STREAM,
+            ConsoleLogger.PROPERTY_DATE_FORMAT,
             ConsoleLogger.PROPERTY_MULTILINE,
             ConsoleLogger.PROPERTY_COLOR,
             ConsoleLogger.PROPERTY_EXCEPTION_EXCLUDE, ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES));

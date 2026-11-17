@@ -21,6 +21,7 @@ The latest stable version is 1.3; this guide describes the development version 1
 8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class. If it throws, the call that logged does not fail: Nanolog prints one `[NANOLOG]` line per logger class and writes the entry to `System.err` instead *1.3+*.
 9. In a loop, a retry or a poll, log through `LOG.once()` or `LOG.atMostEvery(...)` *1.3+*: a line repeated thousands of times crowds the context window and pushes out the one that matters. The next line that gets through says how many were skipped, `[skipped 241]`.
 10. For temporary debug output use `LOG.dbg(...)` *1.4+*, never `System.out.println`, and remove every `LOG.dbg` call before you finish; `NanologChecks.assertNoDbgCalls("src/main/java")` in a test lists the ones left.
+11. Tag the lines of one request, job or test with `try (LOG.Context c = LOG.context("requestId", id)) { ... }` *1.4+* instead of repeating the id in every message: each line inside ends with `requestId=r-17`, so `grep requestId=r-17` finds the whole path, and `JsonLogger` writes `"context":{"requestId":"r-17"}`. A task for an executor keeps the context only through `executor.submit(LOG.wrap(task))`.
 
 ## Call shapes
 
@@ -37,6 +38,9 @@ LOG.info(MyClass.class, "...");                      // any form above with an e
 LOG.isInfoEnabled();                                 // level check, with or without a class
 LOG.once().warn("Option {} is deprecated", key);     // only the first time this line runs (1.3+)
 LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period, then "[skipped N]" (1.3+)
+try (LOG.Context c = LOG.context("requestId", id)) { // every line of the thread inside ends with requestId=... (1.4+)
+    executor.submit(LOG.wrap(task));                 // the task logs with the same context in another thread (1.4+)
+}
 ```
 
 ## Print debugging *1.4+*
@@ -80,7 +84,7 @@ When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `G
 ## Choosing the output
 
 - Default: `ConsoleLogger`, one line per entry, `LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message`, `ERROR` to `System.err`, everything else to `System.out`. Every level is enabled.
-- `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` *1.2+*: one JSON object per line with `ts`, `level`, `logger`, `thread`, `message`, `template`, `args`, `caller` and `exception`. Add `-Dnanolog.console.stream=out` *1.3+* before piping into `jq`: by default `ERROR` lines go to `System.err` and miss the pipe.
+- `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` *1.2+*: one JSON object per line with `ts`, `level`, `logger`, `thread`, `message`, `template`, `args`, `context` *1.4+*, `caller` and `exception`. Add `-Dnanolog.console.stream=out` *1.3+* before piping into `jq`: by default `ERROR` lines go to `System.err` and miss the pipe.
 - `-Dnanolog.logger=com.nanolaba.logging.Slf4jLogger`: forwards to SLF4J; add `slf4j-api` and a backend to the project, since Nanolog declares it `provided`. Logback and Log4j 2 report the real call site in `%file:%line` / `%l` *1.2+*.
 - The same keys work in a `nanolog.properties` file on the classpath and, *1.2+*, as environment variables: `nanolog.logger` is `NANOLOG_LOGGER`. Precedence: `LOG.init(logger)`, `-D`, environment, file.
 

@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,10 +27,10 @@ import static com.nanolaba.logging.DefaultLoggerCreator.readChoice;
  * The default logger: one line per entry, {@code ERROR} to {@code System.err} and everything else to
  * {@code System.out} unless {@link #setStream(String)} says otherwise, followed by the stack trace if there is one.
  * <pre>
- * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message
+ * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message key=value
  * </pre>
- * The name of the thread ({@link #setShowThread(boolean)}) and the call site ({@link #setShowLocation(boolean)}) can
- * be added.
+ * The pairs at the end are the context of {@link LOG#context(String, Object)}, if there is one. The name of the
+ * thread ({@link #setShowThread(boolean)}) and the call site ({@link #setShowLocation(boolean)}) can be added.
  * Every part is switched by a fluent setter, and the constructor reads the same settings from system properties,
  * environment variables and {@code nanolog.properties}: {@code nanolog.level}, per-package rules
  * ({@code nanolog.level.<package or class>}, {@code nanolog.levels}) and {@code nanolog.console.*}. All levels are
@@ -89,6 +90,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * Property for {@link #setColor(String)}: {@code auto}, {@code always} or {@code never}.
      */
     public static final String PROPERTY_COLOR = "nanolog.console.color";
+    /**
+     * Property for {@link #setShowContext(boolean)}: {@code true} or {@code false}.
+     */
+    public static final String PROPERTY_SHOW_CONTEXT = "nanolog.console.showContext";
 
     private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
     private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
@@ -102,6 +107,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private boolean showSourceFullName = false;
     private boolean showLocation = false;
     private boolean showThread = false;
+    private boolean showContext = true;
 
     /**
      * The ordinal of the lowest level written to {@code System.err}; {@code Integer.MAX_VALUE} writes everything to
@@ -162,6 +168,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showSourceFullName = readBoolean(PROPERTY_SHOW_SOURCE_FULL_NAME, showSourceFullName);
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
+        showContext = readBoolean(PROPERTY_SHOW_CONTEXT, showContext);
         applyStream();
         multiline = readChoice(PROPERTY_MULTILINE, MULTILINE_MODES);
         applyColor(readChoice(PROPERTY_COLOR, COLOR_MODES));
@@ -658,7 +665,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
-     * message, skipped count, stack trace.
+     * message, skipped count, context, stack trace.
      *
      * @param entry the entry to write
      * @return the text without the final line break
@@ -672,6 +679,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSource(out, entry);
         writeMessage(out, entry);
         writeSkipped(out, entry);
+        writeContext(out, entry);
         writeThrowable(out, entry);
 
         return applyMultiline(out.toString());
@@ -811,6 +819,55 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             addDelimiter(out);
             out.append("[skipped ").append(String.valueOf(entry.getSkippedCount())).append(']');
         }
+    }
+
+    /**
+     * Writes the context of the entry as {@code key=value} pairs when {@code showContext} is on. A value is written
+     * like a {@code {}} argument, in double quotes if it is empty or contains a space, a control character, a quote
+     * or {@code =}; inside the quotes a quote or a backslash is preceded by a backslash:
+     * {@code requestId=r-17 user="John Smith"}.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeContext(StringWriter out, LogEntry entry) {
+        if (isShowContext()) {
+            for (Map.Entry<String, Object> pair : entry.getContext().entrySet()) {
+                addDelimiter(out);
+                out.append(pair.getKey()).append('=').append(quoted(LogEntry.argToString(pair.getValue())));
+            }
+        }
+    }
+
+    /**
+     * A value of a {@code key=value} pair: as it is, or in double quotes when it would not read as one value.
+     */
+    static String quoted(String value) {
+        if (!needsQuotes(value)) {
+            return value;
+        }
+        StringBuilder result = new StringBuilder(value.length() + 2).append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '"' || c == '\\') {
+                result.append('\\');
+            }
+            result.append(c);
+        }
+        return result.append('"').toString();
+    }
+
+    private static boolean needsQuotes(String value) {
+        if (value.isEmpty()) {
+            return true;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c <= ' ' || c == '"' || c == '=') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1225,6 +1282,27 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         } else {
             errThreshold = threshold;
         }
+        return this;
+    }
+
+    /**
+     * Returns whether the context of {@link LOG#context(String, Object)} is written.
+     *
+     * @return whether the context is written; {@code true} by default
+     */
+    public boolean isShowContext() {
+        return showContext;
+    }
+
+    /**
+     * Writes the context of {@link LOG#context(String, Object)} after the message, as {@code key=value} pairs; on by
+     * default. Also set by {@code nanolog.console.showContext}. {@link JsonLogger} always writes the context.
+     *
+     * @param showContext whether to write the context
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setShowContext(boolean showContext) {
+        this.showContext = showContext;
         return this;
     }
 

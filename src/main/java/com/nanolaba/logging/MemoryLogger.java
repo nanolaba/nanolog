@@ -295,10 +295,11 @@ public class MemoryLogger implements ILogger, AutoCloseable {
         if (captured.isEmpty()) {
             return new AssertionError(expectation + " Captured entries: none");
         }
-        // the level, the source class with the call site, the message and the stack trace; no date, since the
-        // console prints the time of writing, not the time the entry was logged
+        // the level, the source class with the call site, the message, the context and the stack trace; no date,
+        // since the console prints the time of writing, not the time the entry was logged
         ConsoleLogger format = new ConsoleLogger().setShowLevel(true).setShowDate(false).setShowThread(false)
-                                                  .setShowSource(true).setShowSourceFullName(false).setShowLocation(true);
+                                                  .setShowSource(true).setShowSourceFullName(false).setShowLocation(true)
+                                                  .setShowContext(true);
         StringBuilder message = new StringBuilder(expectation).append(" Captured entries:");
         for (LogEntry entry : captured) {
             message.append(System.lineSeparator()).append(format.createLogString(entry));

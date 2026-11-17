@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -1214,6 +1215,76 @@ public class LOG {
             diagnose(current, describeSource(entry) + ": LOG.dbg call left in the code (nanolog.dbg=fail)", first);
         }
         write(current, entry);
+    }
+
+    // CONTEXT
+
+    /**
+     * Takes a pair of {@link #context(String, Object)} out of the context of the thread when closed; meant for
+     * try-with-resources.
+     */
+    public interface Context extends AutoCloseable {
+
+        /**
+         * Puts back the value the key had before the scope opened, or removes the key if it had none; closing again
+         * changes nothing. Close it in the thread that opened it, as try-with-resources does. Never throws.
+         */
+        @Override
+        void close();
+    }
+
+    /**
+     * Adds a pair to every entry the current thread logs until the returned scope is closed, so the lines of one
+     * request, job or test can be found together:
+     * <pre>{@code
+     * try (LOG.Context c = LOG.context("requestId", request.getId())) {
+     *     LOG.info("Charging {}", amount);
+     *     // INFO 16.11.2026 10:15:02 [PaymentService] Charging 42 requestId=r-17
+     * }
+     * }</pre>
+     * Every logger gets the pairs as {@link LogEntry#getContext()}. {@link ConsoleLogger} prints them after the message,
+     * {@link JsonLogger} writes a {@code "context"} object, and {@link Slf4jLogger} puts them into the MDC while it
+     * forwards the entry, so backend patterns such as {@code %X{requestId}} print them.
+     * <p>
+     * Scopes nest: an inner scope may add keys or set a key again, and closing it puts the previous value back. The
+     * context belongs to the current thread only; a task handed to an executor takes it along through
+     * {@link #wrap(Runnable)}. A value is kept as given and written like a {@code {}} argument when an entry is written;
+     * numbers and booleans stay numbers and booleans in JSON.
+     *
+     * @param key   the key, a short name such as {@code requestId}; {@code null} changes nothing
+     * @param value the value; may be {@code null}
+     * @return the scope to close
+     */
+    public static Context context(String key, Object value) {
+        return Contexts.put(key, value);
+    }
+
+    /**
+     * Makes a task run with the context the current thread has now, in whatever thread runs it:
+     * {@code executor.submit(LOG.wrap(task))}. The context is taken when {@code wrap} is called, replaces the context
+     * of the thread that runs the task, and is removed when the task ends, also when it throws, so a pool thread keeps
+     * nothing from it.
+     * <p>
+     * A lambda that returns a value, {@code () -> list.add(item)}, is a {@code Callable} to the compiler and gets
+     * {@link #wrap(Callable)}; write a block, {@code () -> { list.add(item); }}, where a {@code Runnable} is needed.
+     *
+     * @param task the task
+     * @return a task that runs {@code task} with the context of the current thread
+     */
+    public static Runnable wrap(Runnable task) {
+        return Contexts.wrap(task);
+    }
+
+    /**
+     * Makes a task that returns a value run with the context the current thread has now, in whatever thread runs it.
+     * See {@link #wrap(Runnable)}.
+     *
+     * @param task the task
+     * @param <T>  the type of the value
+     * @return a task that calls {@code task} with the context of the current thread and returns its value
+     */
+    public static <T> Callable<T> wrap(Callable<T> task) {
+        return Contexts.wrap(task);
     }
 
     // RATE LIMITING

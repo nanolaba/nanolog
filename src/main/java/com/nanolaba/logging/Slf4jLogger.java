@@ -2,7 +2,9 @@ package com.nanolaba.logging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.slf4j.spi.LocationAwareLogger;
+import org.slf4j.spi.MDCAdapter;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,15 +19,20 @@ import java.util.function.Function;
  * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
  * after {@link LOG} (after {@link LOG.Limited} for a rate-limited call), so its {@code %file:%line} or {@code %l}
  * shows the code that called {@code LOG}. The number of calls a rate-limited statement skipped is appended to the
- * message as {@code [skipped N]}. SLF4J markers are not supported. MDC values set through {@code org.slf4j.MDC} are
- * printed by backends that support MDC (Logback, Log4j 2); slf4j-simple and slf4j-nop discard them, and the JUL
- * binding stores them without printing.
+ * message as {@code [skipped N]}. SLF4J markers are not supported.
+ * <p>
+ * The context of {@link LOG#context(String, Object)} is put into the MDC while an entry is forwarded, each value
+ * written like a {@code {}} argument, and taken out afterwards; values the MDC held for those keys are put back.
+ * Backends that support MDC (Logback, Log4j 2) print it through their patterns, such as {@code %X{requestId}}, as
+ * they print values set through {@code org.slf4j.MDC}; slf4j-simple and slf4j-nop discard them, and the JUL binding
+ * stores them without printing.
  * {@code slf4j-api} is a {@code provided} dependency of Nanolog.
  */
 public class Slf4jLogger implements ILogger {
 
     private final Map<Class, Logger> loggers = new ConcurrentHashMap<>();
     private final Function<String, Logger> factory;
+    private final MDCAdapter mdc;
 
     /**
      * Creates a bridge that takes its loggers from {@link LoggerFactory}.
@@ -40,17 +47,53 @@ public class Slf4jLogger implements ILogger {
      * @param factory returns the SLF4J logger of a name; replaced in tests
      */
     Slf4jLogger(Function<String, Logger> factory) {
-        this.factory = factory;
+        this(factory, MDC.getMDCAdapter());
     }
 
     /**
-     * Passes the entry to the SLF4J logger of its source class at the same level.
+     * Creates a bridge that takes its loggers from the given factory and puts the context into the given MDC.
+     *
+     * @param factory returns the SLF4J logger of a name; replaced in tests
+     * @param mdc     the MDC of the backend; replaced in tests, since slf4j-simple keeps no MDC
+     */
+    Slf4jLogger(Function<String, Logger> factory, MDCAdapter mdc) {
+        this.factory = factory;
+        this.mdc = mdc;
+    }
+
+    /**
+     * Passes the entry to the SLF4J logger of its source class at the same level, with its context in the MDC.
      *
      * @param entry the entry; an entry without a message is passed with an empty one
      */
     @Override
     public void log(LogEntry entry) {
+        Map<String, Object> context = entry.getContext();
+        String[] previous = new String[context.size()];
+        int i = 0;
+        for (Map.Entry<String, Object> pair : context.entrySet()) {
+            previous[i++] = mdc.get(pair.getKey());
+            mdc.put(pair.getKey(), LogEntry.argToString(pair.getValue()));
+        }
+        try {
+            forward(entry);
+        } finally {
+            i = 0;
+            for (String key : context.keySet()) {
+                restore(key, previous[i++]);
+            }
+        }
+    }
 
+    private void restore(String key, String value) {
+        if (value == null) {
+            mdc.remove(key);
+        } else {
+            mdc.put(key, value);
+        }
+    }
+
+    private void forward(LogEntry entry) {
         Logger logger = getLogger(entry.getSourceClass());
         // an entry may carry only a throwable; SLF4J backends would print the literal word "null" otherwise
         String message = entry.getMessage() == null ? "" : entry.getFormattedMessage();

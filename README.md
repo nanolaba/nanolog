@@ -61,19 +61,20 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 6 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
 - 7 [Message formatting](#message-formatting)
 	- 7.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 8 [Rate limiting](#rate-limiting)
-- 9 [Caller detection](#caller-detection)
-- 10 [Writing your own logger](#writing-your-own-logger)
-- 11 [Thread safety and performance](#thread-safety-and-performance)
-- 12 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 13 [Changelog](#changelog)
-	- 13.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 13.2 [1.3](#13)
-	- 13.3 [1.2](#12)
-	- 13.4 [1.1](#11)
-	- 13.5 [1.0](#10)
-- 14 [Contributing](#contributing)
-- 15 [License](#license)
+- 8 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+- 9 [Rate limiting](#rate-limiting)
+- 10 [Caller detection](#caller-detection)
+- 11 [Writing your own logger](#writing-your-own-logger)
+- 12 [Thread safety and performance](#thread-safety-and-performance)
+- 13 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 14 [Changelog](#changelog)
+	- 14.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 14.2 [1.3](#13)
+	- 14.3 [1.2](#12)
+	- 14.4 [1.1](#11)
+	- 14.5 [1.0](#10)
+- 15 [Contributing](#contributing)
+- 16 [License](#license)
 
 
 ## Installation
@@ -166,6 +167,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.dbg(expression)` | print the expression, its value and the call site, and return the value, see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value) |
 | `LOG.once().warn(...)` | log a statement only the first time it runs, see [Rate limiting](#rate-limiting) |
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
+| `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
+| `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
@@ -494,6 +497,7 @@ LOG.init(new ConsoleLogger()
 - `showSource` / `showSourceFullName` — the simple or the fully qualified source class name. An anonymous or local class passed explicitly has no such name and is shown by its binary name, `Foo$1` or `com.acme.Foo$1`.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
 - `showThread` — the name of the thread that logged, in square brackets after the date: `[main]`, `[pool-1-thread-3]`. Off by default; with a thread pool it tells the interleaved lines of different tasks apart. `JsonLogger` always writes the thread.
+- `showContext` — the pairs of `LOG.context(...)` after the message, `requestId=r-17`. On by default; since 1.4. See [Context](#context-tag-the-lines-of-one-request).
 - `stream` — which levels go to `System.err`: `err@ERROR` (the default) sends only errors there, `err@WARN` warnings and errors, `err` everything, `out` nothing. One stream keeps errors in a pipe and keeps the order of the lines when standard output and standard error are captured apart.
 - `multiline` — what an entry does with line breaks and control characters: `keep` (the default) writes them as they are; `indent` starts every line of an entry after the first with a tab, as stack frames are, so a line without a tab begins an entry and a message cannot forge one; `escape` writes them as `\r` and `\n`, so an entry and its stack trace are one physical line for `grep` and `tail`. Both modes write other control characters, the escape sequences of a terminal among them, as `\u001b`, and keep the tab. `JsonLogger` escapes its lines anyway. Since 1.4.
 - `color` — when the level word is coloured: red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto` (the default) colours only a terminal and follows the [NO_COLOR](https://no-color.org/) and `FORCE_COLOR` conventions: no colours when `NO_COLOR` is set, colours when `FORCE_COLOR` is set to anything but `0` or `false`, otherwise only when standard output is a terminal and `TERM` is not `dumb`. A pipe, a file, the run log and `JsonLogger` never get escape codes. On Windows `auto` does not colour without `FORCE_COLOR`: the console shows the codes as text unless the program turns their processing on, which Java does not do. `always` and `never` ignore the environment; agent mode uses `never`. Since 1.4.
@@ -502,7 +506,7 @@ LOG.init(new ConsoleLogger()
 
 For a custom layout (other colours, a different order) extend `ConsoleLogger` and
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
-`writeThrowable` or `addDelimiter`.
+`writeContext`, `writeThrowable` or `addDelimiter`.
 
 ### Levels and options without code
 
@@ -519,6 +523,7 @@ The constructor of `ConsoleLogger` reads these settings from system properties, 
 | `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | the same |
 | `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | the same |
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | the same |
+| `nanolog.console.showContext` | `NANOLOG_CONSOLE_SHOWCONTEXT` | the same |
 | `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` or `err@LEVEL` (default `err@ERROR`), like the setter |
 | `nanolog.console.multiline` | `NANOLOG_CONSOLE_MULTILINE` | `keep` (default), `indent` or `escape`, like the setter |
 | `nanolog.console.color` | `NANOLOG_CONSOLE_COLOR` | `auto` (default), `always` or `never`, like the setter |
@@ -594,11 +599,12 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 ```
 
 ```json
-{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
+{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"context":{"requestId":"r-17"},"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
 ```
 
 - `ts` — ISO-8601 in UTC with milliseconds, sortable as text; `level`, `logger` (the source class), `thread`, `message` (the formatted message).
 - `template` and `args` — the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.
+- `context` — the pairs of `LOG.context(...)` as a nested object, when there are any. Numbers and booleans keep their JSON type, so `jq` compares them as numbers: `jq 'select(.context.attempt > 1)'`.
 - `caller` — the call site, when the source class was detected; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
 - Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
 - `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err` by default). The display options do not apply.
@@ -631,7 +637,8 @@ LOG.init(new Slf4jLogger());
 Things to know:
 
 - Location-aware backends, Logback and Log4j 2 among them, are told that the call site is the first frame after `LOG`. Their own `%file:%line`, `%method` and `%class` (Logback) or `%l` (Log4j 2) therefore show the code that called `LOG`, not `Slf4jLogger`, with no backend configuration. slf4j-simple prints no location at all.
-- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. SLF4J markers are not supported. MDC values set through `org.slf4j.MDC` are printed by backends that support MDC, Logback and Log4j 2, through their own patterns such as `%X{requestId}`; slf4j-simple and slf4j-nop silently discard them, and the JUL binding (slf4j-jdk14) stores them without printing.
+- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. SLF4J markers are not supported.
+- The pairs of `LOG.context(...)` are put into the MDC while an entry is forwarded and taken out afterwards; values the MDC already held for those keys are put back. Backends that support MDC, Logback and Log4j 2, print them through their own patterns such as `%X{requestId}`, like values set through `org.slf4j.MDC`; slf4j-simple and slf4j-nop silently discard them, and the JUL binding (slf4j-jdk14) stores them without printing.
 - An entry without a message is passed with an empty message, not the word `null`.
 - An entry without a source class goes to the SLF4J `ROOT` logger.
 - Loggers are cached per source class in a `ConcurrentHashMap` and never evicted, so with dynamic class reloading the cache retains `Class` references.
@@ -780,6 +787,29 @@ void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
 - Without strict mode there is nothing to report and `assertNoDiagnostics()` passes, so switch it on for the test run as above.
 - `nanolog.dbg=fail` reports `LOG.dbg` calls the same way, see [Leftover calls](#leftover-calls).
 
+## Context: tag the lines of one request
+
+`LOG.context(key, value)` adds a pair to every entry the current thread logs until the scope is closed, so the lines of one request, job or test are found together, with `grep requestId=r-17` or by an agent reading the log:
+
+```java
+try (LOG.Context c = LOG.context("requestId", requestId)) {
+    LOG.info("Charging {}", amount);
+    // INFO 16.11.2026 10:15:02 [PaymentService] Charging 42 requestId=r-17
+
+    executor.submit(LOG.wrap(() -> LOG.info("Sending the receipt")));
+    // a thread of the pool logs it with requestId=r-17 as well
+}
+```
+
+- `ConsoleLogger` prints the pairs after the message. A value that is empty or contains a space, a quote or `=` goes in double quotes, `user="John Smith"`, so every pair reads as one; `showContext=false` hides them.
+- `JsonLogger` writes a nested object, `"context":{"requestId":"r-17"}`, which cannot collide with `level`, `message` and the other fields; numbers and booleans keep their JSON type.
+- `Slf4jLogger` puts the pairs into the MDC while it forwards an entry, so `%X{requestId}` prints them in Logback and Log4j 2, and takes them out afterwards.
+- Every entry keeps its context as `LogEntry.getContext()`, so `MemoryLogger` assertions and custom loggers see it, and the assertion messages of `MemoryLogger` show it.
+- Scopes nest: an inner scope adds a key or sets one again, and closing it puts the previous value back. Close each scope in the thread that opened it, as try-with-resources does.
+- The context belongs to the thread. A pool thread does not inherit it, because it would inherit the context of the code that happened to create the thread. `LOG.wrap(task)` takes the context when it is called, runs the task with it in whatever thread, and removes it when the task ends, also when it throws.
+- As with `ExecutorService.submit`, a lambda that returns a value, `() -> list.add(item)`, is a `Callable` to the compiler; write `() -> { list.add(item); }` where a `Runnable` is needed.
+- Every entry reads one `ThreadLocal`. A thread without a context keeps nothing in it, virtual threads included.
+
 ## Rate limiting
 
 A retry loop, a full queue or a deprecated option can print the same line thousands of times, and the line that matters scrolls away. `LOG.once()` and `LOG.atMostEvery(...)` limit one statement:
@@ -855,6 +885,7 @@ What a `LogEntry` carries:
 - `getMessage()` — the raw message object, already resolved from its `Supplier`.
 - `getTimestamp()`, `getThreadName()` — when and in which thread the entry was created, so a logger that writes later or elsewhere still knows.
 - `getArgs()` — the substitution arguments.
+- `getContext()` — the pairs of `LOG.context(...)` open in the thread that created the entry; an empty map without them.
 - `getFormattedMessage()` — the final string with `{}` substituted.
 
 `isEnabled(...)` is called before the `LogEntry` is built and before any `Supplier` is resolved, so returning `false` skips the whole cost of the message. It does not skip caller detection: for a call without an explicit class the source class is found first, so the stack has already been walked; see [Caller detection](#caller-detection).
@@ -923,6 +954,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Context: `try (LOG.Context c = LOG.context("requestId", id)) { ... }` adds `requestId=r-17` to every entry the thread logs inside the block, nested scopes put the previous value back, and `LOG.wrap(task)` carries the context into a task that another thread runs. `ConsoleLogger` prints the pairs after the message (`nanolog.console.showContext`), `JsonLogger` writes a `"context"` object whose numbers and booleans keep their type, `Slf4jLogger` puts the pairs into the MDC for `%X{requestId}`, and `LogEntry.getContext()` gives them to any logger.
 - `MemoryLogger.capture()` and `captureForwarding()` capture the entries of the current thread only, every level, while the logger of `LOG` stays installed for the other threads, so tests that run in parallel in one JVM can assert on their own log. The findings of strict mode on that thread reach the capture as well.
 
 ### 1.3

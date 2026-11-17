@@ -1,21 +1,28 @@
 package com.nanolaba.logging;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Writes one JSON object per line, for tools and agents that parse the output: {@code jq}, log collectors, scripts.
  * <pre>{@code
  * {"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main",
- *  "message":"Charge of 42 failed","template":"Charge of {} failed","args":["42"],
+ *  "message":"Charge of 42 failed","template":"Charge of {} failed","args":["42"],"context":{"requestId":"r-17"},
  *  "caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87},
  *  "exception":{"class":"java.io.IOException","message":"timeout","stackTrace":"java.io.IOException: timeout\n\tat ..."}}
  * }</pre>
  * (shown on several lines here; the real output is a single line). Fields without a value are left out:
  * {@code template} and {@code args} appear only for parameterized messages, {@code dbg} (always {@code true}) only for
- * entries of {@code LOG.dbg(...)}, {@code caller} only when the source class was detected, {@code exception} only
- * with a throwable. Line breaks and control characters are escaped, so one
+ * entries of {@code LOG.dbg(...)}, {@code context} only within {@link LOG#context(String, Object)}, {@code caller}
+ * only when the source class was detected, {@code exception} only with a throwable. The values of {@code context}
+ * keep their type: integers, {@code BigDecimal} and finite floating-point numbers are JSON numbers, booleans are
+ * booleans, {@code null} is {@code null}, and everything else is a string, written like a {@code {}} argument. Line breaks and control characters are escaped, so one
  * entry is always exactly one line.
  * <p>
  * Levels, their properties ({@code nanolog.level}, package rules) and the output streams are those of
@@ -27,6 +34,13 @@ public class JsonLogger extends ConsoleLogger {
 
     private static final DateTimeFormatter TIMESTAMP =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
+
+    /**
+     * The classes whose values are written as JSON numbers as they are. Exact classes: a subclass of
+     * {@code BigDecimal} may print anything.
+     */
+    private static final List<Class<?>> NUMBERS =
+            Arrays.<Class<?>>asList(Byte.class, Short.class, Integer.class, Long.class, BigInteger.class, BigDecimal.class);
 
     /**
      * Creates a logger configured like {@link ConsoleLogger#ConsoleLogger()}.
@@ -73,6 +87,7 @@ public class JsonLogger extends ConsoleLogger {
             }
             out.append(']');
         }
+        appendContext(out, entry.getContext());
         if (entry.getSkippedCount() > 0) {
             out.append(",\"skipped\":").append(entry.getSkippedCount());
         }
@@ -83,6 +98,43 @@ public class JsonLogger extends ConsoleLogger {
             appendException(out, entry.getThrowable());
         }
         return out.append('}').toString();
+    }
+
+    private static void appendContext(StringBuilder out, Map<String, Object> context) {
+        if (!context.isEmpty()) {
+            out.append(",\"context\":{");
+            String separator = "";
+            for (Map.Entry<String, Object> pair : context.entrySet()) {
+                out.append(separator);
+                appendString(out, pair.getKey());
+                out.append(':');
+                appendValue(out, pair.getValue());
+                separator = ",";
+            }
+            out.append('}');
+        }
+    }
+
+    /**
+     * Appends a value with its JSON type: numbers of the JDK's number classes and booleans as they are, {@code null}
+     * as {@code null}, everything else as a string written like a {@code {}} argument. {@code NaN} and the
+     * infinities, which JSON has no numbers for, become strings.
+     */
+    static void appendValue(StringBuilder out, Object value) {
+        if (value == null) {
+            out.append("null");
+        } else if (value instanceof Boolean || isNumber(value)) {
+            out.append(value);
+        } else {
+            appendString(out, LogEntry.argToString(value));
+        }
+    }
+
+    private static boolean isNumber(Object value) {
+        if (value instanceof Double || value instanceof Float) {
+            return Double.isFinite(((Number) value).doubleValue());
+        }
+        return NUMBERS.contains(value.getClass());
     }
 
     private static void appendCaller(StringBuilder out, StackTraceElement caller) {
