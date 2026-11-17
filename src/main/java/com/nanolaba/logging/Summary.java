@@ -150,7 +150,7 @@ final class Summary {
     /**
      * The call site, {@code OrderService.java:87}, or for a call with an explicit class the name of the class.
      */
-    private static String where(LogEntry entry) {
+    static String where(LogEntry entry) {
         if (entry.getCaller() == null && entry.getSourceClass() != null) {
             return entry.getSourceClass().getName();
         }
@@ -159,9 +159,12 @@ final class Summary {
 
     /**
      * The message as written, with its {@code {}}, or the exception of an entry without one; cut to
-     * {@link #MAX_TEXT}.
+     * {@link #MAX_TEXT}. The line of a unit, whose template every unit shares, is {@code unit <name>}.
      */
-    private static String template(LogEntry entry) {
+    static String template(LogEntry entry) {
+        if (entry.isUnitLine()) {
+            return "unit " + entry.getFields().get("unit");
+        }
         Object message = entry.getMessage() != null ? entry.getMessage() : entry.getThrowable();
         String text = message == null ? "" : LogEntry.safeToString(message);
         return text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) + "..." : text;
@@ -252,11 +255,14 @@ final class Summary {
     }
 
     /**
-     * Prints the end of the run, the first time it is called: the summary when it is on, or else the {@code LOG.dbg}
-     * calls that ran. Called by {@link SummaryListener} and by the shutdown hook, whichever comes first.
+     * Prints the end of the run, the first time it is called: the units still open, as {@code interrupted}, then the
+     * summary when it is on, or else the {@code LOG.dbg} calls that ran. Called by {@link SummaryListener} and by the
+     * shutdown hook, whichever comes first; {@link Units} registers the hook as well.
      */
     static void printOnce() {
         if (PRINTED.compareAndSet(false, true)) {
+            // the lines of the open units come first, so the summary counts them
+            Units.interruptOpen();
             Mode current = mode;
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
             if (current == Mode.ON || current == Mode.ERRORS && warned) {

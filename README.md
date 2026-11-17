@@ -26,6 +26,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 - **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 - **Detects coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: the output of a failing test run shrank from 565 lines to 46, the run summary included; see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
 - **A summary that survives truncation.** Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
+- **Wide events, one line per request.** `LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see [Wide events](#wide-events-one-line-per-request-canonical-log-lines).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -50,32 +51,33 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 4.2 [Run summary: the part of the output that survives truncation](#run-summary-the-part-of-the-output-that-survives-truncation)
 	- 4.3 [Run log](#run-log)
 	- 4.4 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
-- 5 [Choosing a logger](#choosing-a-logger)
-	- 5.1 [ConsoleLogger](#consolelogger)
-	- 5.2 [Levels and options without code](#levels-and-options-without-code)
-	- 5.3 [Changing levels at run time](#changing-levels-at-run-time)
-	- 5.4 [Shorter stack traces](#shorter-stack-traces)
-	- 5.5 [JsonLogger](#jsonlogger)
-	- 5.6 [Slf4jLogger](#slf4jlogger)
-	- 5.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
-- 6 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
-- 7 [Message formatting](#message-formatting)
-	- 7.1 [Fields: named arguments](#fields-named-arguments)
-	- 7.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 8 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
-- 9 [Rate limiting](#rate-limiting)
-- 10 [Caller detection](#caller-detection)
-- 11 [Writing your own logger](#writing-your-own-logger)
-- 12 [Thread safety and performance](#thread-safety-and-performance)
-- 13 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 14 [Changelog](#changelog)
-	- 14.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 14.2 [1.3](#13)
-	- 14.3 [1.2](#12)
-	- 14.4 [1.1](#11)
-	- 14.5 [1.0](#10)
-- 15 [Contributing](#contributing)
-- 16 [License](#license)
+- 5 [Wide events: one line per request (canonical log lines)](#wide-events-one-line-per-request-canonical-log-lines)
+- 6 [Choosing a logger](#choosing-a-logger)
+	- 6.1 [ConsoleLogger](#consolelogger)
+	- 6.2 [Levels and options without code](#levels-and-options-without-code)
+	- 6.3 [Changing levels at run time](#changing-levels-at-run-time)
+	- 6.4 [Shorter stack traces](#shorter-stack-traces)
+	- 6.5 [JsonLogger](#jsonlogger)
+	- 6.6 [Slf4jLogger](#slf4jlogger)
+	- 6.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+- 7 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
+- 8 [Message formatting](#message-formatting)
+	- 8.1 [Fields: named arguments](#fields-named-arguments)
+	- 8.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
+- 9 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+- 10 [Rate limiting](#rate-limiting)
+- 11 [Caller detection](#caller-detection)
+- 12 [Writing your own logger](#writing-your-own-logger)
+- 13 [Thread safety and performance](#thread-safety-and-performance)
+- 14 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 15 [Changelog](#changelog)
+	- 15.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 15.2 [1.3](#13)
+	- 15.3 [1.2](#12)
+	- 15.4 [1.1](#11)
+	- 15.5 [1.0](#10)
+- 16 [Contributing](#contributing)
+- 17 [License](#license)
 
 
 ## Installation
@@ -169,6 +171,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.dbg(expression)` | print the expression, its value and the call site, and return the value, see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value) |
 | `LOG.once().warn(...)` | log a statement only the first time it runs, see [Rate limiting](#rate-limiting) |
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
+| `try (LOG.Unit u = LOG.unit("checkout"))` | one line when the unit closes: name, outcome, duration, fields and the counts of warnings and errors inside, see [Wide events](#wide-events-one-line-per-request-canonical-log-lines) |
+| `LOG.unit("import", () -> importer.run())` | the same for a lambda: a thrown exception fails the unit and is thrown on |
 | `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
 | `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
@@ -407,6 +411,30 @@ Both files are generated from `agent-guide.src.md` on every build: the versions 
 from the compiled examples, and CI fails when they are stale. Ideas for making the library easier for agents
 are collected under the [`agents` label](https://github.com/nanolaba/nanolog/issues?q=is%3Aissue+label%3Aagents).
 
+## Wide events: one line per request (canonical log lines)
+
+Dozens of scattered lines per request are hard to read, for people and for agents alike. The idea of [wide events](https://loggingsucks.com/) and of [canonical log lines](https://stripe.com/blog/canonical-log-lines) at Stripe is one rich line per request or job. `LOG.unit(name)` writes that line when the unit of work ends, next to the usual log, not instead of it:
+
+```java
+try (LOG.Unit u = LOG.unit("checkout")) {
+    u.put("orderId", orderId).put("items", items.size());
+    charge(orderId); // logs as usual; its warnings and errors are counted
+}
+// INFO 16.11.2026 10:15:02 [CheckoutService] checkout ok 182 ms orderId=A-17 items=3 warn=1
+
+LOG.unit("import", () -> importFile(file)); // an exception fails the unit and is thrown on
+// ERROR 16.11.2026 10:15:03 [CheckoutService] import error 41 ms error.type=java.io.UncheckedIOException ...
+```
+
+- **The line** is `<name> <outcome> <duration> ms`, then the fields of `put(...)` and the numbers of warnings (`warn`) and errors (`error`) logged inside the unit, in any thread it was carried into. Its fields are `unit`, `outcome`, `duration_ms` and the rest, so `JsonLogger` writes `"fields":{"unit":"checkout","outcome":"ok","duration_ms":182,...}` and `jq` selects the failed units by `.fields.outcome`.
+- **The outcome** is `ok`, an `INFO` line, or `error`, an `ERROR` line, once an `ERROR` entry was logged inside the unit or `fail(e)` was called. A failed unit adds `error.type`, `error.message` and `error.key`: eight hexadecimal digits made from the template and call site of the first error, the same in every run, so failures of one kind can be counted.
+- **Exceptions.** `close()` cannot see an exception that leaves a try-with-resources block: catch it and call `u.fail(e)`, or let `run(...)` do it. `LOG.unit("import", () -> importFile(file))` and `LOG.unit("report").put("month", m).run(() -> build(m))` mark the unit failed, attach the exception to its line and throw it on.
+- **Nesting.** A unit opened inside another names it as `parent`, and an entry counts in every unit around it. `LOG.wrap(task)` carries the open unit into a task for an executor together with the [context](#context-tag-the-lines-of-one-request), so the tasks of a request count in its unit.
+- **Not lost.** A unit still open when the run ends, when the JVM exits or JUnit has run the tests, is written with the outcome `interrupted`, before the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation), which therefore counts it and lists a failed unit as `unit <name>`.
+- **Sampling.** `nanolog.unit.sample=0.05` writes 5% of the units that succeed fast and every failed one, and `nanolog.unit.slowMs=500` always writes those that take 500 ms or longer. By default every unit is written.
+- **Levels.** The line has the source class and call site of the `LOG.unit` call and the context of the thread, and follows the levels: an `ok` unit of a class set to `WARN` writes nothing, a failed one is still written. In agent mode the console shows only the failed units, and the run log has them all.
+- **Cost.** A unit costs one stack walk, to find where it was opened, and one line. Code outside units pays nothing beyond the `ThreadLocal` read of the context.
+
 ## Choosing a logger
 
 The default `ConsoleLogger` can be replaced in three ways:
@@ -451,6 +479,8 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.run.format` | `text` or `json` | `text` |
 | `nanolog.run.keep` | how many runs the run log keeps, this one included | `10` |
 | `nanolog.run.maxSize` | the size in megabytes at which a file of the run log stops, with a note | `100` |
+| `nanolog.unit.sample` | the share of the units that succeed fast which are written, from `0` to `1`; failed and slow units are always written, see [Wide events](#wide-events-one-line-per-request-canonical-log-lines) | `1` |
+| `nanolog.unit.slowMs` | the duration in milliseconds from which a unit is slow and always written | not set |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
@@ -831,7 +861,7 @@ try (LOG.Context c = LOG.context("requestId", requestId)) {
 - `Slf4jLogger` puts the pairs into the MDC while it forwards an entry, so `%X{requestId}` prints them in Logback and Log4j 2, and takes them out afterwards.
 - Every entry keeps its context as `LogEntry.getContext()`, so `MemoryLogger` assertions and custom loggers see it, and the assertion messages of `MemoryLogger` show it.
 - Scopes nest: an inner scope adds a key or sets one again, and closing it puts the previous value back. Close each scope in the thread that opened it, as try-with-resources does.
-- The context belongs to the thread. A pool thread does not inherit it, because it would inherit the context of the code that happened to create the thread. `LOG.wrap(task)` takes the context when it is called, runs the task with it in whatever thread, and removes it when the task ends, also when it throws.
+- The context belongs to the thread. A pool thread does not inherit it, because it would inherit the context of the code that happened to create the thread. `LOG.wrap(task)` takes the context, and the open unit of `LOG.unit(...)`, when it is called, runs the task with them in whatever thread, and removes them when the task ends, also when it throws.
 - As with `ExecutorService.submit`, a lambda that returns a value, `() -> list.add(item)`, is a `Callable` to the compiler; write `() -> { list.add(item); }` where a `Runnable` is needed.
 - Every entry reads one `ThreadLocal`. A thread without a context keeps nothing in it, virtual threads included.
 
@@ -980,6 +1010,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Wide events: `LOG.unit("checkout")` opens a unit of work that writes one canonical log line per request or job when it closes, `checkout ok 182 ms orderId=A-17 warn=1`: the outcome (`ok`, `error`, `interrupted`), the duration, the fields of `put(...)`, the counts of warnings and errors logged inside it and, for a failed unit, `error.type`, `error.message` and an `error.key` that stays the same between runs. Units nest (`parent=`), cross executors with `LOG.wrap`, are written as `interrupted` when the run ends while they are open, and `nanolog.unit.sample` / `nanolog.unit.slowMs` sample the fast successful ones; `run(...)` and `LOG.unit(name, body)` record a thrown exception.
 - Fields: `LOG.kv("orderId", id)` names an argument. In a `{}` it prints its value; without one `ConsoleLogger` and `Slf4jLogger` append `orderId=A-17` to the message and strict mode does not count it. `JsonLogger` writes every field into a `"fields"` object whose numbers and booleans keep their type, so `jq` selects entries by them, and `LogEntry.getFields()` gives them to any logger.
 - Context: `try (LOG.Context c = LOG.context("requestId", id)) { ... }` adds `requestId=r-17` to every entry the thread logs inside the block, nested scopes put the previous value back, and `LOG.wrap(task)` carries the context into a task that another thread runs. `ConsoleLogger` prints the pairs after the message (`nanolog.console.showContext`), `JsonLogger` writes a `"context"` object whose numbers and booleans keep their type, `Slf4jLogger` puts the pairs into the MDC for `%X{requestId}`, and `LogEntry.getContext()` gives them to any logger.
 - `MemoryLogger.capture()` and `captureForwarding()` capture the entries of the current thread only, every level, while the logger of `LOG` stays installed for the other threads, so tests that run in parallel in one JVM can assert on their own log. The findings of strict mode on that thread reach the capture as well.

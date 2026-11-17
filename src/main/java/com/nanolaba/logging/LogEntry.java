@@ -54,6 +54,11 @@ public class LogEntry {
     private final String callerBoundary;
     private final boolean dbg;
     private final Map<String, Object> context;
+    /**
+     * The unit open in the thread that created the entry, which counts it; {@code null} for the line of a unit.
+     */
+    private final Units.Scope unit;
+    private final boolean unitLine;
     private final Map<String, Object> fields;
     private final Map<String, Object> trailingFields;
 
@@ -72,18 +77,22 @@ public class LogEntry {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
-        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY, false);
+        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY, false, false);
     }
 
     private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
-                     long skippedCount, String callerBoundary, boolean dbg) {
+                     long skippedCount, String callerBoundary, boolean dbg, boolean unitLine) {
         this.level = level;
         this.sourceClass = sourceClass;
         this.caller = caller;
         this.message = message;
         this.timestamp = System.currentTimeMillis();
         this.threadName = Thread.currentThread().getName();
-        this.context = Contexts.current();
+        // one read of the thread local for the context and the unit
+        Contexts.State state = Contexts.CURRENT.get();
+        this.context = Contexts.pairs(state);
+        this.unit = unitLine ? null : Contexts.unit(state);
+        this.unitLine = unitLine;
         this.skippedCount = skippedCount;
         this.callerBoundary = callerBoundary;
         this.dbg = dbg;
@@ -214,7 +223,15 @@ public class LogEntry {
      */
     static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
                            long skippedCount, String callerBoundary) {
-        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, false);
+        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, false, false);
+    }
+
+    /**
+     * Creates the line of a unit of {@code LOG.unit(...)}: its arguments are the fields of the unit, and it counts in
+     * no unit. A location-aware SLF4J backend looks past the frames of the unit for the call site.
+     */
+    static LogEntry createUnitLine(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object[] args) {
+        return new LogEntry(level, sourceClass, caller, throwable, Units.TEMPLATE, args, 0, Units.Scope.class.getName(), false, true);
     }
 
     /**
@@ -222,7 +239,7 @@ public class LogEntry {
      * arguments to format.
      */
     static LogEntry createDbg(Class sourceClass, StackTraceElement caller, String message, long skippedCount, String callerBoundary) {
-        return new LogEntry(LogEntryLevel.DEBUG, sourceClass, caller, null, message, NO_ARGS, skippedCount, callerBoundary, true);
+        return new LogEntry(LogEntryLevel.DEBUG, sourceClass, caller, null, message, NO_ARGS, skippedCount, callerBoundary, true, false);
     }
 
     static final String LOG_BOUNDARY = LOG.class.getName();
@@ -293,6 +310,20 @@ public class LogEntry {
      */
     public Map<String, Object> getContext() {
         return context;
+    }
+
+    /**
+     * Whether the entry is the line of a unit of {@code LOG.unit(...)}.
+     */
+    boolean isUnitLine() {
+        return unitLine;
+    }
+
+    /**
+     * The unit that counts the entry; {@code null} outside units and for the line of a unit.
+     */
+    Units.Scope getUnit() {
+        return unit;
     }
 
     /**

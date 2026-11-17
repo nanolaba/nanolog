@@ -6,21 +6,36 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
- * The context of each thread, for {@link LOG#context(String, Object)} and {@link LOG#wrap(Runnable)}: the pairs every
- * entry of the thread carries.
+ * The context of each thread: the pairs of {@link LOG#context(String, Object)}, which every entry of the thread
+ * carries, and the open unit of {@link LOG#unit(String)}, which counts them. {@link LOG#wrap(Runnable)} carries both
+ * into a task.
  * <p>
  * A plain {@code ThreadLocal}, not an {@code InheritableThreadLocal}: a pool thread would inherit the context of the
- * code that happened to create it, not of the code that submitted the task, so tasks take theirs through
- * {@link #wrap(Runnable)}. The map of a thread is never modified: each change installs a new one, so an entry keeps
- * the map of its creation as its snapshot without copying. An empty context removes the thread local, so threads
- * without a context, virtual threads among them, keep nothing.
+ * code that happened to create it, not of the code that submitted the task. The state of a thread is never modified:
+ * each change installs a new one, so an entry keeps the map of its creation as its snapshot without copying. An empty
+ * state removes the thread local, so threads without a context, virtual threads among them, keep nothing.
  */
 final class Contexts {
 
     /**
-     * The context of the thread, oldest key first; {@code null} when it is empty.
+     * The state of a thread: its pairs, oldest key first, and its open unit. Never empty: no pairs and no unit is no
+     * state.
      */
-    static final ThreadLocal<Map<String, Object>> CURRENT = new ThreadLocal<>();
+    static final class State {
+
+        final Map<String, Object> pairs;
+        final Units.Scope unit;
+
+        State(Map<String, Object> pairs, Units.Scope unit) {
+            this.pairs = pairs;
+            this.unit = unit;
+        }
+    }
+
+    /**
+     * The state of the thread; {@code null} when it has no pairs and no unit.
+     */
+    static final ThreadLocal<State> CURRENT = new ThreadLocal<>();
 
     private static final LOG.Context NOTHING = () -> {
     };
@@ -28,20 +43,42 @@ final class Contexts {
     private Contexts() {/**/}
 
     /**
-     * The context of the current thread.
+     * The pairs of a state.
      *
-     * @return an unmodifiable map, empty when the thread has no context
+     * @return an unmodifiable map, empty without a state
      */
-    static Map<String, Object> current() {
-        Map<String, Object> context = CURRENT.get();
-        return context == null ? Collections.<String, Object>emptyMap() : context;
+    static Map<String, Object> pairs(State state) {
+        return state == null ? Collections.<String, Object>emptyMap() : state.pairs;
     }
 
-    private static void set(Map<String, Object> context) {
-        if (context.isEmpty()) {
+    /**
+     * The unit of a state.
+     *
+     * @return the unit; {@code null} without one
+     */
+    static Units.Scope unit(State state) {
+        return state == null ? null : state.unit;
+    }
+
+    /**
+     * The pairs of the current thread.
+     */
+    static Map<String, Object> current() {
+        return pairs(CURRENT.get());
+    }
+
+    /**
+     * The unit of the current thread; {@code null} without one.
+     */
+    static Units.Scope unit() {
+        return unit(CURRENT.get());
+    }
+
+    private static void set(Map<String, Object> pairs, Units.Scope unit) {
+        if (pairs.isEmpty() && unit == null) {
             CURRENT.remove();
         } else {
-            CURRENT.set(context);
+            CURRENT.set(new State(pairs, unit));
         }
     }
 
@@ -58,7 +95,7 @@ final class Contexts {
         }
         Map<String, Object> context = current();
         LOG.Context scope = new Scope(key, context.containsKey(key), context.get(key));
-        set(with(context, key, value));
+        set(with(context, key, value), unit());
         return scope;
     }
 
@@ -96,8 +133,25 @@ final class Contexts {
             if (!closed) {
                 closed = true;
                 Map<String, Object> context = current();
-                set(present ? with(context, key, previous) : without(context, key));
+                set(present ? with(context, key, previous) : without(context, key), unit());
             }
+        }
+    }
+
+    /**
+     * Makes a unit the open unit of the current thread.
+     */
+    static void enter(Units.Scope unit) {
+        set(current(), unit);
+    }
+
+    /**
+     * Makes the nearest open ancestor of a closing unit the open unit of the current thread, if the closing unit is
+     * the open one; a unit closed out of order leaves the thread as it is.
+     */
+    static void leave(Units.Scope unit) {
+        if (unit() == unit) {
+            set(current(), unit.openAncestor());
         }
     }
 
@@ -106,13 +160,16 @@ final class Contexts {
      * thread its own context back afterwards.
      */
     static Runnable wrap(Runnable task) {
-        Map<String, Object> snapshot = current();
+        Map<String, Object> pairs = current();
+        Units.Scope unit = unit();
         return () -> {
-            Map<String, Object> previous = replace(snapshot);
+            Map<String, Object> previousPairs = current();
+            Units.Scope previousUnit = unit();
+            set(pairs, unit);
             try {
                 task.run();
             } finally {
-                set(previous);
+                set(previousPairs, previousUnit);
             }
         };
     }
@@ -121,20 +178,17 @@ final class Contexts {
      * Like {@link #wrap(Runnable)}, for a task that returns a value.
      */
     static <T> Callable<T> wrap(Callable<T> task) {
-        Map<String, Object> snapshot = current();
+        Map<String, Object> pairs = current();
+        Units.Scope unit = unit();
         return () -> {
-            Map<String, Object> previous = replace(snapshot);
+            Map<String, Object> previousPairs = current();
+            Units.Scope previousUnit = unit();
+            set(pairs, unit);
             try {
                 return task.call();
             } finally {
-                set(previous);
+                set(previousPairs, previousUnit);
             }
         };
-    }
-
-    private static Map<String, Object> replace(Map<String, Object> context) {
-        Map<String, Object> previous = current();
-        set(context);
-        return previous;
     }
 }

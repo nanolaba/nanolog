@@ -90,7 +90,8 @@ public class LOG {
 
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
-     * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg} and {@code nanolog.agent}. Called once when the
+     * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent} and
+     * {@code nanolog.unit.*}. Called once when the
      * class initialises.
      */
     public static void init() {
@@ -103,6 +104,7 @@ public class LOG {
         boolean agent = DefaultLoggerCreator.quietly(Agent::detect) != null;
         Dbg.ignoreLevels = agent;
         Summary.mode = DefaultLoggerCreator.readSummaryMode(agent);
+        Units.configure();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -1355,6 +1357,125 @@ public class LOG {
         return new Field(key, value);
     }
 
+    // UNITS OF WORK
+
+    /**
+     * A unit of work, opened by {@link LOG#unit(String)}: a request, a job, a step. Closing it writes one line with
+     * its name, outcome, duration, fields and the counts of the warnings and errors logged inside it.
+     */
+    public interface Unit extends AutoCloseable {
+
+        /**
+         * Adds a field to the line of the unit; a key given again keeps its place and takes the new value. The fields
+         * the unit sets itself ({@code unit}, {@code outcome}, {@code duration_ms}, {@code parent}, {@code warn},
+         * {@code error} and {@code error.*}) and a {@code null} key are ignored, as is a field added after the unit
+         * was closed. The value is written like a {@code {}} argument; JSON keeps numbers and booleans.
+         *
+         * @param key   the name of the field
+         * @param value the value; may be {@code null}
+         * @return this unit, for chaining
+         */
+        Unit put(String key, Object value);
+
+        /**
+         * Marks the unit as failed with an exception, which its line carries with its stack trace. Only the first
+         * exception is kept; {@code null} changes nothing. An exception that leaves a try-with-resources block is not
+         * seen by {@link #close()}: catch it and pass it here, or use {@link #run(Runnable)}.
+         *
+         * @param error the exception
+         */
+        void fail(Throwable error);
+
+        /**
+         * Runs a body inside the unit and closes it: an exception the body throws marks the unit as failed and is
+         * thrown on.
+         *
+         * @param body the work of the unit
+         */
+        void run(Runnable body);
+
+        /**
+         * Runs a body that returns a value inside the unit and closes it: an exception the body throws marks the unit
+         * as failed and is thrown on.
+         *
+         * @param body the work of the unit
+         * @param <T>  the type of the value
+         * @return the value of the body
+         */
+        <T> T run(Supplier<T> body);
+
+        /**
+         * Closes the unit and writes its line, once; closing again changes nothing. Close it in the thread that opened
+         * it, as try-with-resources does. Never throws.
+         */
+        @Override
+        void close();
+    }
+
+    /**
+     * Opens a unit of work in the current thread, for one line per request or job, the canonical log line of wide
+     * events:
+     * <pre>{@code
+     * try (LOG.Unit u = LOG.unit("checkout")) {
+     *     u.put("orderId", order.getId()).put("items", cart.size());
+     *     ...
+     * }
+     * // INFO 16.11.2026 10:15:02 [CheckoutService] checkout ok 182 ms orderId=A-17 items=3 warn=1
+     * }</pre>
+     * Closing the unit writes one entry, {@code <name> <outcome> <duration> ms}, whose fields are {@code unit},
+     * {@code outcome}, {@code duration_ms}, the fields of {@link Unit#put}, and the counts {@code warn} and
+     * {@code error} of the entries logged inside it. The outcome is {@code ok} at {@code INFO}, or {@code error} at
+     * {@code ERROR} once an {@code ERROR} entry was logged inside or {@link Unit#fail} was called; a failed unit adds
+     * {@code error.type}, {@code error.message} and {@code error.key}, a key of the template and call site of the first
+     * error that stays the same between runs. The line has the source class and call site of this call and the
+     * context of the thread that closes it.
+     * <p>
+     * Units nest: a unit opened inside another names it as {@code parent}, and an entry counts in every unit around it.
+     * {@link #wrap(Runnable)} carries the open unit into a task for an executor. A unit still open when the run ends is
+     * written with the outcome {@code interrupted}. {@code nanolog.unit.sample} writes only a share of the units that
+     * succeed faster than {@code nanolog.unit.slowMs}; failed and slow ones are always written.
+     *
+     * @param name the name of the unit, such as {@code checkout}
+     * @return the unit to close
+     */
+    public static Unit unit(String name) {
+        return Units.open(name, findCaller());
+    }
+
+    /**
+     * Runs a body as a unit of work: {@code LOG.unit(name).run(body)}. An exception the body throws fails the unit and
+     * is thrown on. See {@link #unit(String)}.
+     *
+     * @param name the name of the unit
+     * @param body the work of the unit
+     */
+    public static void unit(String name, Runnable body) {
+        Units.open(name, findCaller()).run(body);
+    }
+
+    /**
+     * Runs a body that returns a value as a unit of work: {@code LOG.unit(name).run(body)}. An exception the body
+     * throws fails the unit and is thrown on. See {@link #unit(String)}.
+     *
+     * @param name the name of the unit
+     * @param body the work of the unit
+     * @param <T>  the type of the value
+     * @return the value of the body
+     */
+    public static <T> T unit(String name, Supplier<T> body) {
+        return Units.open(name, findCaller()).run(body);
+    }
+
+    /**
+     * Writes the line of a unit, if its level is enabled for the class that opened the unit.
+     */
+    static void writeUnit(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable throwable, Object[] args) {
+        ILogger current = logger;
+        if (isEnabled(current, level, sourceClass)) {
+            write(current, LogEntry.createUnitLine(level, sourceClass, frame, throwable, args));
+        }
+    }
+
     // RATE LIMITING
 
     /**
@@ -1788,6 +1909,10 @@ public class LOG {
         }
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.count(entry);
+        }
+        Units.Scope unit = entry.getUnit();
+        if (unit != null) {
+            unit.count(entry);
         }
         List<MemoryLogger> captures = captures();
         if (captures != null) {

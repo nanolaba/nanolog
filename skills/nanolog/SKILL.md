@@ -23,6 +23,7 @@ The latest stable version is 1.3; this guide describes the development version 1
 10. For temporary debug output use `LOG.dbg(...)` *1.4+*, never `System.out.println`, and remove every `LOG.dbg` call before you finish; `NanologChecks.assertNoDbgCalls("src/main/java")` in a test lists the ones left.
 11. Tag the lines of one request, job or test with `try (LOG.Context c = LOG.context("requestId", id)) { ... }` *1.4+* instead of repeating the id in every message: each line inside ends with `requestId=r-17`, so `grep requestId=r-17` finds the whole path, and `JsonLogger` writes `"context":{"requestId":"r-17"}`. A task for an executor keeps the context only through `executor.submit(LOG.wrap(task))`.
 12. Name the values a script or you will select on with `LOG.kv(key, value)` *1.4+*: `LOG.info("Payment accepted", LOG.kv("orderId", id))` prints `Payment accepted orderId=A-17`, `JsonLogger` writes `"fields":{"orderId":"A-17"}` for `jq 'select(.fields.orderId=="A-17")'`, and in a `{}` a field prints its value. Put an exception after the fields.
+13. Wrap a request, a job or a step of an agent loop in `try (LOG.Unit u = LOG.unit("checkout")) { u.put("orderId", id); ... }` *1.4+*, or `LOG.unit("import", () -> ...)`: when it ends it writes one line, `checkout ok 182 ms orderId=A-17 warn=1`, with the counts of the warnings and errors logged inside it; a failed unit is an `ERROR` line with `error.type`, `error.message` and `error.key`. An exception that leaves the try block is not seen: call `u.fail(e)` or use the lambda form.
 
 ## Call shapes
 
@@ -40,6 +41,9 @@ LOG.isInfoEnabled();                                 // level check, with or wit
 LOG.once().warn("Option {} is deprecated", key);     // only the first time this line runs (1.3+)
 LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period, then "[skipped N]" (1.3+)
 LOG.info("Payment accepted", LOG.kv("orderId", id)); // a field: "Payment accepted orderId=A-17", JSON "fields" (1.4+)
+try (LOG.Unit u = LOG.unit("checkout")) {          // one line when it ends: "checkout ok 182 ms warn=1" (1.4+)
+    u.put("orderId", id);
+}
 try (LOG.Context c = LOG.context("requestId", id)) { // every line of the thread inside ends with requestId=... (1.4+)
     executor.submit(LOG.wrap(task));                 // the task logs with the same context in another thread (1.4+)
 }

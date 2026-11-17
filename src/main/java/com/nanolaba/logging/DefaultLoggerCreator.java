@@ -88,6 +88,16 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_JUNIT_OUTPUT = PROPERTY_PREFIX + "junit.output";
     /**
+     * The share of the units of {@code LOG.unit(...)} that succeed fast which are written, from {@code 0} to
+     * {@code 1}; {@code 1}, every unit, by default. Failed and slow units are always written.
+     */
+    public static final String PROPERTY_UNIT_SAMPLE = PROPERTY_PREFIX + "unit.sample";
+    /**
+     * The duration in milliseconds from which a unit of {@code LOG.unit(...)} is slow and always written, whatever
+     * {@value #PROPERTY_UNIT_SAMPLE} says; not set by default.
+     */
+    public static final String PROPERTY_UNIT_SLOW_MS = PROPERTY_PREFIX + "unit.slowMs";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
