@@ -85,6 +85,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * Property for {@link #setMultiline(String)}: {@code keep}, {@code indent} or {@code escape}.
      */
     public static final String PROPERTY_MULTILINE = "nanolog.console.multiline";
+    /**
+     * Property for {@link #setColor(String)}: {@code auto}, {@code always} or {@code never}.
+     */
+    public static final String PROPERTY_COLOR = "nanolog.console.color";
 
     private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
     private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
@@ -115,6 +119,12 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private static final String EXPECTED_MULTILINE = "keep, indent or escape";
 
     private String multiline = KEEP;
+
+    private static final String[] COLOR_MODES = {Colors.AUTO, Colors.ALWAYS, Colors.NEVER};
+    private static final String EXPECTED_COLOR = "auto, always or never";
+
+    private String color = Colors.AUTO;
+    private boolean colored;
 
     /**
      * The level the switches hold without {@code nanolog.level}: {@code TRACE}, or {@code WARN} in agent mode.
@@ -154,6 +164,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         applyStream();
         multiline = readChoice(PROPERTY_MULTILINE, MULTILINE_MODES);
+        applyColor(readChoice(PROPERTY_COLOR, COLOR_MODES));
         applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
         rules = new Rules(readLevelRules());
@@ -163,7 +174,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     /**
      * The defaults of agent mode, for the console of the default logger when a coding agent runs the program: the
      * level {@code WARN} instead of {@code TRACE}, also for {@link #resetLevels()}, no date, one line per entry
-     * ({@code multiline=escape}), and stack traces without the frames of {@link Agent#EXCLUDE}, at most
+     * ({@code multiline=escape}), no colours, and stack traces without the frames of {@link Agent#EXCLUDE}, at most
      * {@link Agent#MAX_FRAMES} of each throwable. A setting that is given
      * wins; an invalid one gives these defaults. The settings are read again quietly: the constructor has reported
      * the invalid ones.
@@ -175,6 +186,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         return quietly(() -> {
             showDate = readBoolean(PROPERTY_SHOW_DATE, false);
             multiline = readChoice(PROPERTY_MULTILINE, ESCAPE, KEEP, INDENT);
+            applyColor(readChoice(PROPERTY_COLOR, Colors.NEVER, Colors.AUTO, Colors.ALWAYS));
             applyExceptionSettings(Agent.EXCLUDE, Agent.MAX_FRAMES);
             applyThreshold(defaultThreshold);
             return applyGlobalLevel();
@@ -365,13 +377,29 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Prints {@link #createLogString(LogEntry)} as one line to {@link #getOutputStream(LogEntry)}.
+     * Prints {@link #createLogString(LogEntry)} as one line to {@link #getOutputStream(LogEntry)}, with the level word
+     * coloured if {@link #setColor(String) colours} are on.
      *
      * @param entry the entry to write
      */
     @Override
     public void log(LogEntry entry) {
-        getOutputStream(entry).println(createLogString(entry));
+        String text = createLogString(entry);
+        getOutputStream(entry).println(colored ? colorLevel(text, entry) : text);
+    }
+
+    /**
+     * Colours the level word the text starts with. A text that does not start with what {@link #writeLevel} writes,
+     * such as a JSON line, stays as it is.
+     */
+    private String colorLevel(String text, LogEntry entry) {
+        StringWriter out = new StringWriter();
+        writeLevel(out, entry);
+        String level = out.toString();
+        if (level.isEmpty() || !text.startsWith(level)) {
+            return text;
+        }
+        return Colors.of(entry) + level + Colors.RESET + text.substring(level.length());
     }
 
     /**
@@ -1062,7 +1090,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * @return this logger, for chaining
      */
     public ConsoleLogger setMultiline(String multiline) {
-        String mode = multilineNamed(multiline);
+        String mode = named(MULTILINE_MODES, multiline);
         if (mode == null) {
             printDiagnostic("Invalid value " + (multiline == null ? "null" : "\"" + multiline + "\"") +
                             " in setMultiline: expected " + EXPECTED_MULTILINE + "; nothing changed");
@@ -1072,9 +1100,12 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         return this;
     }
 
-    private static String multilineNamed(String value) {
+    /**
+     * The mode spelled as in {@code modes}, ignoring case and surrounding spaces; {@code null} for anything else.
+     */
+    private static String named(String[] modes, String value) {
         if (value != null) {
-            for (String mode : MULTILINE_MODES) {
+            for (String mode : modes) {
                 if (mode.equalsIgnoreCase(value.trim())) {
                     return mode;
                 }
@@ -1119,6 +1150,45 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             }
         }
         return result.toString();
+    }
+
+    /**
+     * Returns when the level word is coloured: {@code auto}, {@code always} or {@code never}.
+     *
+     * @return the mode; {@code auto} by default, {@code never} in agent mode
+     */
+    public String getColor() {
+        return color;
+    }
+
+    /**
+     * Chooses when the level word is coloured: red {@code ERROR}, yellow {@code WARN}, green {@code INFO}, dim
+     * {@code DEBUG} and {@code TRACE}, magenta {@code DBG}. {@code auto}, the default, colours a terminal: not when the
+     * environment variable {@code NO_COLOR} is set, always when {@code FORCE_COLOR} is set to anything but {@code 0} or
+     * {@code false}, and otherwise only when standard output is a terminal and {@code TERM} is not {@code dumb}. On
+     * Windows {@code auto} does not colour without {@code FORCE_COLOR}: its console shows the codes as text unless the
+     * program turns their processing on. {@code always} and {@code never} ignore the environment. Only
+     * {@link #log(LogEntry)} colours: {@link #createLogString(LogEntry)}, the run log and {@link JsonLogger} never do.
+     * The mode is resolved when it is set. Also set by {@code nanolog.console.color}.
+     *
+     * @param color {@code auto}, {@code always} or {@code never}, ignoring case and surrounding spaces; anything else
+     *              prints a diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setColor(String color) {
+        String mode = named(COLOR_MODES, color);
+        if (mode == null) {
+            printDiagnostic("Invalid value " + (color == null ? "null" : "\"" + color + "\"") +
+                            " in setColor: expected " + EXPECTED_COLOR + "; nothing changed");
+        } else {
+            applyColor(mode);
+        }
+        return this;
+    }
+
+    private void applyColor(String mode) {
+        color = mode;
+        colored = Colors.enabled(mode);
     }
 
     /**

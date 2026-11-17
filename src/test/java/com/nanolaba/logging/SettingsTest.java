@@ -159,11 +159,11 @@ class SettingsTest extends AbstractLoggerTest {
     @Test
     public void testNoSuggestionWhenNothingIsClose() {
         // one edit at most for a name shorter than six characters: "log" is two edits from "dbg"
-        assertEquals(list("Unknown setting \"nanolog.console.color\" (system property)",
+        assertEquals(list("Unknown setting \"nanolog.console.theme\" (system property)",
                           "Unknown setting \"nanolog.dmpxxx\" (system property)",
                           "Unknown setting \"nanolog.foo\" (system property)",
                           "Unknown setting \"nanolog.log\" (system property)"),
-                     system("nanolog.console.color", "red", "nanolog.dmpxxx", "auto", "nanolog.foo", "1", "nanolog.log", "1",
+                     system("nanolog.console.theme", "dark", "nanolog.dmpxxx", "auto", "nanolog.foo", "1", "nanolog.log", "1",
                             "nanolog.lvl.com.acme", "DEBUG"));
     }
 
@@ -195,12 +195,12 @@ class SettingsTest extends AbstractLoggerTest {
 
     @Test
     public void testEnvironmentVariables() {
-        assertEquals(list("Unknown environment variable NANOLOG_CONSOLE_COLOR",
-                          "Unknown environment variable NANOLOG_CONSOLE_SHOWDATES; did you mean NANOLOG_CONSOLE_SHOWDATE?",
+        assertEquals(list("Unknown environment variable NANOLOG_CONSOLE_SHOWDATES; did you mean NANOLOG_CONSOLE_SHOWDATE?",
+                          "Unknown environment variable NANOLOG_CONSOLE_THEME",
                           "Unknown environment variable NANOLOG_HOME",
                           "Unknown environment variable NANOLOG_LEVEL_COM_ACME; per-package levels go into NANOLOG_LEVELS=com.acme=DEBUG",
                           "Unknown environment variable NANOLOG_LEVLE; did you mean NANOLOG_LEVEL?"),
-                     environment("NANOLOG_CONSOLE_COLOR", "red", "NANOLOG_CONSOLE_SHOWDATES", "false", "NANOLOG_HOME", "/opt",
+                     environment("NANOLOG_CONSOLE_THEME", "dark", "NANOLOG_CONSOLE_SHOWDATES", "false", "NANOLOG_HOME", "/opt",
                                  "NANOLOG_LEVEL_COM_ACME", "DEBUG", "NANOLOG_LEVLE", "WARN"));
     }
 

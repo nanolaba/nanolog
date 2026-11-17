@@ -140,6 +140,9 @@
                         <!-- a run from a coding agent behaves like CI: the tests that need agent mode turn it on -->
                         <environmentVariables>
                             <NANOLOG_AGENT>off</NANOLOG_AGENT>
+                        <NANOLOG_CONSOLE_COLOR>never</NANOLOG_CONSOLE_COLOR>
+                            <!-- a FORCE_COLOR of the developer's shell must not colour the output the tests compare -->
+                            <NANOLOG_CONSOLE_COLOR>never</NANOLOG_CONSOLE_COLOR>
                         </environmentVariables>
                     </configuration>
                 </plugin>
@@ -183,6 +186,7 @@
                     <mutationThreshold>100</mutationThreshold>
                     <environmentVariables>
                         <NANOLOG_AGENT>off</NANOLOG_AGENT>
+                        <NANOLOG_CONSOLE_COLOR>never</NANOLOG_CONSOLE_COLOR>
                     </environmentVariables>
                 </configuration>
                 <executions>
