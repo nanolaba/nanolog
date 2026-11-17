@@ -813,6 +813,128 @@ ${widget:import(path='${examples}/Payloads.java', region='content', wrap='true')
 - ${en:'**JSON.** In `"fields"` and `"context"` a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`; `message` and `args` hold the text as the console writes it.', ru:'**JSON.** В `"fields"` и `"context"` скрытое содержимое — это `{"content_len":1834,"content_hash":"3f2a9c1b"}`; в `message` и `args` — текст в том виде, в каком его пишет консоль.'}
 - ${en:'**Not a secret filter.** A shown payload is written as it is, keys and passwords inside it included.', ru:'**Не фильтр секретов.** Показанное содержимое пишется как есть, вместе с ключами и паролями внутри.'}
 
+## ${en:'Logging LLM calls', ru:'Логирование вызовов LLM'}
+
+${en:'Spring AI and LangChain4j have switches that log requests and responses, but they print `toString()` dumps and pretty-printed JSON. A listener or an advisor of about twenty lines logs one line per call through Nanolog instead: the model, the tokens, the latency and the finish reason, under the field names of the', ru:'У Spring AI и LangChain4j есть переключатели, которые логируют запросы и ответы, но печатают они дампы `toString()` и форматированный JSON. Слушатель или advisor примерно на двадцать строк логирует вместо этого одну строку на вызов через Nanolog: модель, токены, задержку и причину завершения, под именами полей из'} [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) (${en:'the `gen_ai.client.inference` span, status Development in November 2026', ru:'span `gen_ai.client.inference`, статус Development на ноябрь 2026 года'}), ${en:'with the prompt and the completion as', ru:'а промпт и ответ — как'} [`LOG.content`](#${en:'logging-payloads-safely', ru:'безопасное-логирование-содержимого'}) ${en:'and, at `DEBUG`, a short transcript.', ru:'и, на уровне `DEBUG`, короткую стенограмму.'}
+
+${widget:alert(type='note', text="${en:'These snippets are not compiled by the build of Nanolog, which targets Java 8, while both frameworks need Java 17. They are written against LangChain4j 1.x and Spring AI 2.0.', ru:'Эти фрагменты не компилируются сборкой Nanolog, которая нацелена на Java 8, а обоим фреймворкам нужна Java 17. Они написаны для LangChain4j 1.x и Spring AI 2.0.'}")}
+
+### LangChain4j
+
+${en:'A `ChatModelListener`, registered with `.listeners(List.of(new NanologChatListener()))` on the builder of the model:', ru:'`ChatModelListener`, который подключается через `.listeners(List.of(new NanologChatListener()))` у билдера модели:'}
+
+```java
+public class NanologChatListener implements ChatModelListener {
+
+    @Override
+    public void onRequest(ChatModelRequestContext context) {
+        context.attributes().put("nanolog.start", System.nanoTime());
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("chat request {}", LOG.content(transcript(context.chatRequest().messages())));
+        }
+    }
+
+    @Override
+    public void onResponse(ChatModelResponseContext context) {
+        ChatResponseMetadata metadata = context.chatResponse().metadata();
+        TokenUsage usage = metadata.tokenUsage();
+        long start = (Long) context.attributes().get("nanolog.start");
+        LOG.info("chat {} {} ms",
+                 LOG.kv("gen_ai.request.model", context.chatRequest().parameters().modelName()),
+                 LOG.kv("duration_ms", (System.nanoTime() - start) / 1_000_000),
+                 LOG.kv("gen_ai.provider.name", context.modelProvider()),
+                 LOG.kv("gen_ai.response.model", metadata.modelName()),
+                 LOG.kv("gen_ai.usage.input_tokens", usage == null ? null : usage.inputTokenCount()),
+                 LOG.kv("gen_ai.usage.output_tokens", usage == null ? null : usage.outputTokenCount()),
+                 LOG.kv("gen_ai.response.finish_reasons", metadata.finishReason()),
+                 LOG.kv("gen_ai.output.messages", LOG.content(context.chatResponse().aiMessage().text())));
+    }
+
+    @Override
+    public void onError(ChatModelErrorContext context) {
+        LOG.error(context.error(), "chat {} failed",
+                  LOG.kv("gen_ai.request.model", context.chatRequest().parameters().modelName()));
+    }
+
+    private static String transcript(List<ChatMessage> messages) {
+        StringBuilder out = new StringBuilder();
+        for (ChatMessage message : messages) {
+            String text = message instanceof SystemMessage s ? s.text()
+                        : message instanceof UserMessage u && u.hasSingleText() ? u.singleText()
+                        : message instanceof AiMessage a ? a.text()
+                        : message instanceof ToolExecutionResultMessage t ? t.text()
+                        : String.valueOf(message);
+            out.append('[').append(message.type()).append("] ").append(text).append('\n');
+        }
+        return out.toString();
+    }
+}
+```
+
+```
+INFO [NanologChatListener] chat gpt-4o-mini 812 ms gen_ai.provider.name=OPEN_AI gen_ai.response.model=gpt-4o-mini-2024-07-18 gen_ai.usage.input_tokens=1834 gen_ai.usage.output_tokens=212 gen_ai.response.finish_reasons=STOP gen_ai.output.messages="[content 980 chars #9c41d2e7]"
+```
+
+### Spring AI
+
+${en:'A `CallAdvisor`, registered with `ChatClient.builder(chatModel).defaultAdvisors(new NanologAdvisor())`. It makes each call a', ru:'`CallAdvisor`, который подключается через `ChatClient.builder(chatModel).defaultAdvisors(new NanologAdvisor())`. Он делает каждый вызов'} [${en:'unit of work', ru:'единицей работы'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}), ${en:'so the line gets the outcome and the latency, and a thrown exception is attached to it:', ru:'поэтому строка получает исход и задержку, а брошенное исключение прикрепляется к ней:'}
+
+```java
+public class NanologAdvisor implements CallAdvisor {
+
+    @Override
+    public String getName() {
+        return "NanologAdvisor";
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE; // the last advisor, next to the model
+    }
+
+    @Override
+    public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
+        Prompt prompt = request.prompt();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("chat request {}", LOG.content(transcript(prompt.getInstructions())));
+        }
+        LOG.Unit unit = LOG.unit("chat")
+                           .put("gen_ai.request.model", prompt.getOptions() == null ? null : prompt.getOptions().getModel());
+        return unit.run(() -> {
+            ChatClientResponse response = chain.nextCall(request);
+            ChatResponse chat = response.chatResponse();
+            if (chat != null) {
+                ChatResponseMetadata metadata = chat.getMetadata();
+                Generation result = chat.getResult();
+                unit.put("gen_ai.response.model", metadata.getModel())
+                    .put("gen_ai.response.id", metadata.getId())
+                    .put("gen_ai.usage.input_tokens", metadata.getUsage().getPromptTokens())
+                    .put("gen_ai.usage.output_tokens", metadata.getUsage().getCompletionTokens())
+                    .put("gen_ai.response.finish_reasons", result == null ? null : result.getMetadata().getFinishReason())
+                    .put("gen_ai.output.messages", LOG.content(result == null ? null : result.getOutput().getText()));
+            }
+            return response;
+        });
+    }
+
+    private static String transcript(List<Message> messages) {
+        StringBuilder out = new StringBuilder();
+        for (Message message : messages) {
+            out.append('[').append(message.getMessageType()).append("] ").append(message.getText()).append('\n');
+        }
+        return out.toString();
+    }
+}
+```
+
+```
+INFO [NanologAdvisor] chat ok 812 ms parent=agent-turn gen_ai.request.model=gpt-4o-mini gen_ai.response.model=gpt-4o-mini-2024-07-18 gen_ai.response.id=chatcmpl-B9x2 gen_ai.usage.input_tokens=1834 gen_ai.usage.output_tokens=212 gen_ai.response.finish_reasons=STOP gen_ai.output.messages="[content 980 chars #9c41d2e7]"
+```
+
+- ${en:'**A whole agent turn** becomes one unit with `try (LOG.Unit turn = LOG.unit("agent-turn")) { ... }` around it: the calls of the model and the tools inside name it as `parent`, their warnings and errors count in it, and `LOG.wrap` carries it into the threads of the tools.', ru:'**Целый ход агента** становится одной единицей, если обернуть его в `try (LOG.Unit turn = LOG.unit("agent-turn")) { ... }`: вызовы модели и инструментов внутри называют её в поле `parent`, их предупреждения и ошибки считаются в ней, а `LOG.wrap` переносит её в потоки инструментов.'}
+- ${en:'**Prompts while debugging:** `-Dnanolog.content=show`, or a rule for the package of the listener such as `-Dnanolog.content.com.acme.ai=truncate:200`. With', ru:'**Промпты при отладке:** `-Dnanolog.content=show` или правило для пакета слушателя, например `-Dnanolog.content.com.acme.ai=truncate:200`. С'} [`nanolog.buffer=DEBUG`](#${en:'breadcrumbs-debug-only-when-something-fails', ru:'breadcrumbs-debug-только-когда-что-то-сломалось'}) ${en:'the transcripts are written only before a failure.', ru:'стенограммы пишутся только перед сбоем.'}
+- ${en:'The field names follow the conventions, the values are what the frameworks report: the provider and the finish reason are enum names such as `OPEN_AI` and `STOP`, not the lower-case values of OpenTelemetry. With `JsonLogger` the fields are typed: `jq` sums `.fields["gen_ai.usage.input_tokens"]`.', ru:'Имена полей следуют соглашениям, а значения — то, что сообщают фреймворки: провайдер и причина завершения — имена перечислений вроде `OPEN_AI` и `STOP`, а не значения OpenTelemetry в нижнем регистре. С `JsonLogger` поля типизированы: `jq` суммирует `.fields["gen_ai.usage.input_tokens"]`.'}
+
 ## ${en:'Context: tag the lines of one request', ru:'Контекст: метка для строк одного запроса'}
 
 ${en:'`LOG.context(key, value)` adds a pair to every entry the current thread logs until the scope is closed, so the lines of one request, job or test are found together, with `grep requestId=r-17` or by an agent reading the log:', ru:'`LOG.context(key, value)` добавляет пару ко всем записям текущего потока, пока область не закрыта, поэтому строки одного запроса, задания или теста находятся вместе: через `grep requestId=r-17` или агентом, который читает лог:'}
@@ -949,6 +1071,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 - ${en:'`NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.', ru:'`NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.'}
 - ${en:'`nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.', ru:'`nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.'}
 - ${en:'Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.', ru:'Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.'}
+- ${en:'README: *Logging LLM calls*, a LangChain4j listener and a Spring AI advisor that log one line per model call with the OpenTelemetry `gen_ai.*` field names, the prompt and the completion as `LOG.content`, and a transcript at `DEBUG`.', ru:'README: *Логирование вызовов LLM* — слушатель для LangChain4j и advisor для Spring AI, которые логируют одну строку на вызов модели с именами полей OpenTelemetry `gen_ai.*`, промптом и ответом через `LOG.content` и стенограммой на уровне `DEBUG`.'}
 - ${en:'Payloads: `LOG.content(prompt)` writes a prompt, a response or a request body as `[content 1834 chars #3f2a9c1b]`, its length and a hash keyed per JVM, unless `nanolog.content=truncate:<characters>` or `show` says otherwise, for all classes or, through `nanolog.content.<package or class>`, for some. The text is taken when the entry is created and always escaped against forged lines; in JSON fields a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`.', ru:'Содержимое: `LOG.content(prompt)` пишет промпт, ответ или тело запроса как `[content 1834 chars #3f2a9c1b]`, длину и хеш с ключом JVM, если `nanolog.content=truncate:<символы>` или `show` не говорит иного, для всех классов или, через `nanolog.content.<пакет или класс>`, для некоторых. Текст берётся при создании записи и всегда экранируется против подделки строк; в полях JSON скрытое содержимое — это `{"content_len":1834,"content_hash":"3f2a9c1b"}`.'}
 - ${en:'Breadcrumbs: `nanolog.buffer=DEBUG` holds `DEBUG` and `TRACE` entries back, the newest 200 per thread (`nanolog.buffer.size`), and writes them before the next `ERROR` under `--- 37 earlier DEBUG entries ---`; inside `LOG.unit` the unit drops them when it succeeds and writes them after its line when it fails. Held-back levels count as enabled, entries are snapshots with the time of their call, and `JsonLogger` marks them `"breadcrumb":true`.', ru:'Breadcrumbs: `nanolog.buffer=DEBUG` придерживает записи `DEBUG` и `TRACE`, последние 200 на поток (`nanolog.buffer.size`), и пишет их перед следующим `ERROR` под заголовком `--- 37 earlier DEBUG entries ---`; внутри `LOG.unit` единица отбрасывает их при успехе и пишет после своей строки при неудаче. Придерживаемые уровни считаются включёнными, записи — снимки со временем вызова, а `JsonLogger` помечает их `"breadcrumb":true`.'}
 - ${en:'Wide events: `LOG.unit("checkout")` opens a unit of work that writes one canonical log line per request or job when it closes, `checkout ok 182 ms orderId=A-17 warn=1`: the outcome (`ok`, `error`, `interrupted`), the duration, the fields of `put(...)`, the counts of warnings and errors logged inside it and, for a failed unit, `error.type`, `error.message` and an `error.key` that stays the same between runs. Units nest (`parent=`), cross executors with `LOG.wrap`, are written as `interrupted` when the run ends while they are open, and `nanolog.unit.sample` / `nanolog.unit.slowMs` sample the fast successful ones; `run(...)` and `LOG.unit(name, body)` record a thrown exception.', ru:'Wide events: `LOG.unit("checkout")` открывает единицу работы, которая при закрытии пишет одну каноническую строку лога на запрос или задание, `checkout ok 182 ms orderId=A-17 warn=1`: исход (`ok`, `error`, `interrupted`), длительность, поля из `put(...)`, число предупреждений и ошибок внутри и для неудачной единицы `error.type`, `error.message` и `error.key`, который не меняется между запусками. Единицы вкладываются (`parent=`), переходят в пулы потоков через `LOG.wrap`, пишутся как `interrupted`, если запуск закончился при открытой единице, а `nanolog.unit.sample` / `nanolog.unit.slowMs` прореживают быстрые успешные; `run(...)` и `LOG.unit(name, body)` записывают брошенное исключение.'}

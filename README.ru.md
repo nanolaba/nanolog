@@ -66,20 +66,23 @@ Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](http
 	- 9.1 [Поля: именованные аргументы](#поля-именованные-аргументы)
 	- 9.2 [Проверка плейсхолдеров в тестах](#проверка-плейсхолдеров-в-тестах)
 - 10 [Безопасное логирование содержимого](#безопасное-логирование-содержимого)
-- 11 [Контекст: метка для строк одного запроса](#контекст-метка-для-строк-одного-запроса)
-- 12 [Ограничение частоты](#ограничение-частоты)
-- 13 [Определение вызывающего класса](#определение-вызывающего-класса)
-- 14 [Собственный логгер](#собственный-логгер)
-- 15 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 16 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
-- 17 [Changelog](#changelog)
-	- 17.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 17.2 [1.3](#13)
-	- 17.3 [1.2](#12)
-	- 17.4 [1.1](#11)
-	- 17.5 [1.0](#10)
-- 18 [Участие в разработке](#участие-в-разработке)
-- 19 [Лицензия](#лицензия)
+- 11 [Логирование вызовов LLM](#логирование-вызовов-llm)
+	- 11.1 [LangChain4j](#langchain4j)
+	- 11.2 [Spring AI](#spring-ai)
+- 12 [Контекст: метка для строк одного запроса](#контекст-метка-для-строк-одного-запроса)
+- 13 [Ограничение частоты](#ограничение-частоты)
+- 14 [Определение вызывающего класса](#определение-вызывающего-класса)
+- 15 [Собственный логгер](#собственный-логгер)
+- 16 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
+- 17 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
+- 18 [Changelog](#changelog)
+	- 18.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 18.2 [1.3](#13)
+	- 18.3 [1.2](#12)
+	- 18.4 [1.1](#11)
+	- 18.5 [1.0](#10)
+- 19 [Участие в разработке](#участие-в-разработке)
+- 20 [Лицензия](#лицензия)
 
 
 ## Установка
@@ -896,6 +899,129 @@ LOG.info("Answer received", LOG.kv("answer", LOG.content(answer)), LOG.kv("token
 - **JSON.** В `"fields"` и `"context"` скрытое содержимое — это `{"content_len":1834,"content_hash":"3f2a9c1b"}`; в `message` и `args` — текст в том виде, в каком его пишет консоль.
 - **Не фильтр секретов.** Показанное содержимое пишется как есть, вместе с ключами и паролями внутри.
 
+## Логирование вызовов LLM
+
+У Spring AI и LangChain4j есть переключатели, которые логируют запросы и ответы, но печатают они дампы `toString()` и форматированный JSON. Слушатель или advisor примерно на двадцать строк логирует вместо этого одну строку на вызов через Nanolog: модель, токены, задержку и причину завершения, под именами полей из [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) (span `gen_ai.client.inference`, статус Development на ноябрь 2026 года), а промпт и ответ — как [`LOG.content`](#безопасное-логирование-содержимого) и, на уровне `DEBUG`, короткую стенограмму.
+
+> [!NOTE]
+> Эти фрагменты не компилируются сборкой Nanolog, которая нацелена на Java 8, а обоим фреймворкам нужна Java 17. Они написаны для LangChain4j 1.x и Spring AI 2.0.
+
+### LangChain4j
+
+`ChatModelListener`, который подключается через `.listeners(List.of(new NanologChatListener()))` у билдера модели:
+
+```java
+public class NanologChatListener implements ChatModelListener {
+
+    @Override
+    public void onRequest(ChatModelRequestContext context) {
+        context.attributes().put("nanolog.start", System.nanoTime());
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("chat request {}", LOG.content(transcript(context.chatRequest().messages())));
+        }
+    }
+
+    @Override
+    public void onResponse(ChatModelResponseContext context) {
+        ChatResponseMetadata metadata = context.chatResponse().metadata();
+        TokenUsage usage = metadata.tokenUsage();
+        long start = (Long) context.attributes().get("nanolog.start");
+        LOG.info("chat {} {} ms",
+                 LOG.kv("gen_ai.request.model", context.chatRequest().parameters().modelName()),
+                 LOG.kv("duration_ms", (System.nanoTime() - start) / 1_000_000),
+                 LOG.kv("gen_ai.provider.name", context.modelProvider()),
+                 LOG.kv("gen_ai.response.model", metadata.modelName()),
+                 LOG.kv("gen_ai.usage.input_tokens", usage == null ? null : usage.inputTokenCount()),
+                 LOG.kv("gen_ai.usage.output_tokens", usage == null ? null : usage.outputTokenCount()),
+                 LOG.kv("gen_ai.response.finish_reasons", metadata.finishReason()),
+                 LOG.kv("gen_ai.output.messages", LOG.content(context.chatResponse().aiMessage().text())));
+    }
+
+    @Override
+    public void onError(ChatModelErrorContext context) {
+        LOG.error(context.error(), "chat {} failed",
+                  LOG.kv("gen_ai.request.model", context.chatRequest().parameters().modelName()));
+    }
+
+    private static String transcript(List<ChatMessage> messages) {
+        StringBuilder out = new StringBuilder();
+        for (ChatMessage message : messages) {
+            String text = message instanceof SystemMessage s ? s.text()
+                        : message instanceof UserMessage u && u.hasSingleText() ? u.singleText()
+                        : message instanceof AiMessage a ? a.text()
+                        : message instanceof ToolExecutionResultMessage t ? t.text()
+                        : String.valueOf(message);
+            out.append('[').append(message.type()).append("] ").append(text).append('\n');
+        }
+        return out.toString();
+    }
+}
+```
+
+```
+INFO [NanologChatListener] chat gpt-4o-mini 812 ms gen_ai.provider.name=OPEN_AI gen_ai.response.model=gpt-4o-mini-2024-07-18 gen_ai.usage.input_tokens=1834 gen_ai.usage.output_tokens=212 gen_ai.response.finish_reasons=STOP gen_ai.output.messages="[content 980 chars #9c41d2e7]"
+```
+
+### Spring AI
+
+`CallAdvisor`, который подключается через `ChatClient.builder(chatModel).defaultAdvisors(new NanologAdvisor())`. Он делает каждый вызов [единицей работы](#wide-events-одна-строка-на-запрос-canonical-log-lines), поэтому строка получает исход и задержку, а брошенное исключение прикрепляется к ней:
+
+```java
+public class NanologAdvisor implements CallAdvisor {
+
+    @Override
+    public String getName() {
+        return "NanologAdvisor";
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE; // the last advisor, next to the model
+    }
+
+    @Override
+    public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
+        Prompt prompt = request.prompt();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("chat request {}", LOG.content(transcript(prompt.getInstructions())));
+        }
+        LOG.Unit unit = LOG.unit("chat")
+                           .put("gen_ai.request.model", prompt.getOptions() == null ? null : prompt.getOptions().getModel());
+        return unit.run(() -> {
+            ChatClientResponse response = chain.nextCall(request);
+            ChatResponse chat = response.chatResponse();
+            if (chat != null) {
+                ChatResponseMetadata metadata = chat.getMetadata();
+                Generation result = chat.getResult();
+                unit.put("gen_ai.response.model", metadata.getModel())
+                    .put("gen_ai.response.id", metadata.getId())
+                    .put("gen_ai.usage.input_tokens", metadata.getUsage().getPromptTokens())
+                    .put("gen_ai.usage.output_tokens", metadata.getUsage().getCompletionTokens())
+                    .put("gen_ai.response.finish_reasons", result == null ? null : result.getMetadata().getFinishReason())
+                    .put("gen_ai.output.messages", LOG.content(result == null ? null : result.getOutput().getText()));
+            }
+            return response;
+        });
+    }
+
+    private static String transcript(List<Message> messages) {
+        StringBuilder out = new StringBuilder();
+        for (Message message : messages) {
+            out.append('[').append(message.getMessageType()).append("] ").append(message.getText()).append('\n');
+        }
+        return out.toString();
+    }
+}
+```
+
+```
+INFO [NanologAdvisor] chat ok 812 ms parent=agent-turn gen_ai.request.model=gpt-4o-mini gen_ai.response.model=gpt-4o-mini-2024-07-18 gen_ai.response.id=chatcmpl-B9x2 gen_ai.usage.input_tokens=1834 gen_ai.usage.output_tokens=212 gen_ai.response.finish_reasons=STOP gen_ai.output.messages="[content 980 chars #9c41d2e7]"
+```
+
+- **Целый ход агента** становится одной единицей, если обернуть его в `try (LOG.Unit turn = LOG.unit("agent-turn")) { ... }`: вызовы модели и инструментов внутри называют её в поле `parent`, их предупреждения и ошибки считаются в ней, а `LOG.wrap` переносит её в потоки инструментов.
+- **Промпты при отладке:** `-Dnanolog.content=show` или правило для пакета слушателя, например `-Dnanolog.content.com.acme.ai=truncate:200`. С [`nanolog.buffer=DEBUG`](#breadcrumbs-debug-только-когда-что-то-сломалось) стенограммы пишутся только перед сбоем.
+- Имена полей следуют соглашениям, а значения — то, что сообщают фреймворки: провайдер и причина завершения — имена перечислений вроде `OPEN_AI` и `STOP`, а не значения OpenTelemetry в нижнем регистре. С `JsonLogger` поля типизированы: `jq` суммирует `.fields["gen_ai.usage.input_tokens"]`.
+
 ## Контекст: метка для строк одного запроса
 
 `LOG.context(key, value)` добавляет пару ко всем записям текущего потока, пока область не закрыта, поэтому строки одного запроса, задания или теста находятся вместе: через `grep requestId=r-17` или агентом, который читает лог:
@@ -1065,6 +1191,7 @@ dependencies {
 - `NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.
 - `nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.
 - Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.
+- README: *Логирование вызовов LLM* — слушатель для LangChain4j и advisor для Spring AI, которые логируют одну строку на вызов модели с именами полей OpenTelemetry `gen_ai.*`, промптом и ответом через `LOG.content` и стенограммой на уровне `DEBUG`.
 - Содержимое: `LOG.content(prompt)` пишет промпт, ответ или тело запроса как `[content 1834 chars #3f2a9c1b]`, длину и хеш с ключом JVM, если `nanolog.content=truncate:<символы>` или `show` не говорит иного, для всех классов или, через `nanolog.content.<пакет или класс>`, для некоторых. Текст берётся при создании записи и всегда экранируется против подделки строк; в полях JSON скрытое содержимое — это `{"content_len":1834,"content_hash":"3f2a9c1b"}`.
 - Breadcrumbs: `nanolog.buffer=DEBUG` придерживает записи `DEBUG` и `TRACE`, последние 200 на поток (`nanolog.buffer.size`), и пишет их перед следующим `ERROR` под заголовком `--- 37 earlier DEBUG entries ---`; внутри `LOG.unit` единица отбрасывает их при успехе и пишет после своей строки при неудаче. Придерживаемые уровни считаются включёнными, записи — снимки со временем вызова, а `JsonLogger` помечает их `"breadcrumb":true`.
 - Wide events: `LOG.unit("checkout")` открывает единицу работы, которая при закрытии пишет одну каноническую строку лога на запрос или задание, `checkout ok 182 ms orderId=A-17 warn=1`: исход (`ok`, `error`, `interrupted`), длительность, поля из `put(...)`, число предупреждений и ошибок внутри и для неудачной единицы `error.type`, `error.message` и `error.key`, который не меняется между запусками. Единицы вкладываются (`parent=`), переходят в пулы потоков через `LOG.wrap`, пишутся как `interrupted`, если запуск закончился при открытой единице, а `nanolog.unit.sample` / `nanolog.unit.slowMs` прореживают быстрые успешные; `run(...)` и `LOG.unit(name, body)` записывают брошенное исключение.
