@@ -19,7 +19,8 @@ import java.util.function.Function;
  * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
  * after {@link LOG} (after {@link LOG.Limited} for a rate-limited call), so its {@code %file:%line} or {@code %l}
  * shows the code that called {@code LOG}. The number of calls a rate-limited statement skipped is appended to the
- * message as {@code [skipped N]}. SLF4J markers are not supported.
+ * message as {@code [skipped N]}, and then the fields of {@link LOG#kv(String, Object)} that no placeholder took, as
+ * {@code key=value}, as {@link ConsoleLogger} writes them. SLF4J markers are not supported.
  * <p>
  * The context of {@link LOG#context(String, Object)} is put into the MDC while an entry is forwarded, each value
  * written like a {@code {}} argument, and taken out afterwards; values the MDC held for those keys are put back.
@@ -96,11 +97,14 @@ public class Slf4jLogger implements ILogger {
     private void forward(LogEntry entry) {
         Logger logger = getLogger(entry.getSourceClass());
         // an entry may carry only a throwable; SLF4J backends would print the literal word "null" otherwise
-        String message = entry.getMessage() == null ? "" : entry.getFormattedMessage();
+        StringBuilder text = new StringBuilder(entry.getMessage() == null ? "" : entry.getFormattedMessage());
         if (entry.getSkippedCount() > 0) {
-            String skipped = "[skipped " + entry.getSkippedCount() + "]";
-            message = message.isEmpty() ? skipped : message + " " + skipped;
+            append(text, "[skipped " + entry.getSkippedCount() + "]");
         }
+        for (Map.Entry<String, Object> field : entry.getTrailingFields().entrySet()) {
+            append(text, ConsoleLogger.pair(field.getKey(), field.getValue()));
+        }
+        String message = text.toString();
 
         if (logger instanceof LocationAwareLogger) {
             // no arguments: the message is formatted already, and a backend must not format its {} again
@@ -127,6 +131,13 @@ public class Slf4jLogger implements ILogger {
                 logger.info(message, entry.getThrowable());
                 break;
         }
+    }
+
+    private static void append(StringBuilder text, String part) {
+        if (text.length() > 0) {
+            text.append(' ');
+        }
+        text.append(part);
     }
 
     private static int toLocationAwareLevel(LogEntry.LogEntryLevel level) {

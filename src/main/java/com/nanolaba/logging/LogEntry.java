@@ -1,11 +1,16 @@
 package com.nanolaba.logging;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * One log record, as {@link ILogger#log(LogEntry)} receives it: level, source class, call site, exception, message
- * and its arguments, creation time, thread and the context of that thread. The message is resolved from its
+ * and its arguments, the fields of {@link LOG#kv(String, Object)}, creation time, thread and the context of that
+ * thread. The message is resolved from its
  * {@code Supplier} and formatted once, when the entry is created. Entries are immutable.
  */
 public class LogEntry {
@@ -49,13 +54,16 @@ public class LogEntry {
     private final String callerBoundary;
     private final boolean dbg;
     private final Map<String, Object> context;
+    private final Map<String, Object> fields;
+    private final Map<String, Object> trailingFields;
 
     private static final char ESCAPE_CHAR = '\\';
 
     /**
      * Creates an entry and formats its message. When no throwable is given and the last argument is a
      * {@link Throwable} that no {@code {}} placeholder consumes, that argument becomes the throwable of the entry and
-     * is removed from the arguments, as in SLF4J.
+     * is removed from the arguments, as in SLF4J. Arguments made by {@link LOG#kv(String, Object)} are the fields of
+     * the entry; those that no placeholder consumes are removed from the arguments too.
      *
      * @param level       the level
      * @param sourceClass the source class; may be {@code null}
@@ -84,14 +92,56 @@ public class LogEntry {
         // formatted with the original arguments: an unused trailing throwable changes nothing in the text
         this.formattedMessage = formatMessage(pattern, args);
 
+        Object[] arguments = args;
         if (throwable == null && endsWithUnusedThrowable(pattern, args)) {
             // the SLF4J convention: LOG.error("Failed to load {}", id, e) keeps the stack trace of e
             this.throwable = (Throwable) args[args.length - 1];
-            this.args = Arrays.copyOf(args, args.length - 1);
+            arguments = Arrays.copyOf(args, args.length - 1);
         } else {
             this.throwable = throwable;
-            this.args = args;
         }
+
+        if (hasFields(arguments)) {
+            // a field that no placeholder consumes is no extra argument: loggers append it to the message
+            int placeholders = countPlaceholders(pattern);
+            Map<String, Object> all = new LinkedHashMap<>();
+            Map<String, Object> trailing = new LinkedHashMap<>();
+            List<Object> consumed = new ArrayList<>();
+            for (int i = 0; i < arguments.length; i++) {
+                Object argument = arguments[i];
+                boolean field = isField(argument);
+                if (field) {
+                    all.put(((LOG.Field) argument).getKey(), ((LOG.Field) argument).getValue());
+                }
+                if (field && i >= placeholders) {
+                    trailing.put(((LOG.Field) argument).getKey(), ((LOG.Field) argument).getValue());
+                } else {
+                    consumed.add(argument);
+                }
+            }
+            this.args = consumed.toArray();
+            this.fields = Collections.unmodifiableMap(all);
+            this.trailingFields = Collections.unmodifiableMap(trailing);
+        } else {
+            this.args = arguments;
+            this.fields = Collections.emptyMap();
+            this.trailingFields = Collections.emptyMap();
+        }
+    }
+
+    private static boolean hasFields(Object[] args) {
+        if (args != null) {
+            for (Object argument : args) {
+                if (isField(argument)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isField(Object argument) {
+        return argument instanceof LOG.Field && ((LOG.Field) argument).getKey() != null;
     }
 
     /**
@@ -226,9 +276,10 @@ public class LogEntry {
     }
 
     /**
-     * Returns the arguments for the placeholders, without a trailing throwable taken as the exception.
+     * Returns the arguments for the placeholders, without a trailing throwable taken as the exception and without the
+     * fields that no placeholder consumes.
      *
-     * @return the arguments for the placeholders, without a trailing throwable taken as the exception
+     * @return the arguments for the placeholders
      */
     public Object[] getArgs() {
         return args;
@@ -245,6 +296,26 @@ public class LogEntry {
     }
 
     /**
+     * The fields of the entry: the arguments made by {@link LOG#kv(String, Object)}, in the order of the call. A key
+     * given twice keeps its first place and its last value.
+     *
+     * @return an unmodifiable map, empty when the call had no fields
+     */
+    public Map<String, Object> getFields() {
+        return fields;
+    }
+
+    /**
+     * The fields that no {@code {}} placeholder consumes, which the message does not show: {@link ConsoleLogger} and
+     * {@link Slf4jLogger} append them as {@code key=value}. They are not among {@link #getArgs()}.
+     *
+     * @return an unmodifiable map, part of {@link #getFields()}
+     */
+    public Map<String, Object> getTrailingFields() {
+        return trailingFields;
+    }
+
+    /**
      * Returns the message with the placeholders substituted; {@code "null"} for a {@code null} message.
      *
      * @return the message with the placeholders substituted; {@code "null"} for a {@code null} message
@@ -257,7 +328,7 @@ public class LogEntry {
      * A representation for debugging; never throws, even if the message or an argument has a broken
      * {@code toString()}.
      *
-     * @return the level, source class, throwable, message and arguments
+     * @return the level, source class, throwable, message, arguments, fields and context
      */
     @Override
     public String toString() {
@@ -267,9 +338,24 @@ public class LogEntry {
                ", throwable=" + safeToString(getThrowable()) +
                ", message=" + safeToString(getMessage()) +
                ", args=" + arrayToString(getArgs()) +
+               pairsToString(", fields=", getFields()) +
+               pairsToString(", context=", getContext()) +
                (getSkippedCount() > 0 ? ", skipped=" + getSkippedCount() : "") +
                (isDbg() ? ", dbg=true" : "") +
                '}';
+    }
+
+    private static String pairsToString(String label, Map<String, Object> pairs) {
+        if (pairs.isEmpty()) {
+            return "";
+        }
+        StringBuilder result = new StringBuilder(label).append('{');
+        String separator = "";
+        for (Map.Entry<String, Object> pair : pairs.entrySet()) {
+            result.append(separator).append(pair.getKey()).append('=').append(argToString(pair.getValue()));
+            separator = ", ";
+        }
+        return result.append('}').toString();
     }
 
     private static String formatMessage(String msg, Object[] args) {

@@ -29,7 +29,8 @@ import static com.nanolaba.logging.DefaultLoggerCreator.readChoice;
  * <pre>
  * LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message key=value
  * </pre>
- * The pairs at the end are the context of {@link LOG#context(String, Object)}, if there is one. The name of the
+ * The pairs at the end are the fields of {@link LOG#kv(String, Object)} that the message does not show, then the
+ * context of {@link LOG#context(String, Object)}. The name of the
  * thread ({@link #setShowThread(boolean)}) and the call site ({@link #setShowLocation(boolean)}) can be added.
  * Every part is switched by a fluent setter, and the constructor reads the same settings from system properties,
  * environment variables and {@code nanolog.properties}: {@code nanolog.level}, per-package rules
@@ -665,7 +666,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
-     * message, skipped count, context, stack trace.
+     * message, skipped count, fields, context, stack trace.
      *
      * @param entry the entry to write
      * @return the text without the final line break
@@ -679,6 +680,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSource(out, entry);
         writeMessage(out, entry);
         writeSkipped(out, entry);
+        writeFields(out, entry);
         writeContext(out, entry);
         writeThrowable(out, entry);
 
@@ -832,11 +834,33 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     protected void writeContext(StringWriter out, LogEntry entry) {
         if (isShowContext()) {
-            for (Map.Entry<String, Object> pair : entry.getContext().entrySet()) {
-                addDelimiter(out);
-                out.append(pair.getKey()).append('=').append(quoted(LogEntry.argToString(pair.getValue())));
-            }
+            writePairs(out, entry.getContext());
         }
+    }
+
+    /**
+     * Writes the fields of {@code LOG.kv(...)} that no placeholder consumed, {@link LogEntry#getTrailingFields()}, as
+     * {@code key=value} pairs quoted like the context: {@code Payment accepted orderId=A-17}.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeFields(StringWriter out, LogEntry entry) {
+        writePairs(out, entry.getTrailingFields());
+    }
+
+    private void writePairs(StringWriter out, Map<String, Object> pairs) {
+        for (Map.Entry<String, Object> pair : pairs.entrySet()) {
+            addDelimiter(out);
+            out.append(pair(pair.getKey(), pair.getValue()));
+        }
+    }
+
+    /**
+     * One {@code key=value} pair: the value written like a {@code {}} argument and {@link #quoted(String)}.
+     */
+    static String pair(String key, Object value) {
+        return key + "=" + quoted(LogEntry.argToString(value));
     }
 
     /**

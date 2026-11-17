@@ -1287,6 +1287,74 @@ public class LOG {
         return Contexts.wrap(task);
     }
 
+    // FIELDS
+
+    /**
+     * A named argument of a logging call, made by {@link LOG#kv(String, Object)}: a field of the entry. Where a
+     * {@code {}} placeholder takes it, it prints as its value.
+     */
+    public static final class Field {
+
+        private final String key;
+        private final Object value;
+
+        private Field(String key, Object value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        /**
+         * Returns the name of the field.
+         *
+         * @return the name; {@code null} if none was given, and then the argument is a plain one
+         */
+        public String getKey() {
+            return key;
+        }
+
+        /**
+         * Returns the value, as it was given.
+         *
+         * @return the value; may be {@code null}
+         */
+        public Object getValue() {
+            return value;
+        }
+
+        /**
+         * The value as a {@code {}} placeholder prints it: its guarded {@code toString()}, arrays element by element.
+         * Never throws.
+         *
+         * @return the value as text
+         */
+        @Override
+        public String toString() {
+            return LogEntry.argToString(value);
+        }
+    }
+
+    /**
+     * Names an argument, so that it is a field of the entry as well, which scripts and agents can select on:
+     * <pre>{@code
+     * LOG.info("Loaded {} items from {}", LOG.kv("count", n), LOG.kv("source", src));
+     * // INFO 16.11.2026 10:15:02 [Importer] Loaded 3 items from db
+     * LOG.info("Payment accepted", LOG.kv("orderId", id));
+     * // INFO 16.11.2026 10:15:02 [PaymentService] Payment accepted orderId=A-17
+     * }</pre>
+     * A {@code {}} placeholder prints the value like any other argument. A field that no placeholder takes is not an
+     * extra argument, and strict mode does not report it: {@link ConsoleLogger} and {@link Slf4jLogger} append it to
+     * the message as {@code key=value}. {@link JsonLogger} writes every field into a {@code "fields"} object, numbers
+     * and booleans as JSON numbers and booleans, and every logger reads them from {@link LogEntry#getFields()}. An
+     * exception goes after the fields: the last argument is the exception of the entry when no placeholder takes it.
+     *
+     * @param key   the name of the field, such as {@code orderId}; {@code null} makes the argument a plain one
+     * @param value the value; may be {@code null}
+     * @return the argument to pass to a logging method
+     */
+    public static Field kv(String key, Object value) {
+        return new Field(key, value);
+    }
+
     // RATE LIMITING
 
     /**

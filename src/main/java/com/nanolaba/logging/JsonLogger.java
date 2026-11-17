@@ -13,15 +13,17 @@ import java.util.Map;
  * Writes one JSON object per line, for tools and agents that parse the output: {@code jq}, log collectors, scripts.
  * <pre>{@code
  * {"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main",
- *  "message":"Charge of 42 failed","template":"Charge of {} failed","args":["42"],"context":{"requestId":"r-17"},
+ *  "message":"Charge of 42 failed","template":"Charge of {} failed","args":["42"],"fields":{"amount":42},
+ *  "context":{"requestId":"r-17"},
  *  "caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87},
  *  "exception":{"class":"java.io.IOException","message":"timeout","stackTrace":"java.io.IOException: timeout\n\tat ..."}}
  * }</pre>
  * (shown on several lines here; the real output is a single line). Fields without a value are left out:
  * {@code template} and {@code args} appear only for parameterized messages, {@code dbg} (always {@code true}) only for
- * entries of {@code LOG.dbg(...)}, {@code context} only within {@link LOG#context(String, Object)}, {@code caller}
- * only when the source class was detected, {@code exception} only with a throwable. The values of {@code context}
- * keep their type: integers, {@code BigDecimal} and finite floating-point numbers are JSON numbers, booleans are
+ * entries of {@code LOG.dbg(...)}, {@code fields} only with arguments of {@link LOG#kv(String, Object)},
+ * {@code context} only within {@link LOG#context(String, Object)}, {@code caller} only when the source class was
+ * detected, {@code exception} only with a throwable. {@code args} leaves out the fields that no placeholder takes,
+ * and {@code fields} has them all. The values of {@code fields} and {@code context} keep their type: integers, {@code BigDecimal} and finite floating-point numbers are JSON numbers, booleans are
  * booleans, {@code null} is {@code null}, and everything else is a string, written like a {@code {}} argument. Line breaks and control characters are escaped, so one
  * entry is always exactly one line.
  * <p>
@@ -87,7 +89,8 @@ public class JsonLogger extends ConsoleLogger {
             }
             out.append(']');
         }
-        appendContext(out, entry.getContext());
+        appendObject(out, "fields", entry.getFields());
+        appendObject(out, "context", entry.getContext());
         if (entry.getSkippedCount() > 0) {
             out.append(",\"skipped\":").append(entry.getSkippedCount());
         }
@@ -100,11 +103,11 @@ public class JsonLogger extends ConsoleLogger {
         return out.append('}').toString();
     }
 
-    private static void appendContext(StringBuilder out, Map<String, Object> context) {
-        if (!context.isEmpty()) {
-            out.append(",\"context\":{");
+    private static void appendObject(StringBuilder out, String name, Map<String, Object> pairs) {
+        if (!pairs.isEmpty()) {
+            out.append(",\"").append(name).append("\":{");
             String separator = "";
-            for (Map.Entry<String, Object> pair : context.entrySet()) {
+            for (Map.Entry<String, Object> pair : pairs.entrySet()) {
                 out.append(separator);
                 appendString(out, pair.getKey());
                 out.append(':');

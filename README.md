@@ -60,7 +60,8 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 5.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 6 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
 - 7 [Message formatting](#message-formatting)
-	- 7.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
+	- 7.1 [Fields: named arguments](#fields-named-arguments)
+	- 7.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
 - 8 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
 - 9 [Rate limiting](#rate-limiting)
 - 10 [Caller detection](#caller-detection)
@@ -160,6 +161,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info(throwable, message)` | message plus stack trace; the message may also be a `Supplier` |
 | `LOG.info(throwable, "... {} ...", args)` | exception plus a parameterized message |
 | `LOG.info("... {} ...", args, throwable)` | the SLF4J order: a trailing exception that no `{}` consumes becomes the exception of the entry |
+| `LOG.info("Payment accepted", LOG.kv("orderId", id))` | a named argument: `orderId=A-17` after the message, a field in JSON; in a `{}` it prints its value, see [Fields](#fields-named-arguments) |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | change the global level or the level of a package while the application runs, see [Changing levels at run time](#changing-levels-at-run-time) |
@@ -506,7 +508,7 @@ LOG.init(new ConsoleLogger()
 
 For a custom layout (other colours, a different order) extend `ConsoleLogger` and
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
-`writeContext`, `writeThrowable` or `addDelimiter`.
+`writeFields`, `writeContext`, `writeThrowable` or `addDelimiter`.
 
 ### Levels and options without code
 
@@ -599,11 +601,12 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 ```
 
 ```json
-{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"context":{"requestId":"r-17"},"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
+{"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"fields":{"amount":42},"context":{"requestId":"r-17"},"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
 ```
 
 - `ts` — ISO-8601 in UTC with milliseconds, sortable as text; `level`, `logger` (the source class), `thread`, `message` (the formatted message).
 - `template` and `args` — the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.
+- `fields` — the arguments of `LOG.kv(...)` as a nested object, when there are any; `args` leaves out those that no `{}` takes. Select on them with `jq 'select(.fields.orderId=="A-17")'`; see [Fields](#fields-named-arguments).
 - `context` — the pairs of `LOG.context(...)` as a nested object, when there are any. Numbers and booleans keep their JSON type, so `jq` compares them as numbers: `jq 'select(.context.attempt > 1)'`.
 - `caller` — the call site, when the source class was detected; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
 - Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
@@ -637,7 +640,7 @@ LOG.init(new Slf4jLogger());
 Things to know:
 
 - Location-aware backends, Logback and Log4j 2 among them, are told that the call site is the first frame after `LOG`. Their own `%file:%line`, `%method` and `%class` (Logback) or `%l` (Log4j 2) therefore show the code that called `LOG`, not `Slf4jLogger`, with no backend configuration. slf4j-simple prints no location at all.
-- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. SLF4J markers are not supported.
+- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. Fields of `LOG.kv(...)` that no `{}` takes are appended to the text as `key=value`, as `ConsoleLogger` writes them; the key-value pairs of SLF4J 2 are not used, since backends treat them differently. SLF4J markers are not supported.
 - The pairs of `LOG.context(...)` are put into the MDC while an entry is forwarded and taken out afterwards; values the MDC already held for those keys are put back. Backends that support MDC, Logback and Log4j 2, print them through their own patterns such as `%X{requestId}`, like values set through `org.slf4j.MDC`; slf4j-simple and slf4j-nop silently discard them, and the JUL binding (slf4j-jdk14) stores them without printing.
 - An entry without a message is passed with an empty message, not the word `null`.
 - An entry without a source class goes to the SLF4J `ROOT` logger.
@@ -735,6 +738,28 @@ LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.I
 - A lazy message is guarded the same way: if its `Supplier` throws, the entry is still logged, with the message `[FAILED supplier: <exception>]`, for example `[FAILED supplier: java.lang.IllegalStateException: no report]`; the exception and the arguments of the entry are kept. The supplier runs at most once.
 - The message object itself may be anything, not only a `String`; it is converted with the same guarded `toString()`.
 - With `nanolog.dump=auto` (`NANOLOG_DUMP=auto`) an argument whose class has no `toString()` of its own is printed field by field, as in [`LOG.dbg`](#objects-without-tostring): `LOG.info("Added {}", line)` prints `Added Line{sku="A-1", qty=2}` instead of `Added Line@1e643faf`. Collections, maps, arrays and `Optional` are walked, so a list of such objects is printed the same way. Everything with a `toString()` of its own, strings included, prints as before, without quotes, limits or redaction. The setting is off by default because it changes existing output; `JsonLogger` puts the result into `message` and `args` as text. Since 1.4.
+
+### Fields: named arguments
+
+`LOG.kv(key, value)` names an argument, so that a script or an agent can select the entry by it instead of matching the text of the message:
+
+```java
+LOG.info("Loaded {} items from {}", LOG.kv("count", count), LOG.kv("source", source));
+// INFO 16.11.2026 10:15:02 [Importer] Loaded 3 items from db
+// JSON: "message":"Loaded 3 items from db",...,"fields":{"count":3,"source":"db"}
+
+LOG.info("Payment accepted", LOG.kv("orderId", orderId));
+// INFO 16.11.2026 10:15:02 [PaymentService] Payment accepted orderId=A-17
+// JSON: "message":"Payment accepted","fields":{"orderId":"A-17"}
+
+LOG.error("Payment failed", LOG.kv("orderId", orderId), e); // the exception goes last
+```
+
+- In a `{}` a field prints its value like any argument, so existing messages keep their text.
+- A field that no `{}` takes is not an extra argument: `ConsoleLogger` and `Slf4jLogger` append it as `key=value`, quoted like the pairs of the [context](#context-tag-the-lines-of-one-request), and strict mode does not report it.
+- `JsonLogger` writes every field into `"fields"`, whether a `{}` took it or not; numbers and booleans stay JSON numbers and booleans. Any logger reads them from `LogEntry.getFields()`, and those the message does not show from `getTrailingFields()`.
+- An exception goes last, after the fields, and becomes the exception of the entry as usual. A key given twice keeps its last value; `LOG.kv(null, value)` is a plain argument.
+- Names inside the braces, `{orderId}`, are not supported: `{word}` is ordinary text in existing messages.
 
 ### Checking placeholders in tests
 
@@ -885,6 +910,7 @@ What a `LogEntry` carries:
 - `getMessage()` — the raw message object, already resolved from its `Supplier`.
 - `getTimestamp()`, `getThreadName()` — when and in which thread the entry was created, so a logger that writes later or elsewhere still knows.
 - `getArgs()` — the substitution arguments.
+- `getFields()`, `getTrailingFields()` — the arguments of `LOG.kv(...)` by name, and those of them that no `{}` took.
 - `getContext()` — the pairs of `LOG.context(...)` open in the thread that created the entry; an empty map without them.
 - `getFormattedMessage()` — the final string with `{}` substituted.
 
@@ -954,6 +980,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Fields: `LOG.kv("orderId", id)` names an argument. In a `{}` it prints its value; without one `ConsoleLogger` and `Slf4jLogger` append `orderId=A-17` to the message and strict mode does not count it. `JsonLogger` writes every field into a `"fields"` object whose numbers and booleans keep their type, so `jq` selects entries by them, and `LogEntry.getFields()` gives them to any logger.
 - Context: `try (LOG.Context c = LOG.context("requestId", id)) { ... }` adds `requestId=r-17` to every entry the thread logs inside the block, nested scopes put the previous value back, and `LOG.wrap(task)` carries the context into a task that another thread runs. `ConsoleLogger` prints the pairs after the message (`nanolog.console.showContext`), `JsonLogger` writes a `"context"` object whose numbers and booleans keep their type, `Slf4jLogger` puts the pairs into the MDC for `%X{requestId}`, and `LogEntry.getContext()` gives them to any logger.
 - `MemoryLogger.capture()` and `captureForwarding()` capture the entries of the current thread only, every level, while the logger of `LOG` stays installed for the other threads, so tests that run in parallel in one JVM can assert on their own log. The findings of strict mode on that thread reach the capture as well.
 
