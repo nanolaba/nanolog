@@ -21,12 +21,12 @@ public final class NanologChecks {
 
     /**
      * Fails while the sources still call {@code LOG.dbg}, which is meant for temporary debug output:
-     * <pre>{@code
-     * @Test
+     * <pre>
+     * &#64;Test
      * void noDebugPrintsLeft() {
      *     NanologChecks.assertNoDbgCalls("src/main/java");
      * }
-     * }</pre>
+     * </pre>
      * Reads every {@code .java} and {@code .kt} file under the directories, as text, without compiling it, and finds
      * {@code LOG.dbg(...)}, the rate-limited {@code LOG.once().dbg(...)} and {@code LOG.atMostEvery(...).dbg(...)}, the
      * method reference {@code LOG::dbg} and a static import of {@code LOG.dbg}, also split over lines. Comments,
