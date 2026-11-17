@@ -94,7 +94,7 @@ public class LogEntry {
         this.threadName = Thread.currentThread().getName();
         // one read of the thread local for the context and the unit
         Contexts.State state = Contexts.CURRENT.get();
-        this.context = Contexts.pairs(state);
+        this.context = Contents.bind(Contexts.pairs(state), sourceClass);
         this.unit = unitLine ? null : Contexts.unit(state);
         this.unitLine = unitLine;
         this.breadcrumb = false;

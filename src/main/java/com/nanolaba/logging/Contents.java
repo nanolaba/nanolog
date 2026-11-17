@@ -1,6 +1,12 @@
 package com.nanolaba.logging;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -131,6 +137,26 @@ final class Contents {
     }
 
     /**
+     * Binds the payloads among the values of a context to the limit of a class, so that a rule for the package of an
+     * entry applies to its context too.
+     *
+     * @return {@code pairs} itself when it holds no payload, otherwise an unmodifiable copy
+     */
+    static Map<String, Object> bind(Map<String, Object> pairs, Class sourceClass) {
+        Map<String, Object> bound = pairs;
+        for (Map.Entry<String, Object> pair : pairs.entrySet()) {
+            Object value = bind(pair.getValue(), sourceClass);
+            if (value != pair.getValue()) {
+                if (bound == pairs) {
+                    bound = new LinkedHashMap<>(pairs);
+                }
+                bound.put(pair.getKey(), value);
+            }
+        }
+        return bound == pairs ? pairs : Collections.unmodifiableMap(bound);
+    }
+
+    /**
      * Binds a payload, or a field whose value is one, to the limit of a class.
      *
      * @return {@code value} itself when it is neither
@@ -151,11 +177,42 @@ final class Contents {
      */
     static String render(String text, int limit) {
         if (limit == HIDE) {
-            return "[content " + chars(text.length()) + " #" + Units.key(text) + "]";
+            return "[content " + chars(text.length()) + " #" + hash(text) + "]";
         }
         boolean cut = text.length() > limit;
         String shown = escape(cut ? text.substring(0, limit) : text);
         return cut ? shown + "... [+" + chars(text.length() - limit) + "]" : shown;
+    }
+
+    /**
+     * Eight hexadecimal digits of the SHA-256 of a random key of this JVM and the text: equal payloads have equal
+     * hashes within one run, and the log does not give a short payload away to someone who tries candidates.
+     */
+    static String hash(String text) {
+        MessageDigest digest = sha256();
+        digest.update(Key.BYTES);
+        byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+        return String.format(Locale.ROOT, "%02x%02x%02x%02x", bytes[0], bytes[1], bytes[2], bytes[3]);
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            // every Java platform has SHA-256
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * The key of the hashes, made on first use, so that a JVM that hides no payload never seeds a random generator.
+     */
+    private static final class Key {
+        static final byte[] BYTES = new byte[16];
+
+        static {
+            new SecureRandom().nextBytes(BYTES);
+        }
     }
 
     private static String chars(int count) {

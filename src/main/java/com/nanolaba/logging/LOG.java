@@ -1547,10 +1547,12 @@ public class LOG {
      * // with nanolog.content=show:        Prompt to gpt-x: You are a helpful assistant.\nAnswer briefly. ...
      * }</pre>
      * By default a payload is its length and a hash of eight hexadecimal digits, so equal payloads can be told apart
-     * without their text. {@code nanolog.content} is {@code hide}, {@code truncate:<characters>} or {@code show}, and
+     * without their text within one run; the hash is keyed with a random key of the JVM, so the log does not give a
+     * short payload away to someone who tries candidates. {@code nanolog.content} is {@code hide}, {@code truncate:<characters>} or {@code show}, and
      * {@code nanolog.content.<package or class>} sets it for a package or a class, the most specific rule winning, as
      * with levels. Whatever is written of the text has its line breaks and control characters escaped, so a payload
-     * cannot forge a log line. The text is taken when the entry is created. In the {@code "fields"} of
+     * cannot forge a log line. The text is taken when the entry is created, also for a payload in the context of
+     * {@link #context(String, Object)}, which follows the rule of the class of the entry. In the {@code "fields"} of
      * {@link JsonLogger} a hidden payload is {@code {"content_len":1834,"content_hash":"3f2a9c1b"}}.
      *
      * @param value the payload, written like a {@code {}} argument; may be {@code null}

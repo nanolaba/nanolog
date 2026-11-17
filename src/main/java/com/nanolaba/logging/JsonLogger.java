@@ -134,7 +134,7 @@ public class JsonLogger extends ConsoleLogger {
         } else if (value instanceof LOG.Content && ((LOG.Content) value).limit() == Contents.HIDE) {
             String text = ((LOG.Content) value).text();
             out.append("{\"content_len\":").append(text.length()).append(",\"content_hash\":");
-            appendString(out, Units.key(text));
+            appendString(out, Contents.hash(text));
             out.append('}');
         } else if (value instanceof Boolean || isNumber(value)) {
             out.append(value);

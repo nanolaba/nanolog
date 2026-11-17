@@ -18,6 +18,8 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.DEBUG;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ContentTest extends AbstractLoggerTest {
 
     private static final String PROMPT = "You are a helpful assistant.\nAnswer briefly.";
-    private static final String HIDDEN = "[content " + PROMPT.length() + " chars #" + Units.key(PROMPT) + "]";
+    private static final String HIDDEN = "[content " + PROMPT.length() + " chars #" + Contents.hash(PROMPT) + "]";
 
     @BeforeEach
     public void setUp() {
@@ -61,9 +63,9 @@ class ContentTest extends AbstractLoggerTest {
     @Test
     public void testHiddenByDefault() {
         assertEquals("prompt to gpt-x: " + HIDDEN, message(InfoObject.class, "prompt to {}: {}", "gpt-x", content(PROMPT)));
-        assertEquals("[content 1 char #" + Units.key("x") + "]", content("x").toString());
-        assertEquals("[content 0 chars #" + Units.key("") + "]", content("").toString());
-        assertEquals("[content 4 chars #" + Units.key("null") + "]", content(null).toString(), "null is the text null");
+        assertEquals("[content 1 char #" + Contents.hash("x") + "]", content("x").toString());
+        assertEquals("[content 0 chars #" + Contents.hash("") + "]", content("").toString());
+        assertEquals("[content 4 chars #" + Contents.hash("null") + "]", content(null).toString(), "null is the text null");
     }
 
     @Test
@@ -96,6 +98,19 @@ class ContentTest extends AbstractLoggerTest {
         assertEquals("", getErrAndClear());
     }
 
+    @Test
+    public void testTheHashIsKeyedPerJvm() throws Exception {
+        String hash = Contents.hash(PROMPT);
+        assertTrue(hash.matches("[0-9a-f]{8}"), hash);
+        assertEquals(hash, Contents.hash(PROMPT), "equal payloads, equal hashes");
+        assertNotEquals(hash, Contents.hash(PROMPT + " "));
+        assertNotEquals(Units.key(PROMPT), hash, "not the plain hashCode, which a short payload can be found from");
+        byte[] plain = java.security.MessageDigest.getInstance("SHA-256").digest(PROMPT.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertNotEquals(String.format("%02x%02x%02x%02x", plain[0], plain[1], plain[2], plain[3]), hash, "nor an unkeyed digest");
+        assertEquals(Contents.hash(""), Contents.hash(""));
+        assertEquals("0000000a", String.format("%02x%02x%02x%02x", (byte) 0, (byte) 0, (byte) 0, (byte) 10));
+    }
+
     // RULES FOR PACKAGES AND CLASSES
 
     @Test
@@ -107,7 +122,7 @@ class ContentTest extends AbstractLoggerTest {
         set(DefaultLoggerCreator.PROPERTY_CONTENT + ".com.nanolaba.logging.ContentTest$Outer", "truncate:2");
 
         assertEquals("abc... [+3 chars]", message(InfoObject.class, "{}", content("abcdef")));
-        assertEquals("[content 6 chars #" + Units.key("abcdef") + "]", message(ContentTest.class, "{}", content("abcdef")));
+        assertEquals("[content 6 chars #" + Contents.hash("abcdef") + "]", message(ContentTest.class, "{}", content("abcdef")));
         assertEquals("abcdef", message(Outer.Inner.class, "{}", content("abcdef")));
         assertEquals("ab... [+4 chars]", message(Outer.class, "{}", content("abcdef")));
         assertEquals("abcdef", message(String.class, "{}", content("abcdef")), "no rule: the global setting");
@@ -116,6 +131,17 @@ class ContentTest extends AbstractLoggerTest {
 
         set(DefaultLoggerCreator.PROPERTY_CONTENT + ".com.acme", "nonsense");
         assertTrue(getErrAndClear().contains("Invalid value \"nonsense\" of \"nanolog.content.com.acme\""));
+    }
+
+    @Test
+    public void testARuleForAPackageHidesAPayloadOfTheContext() {
+        set(DefaultLoggerCreator.PROPERTY_CONTENT, "show");
+        set(DefaultLoggerCreator.PROPERTY_CONTENT + ".com.nanolaba.logging.util", "hide");
+        try (LOG.Context ignored = LOG.context("prompt", content("secret"))) {
+            assertEquals("[content 6 chars #" + Contents.hash("secret") + "]",
+                         new LogEntry(INFO, InfoObject.class, null, "m").getContext().get("prompt").toString());
+            assertEquals("secret", new LogEntry(INFO, ContentTest.class, null, "m").getContext().get("prompt").toString());
+        }
     }
 
     private static final class Outer {
@@ -132,7 +158,7 @@ class ContentTest extends AbstractLoggerTest {
                                                                                            .setShowSource(false).createLogString(field));
         String json = new JsonLogger().createLogString(field);
         assertTrue(json.contains("\"fields\":{\"prompt\":{\"content_len\":" + PROMPT.length() + ",\"content_hash\":\"" +
-                                 Units.key(PROMPT) + "\"},\"tokens\":12}"), json);
+                                 Contents.hash(PROMPT) + "\"},\"tokens\":12}"), json);
         Map<String, Object> parsed = (Map<String, Object>) ((Map<String, Object>) StrictJson.parseObject(json).get("fields")).get("prompt");
         assertEquals(new BigDecimal(PROMPT.length()), parsed.get("content_len"));
 
@@ -154,7 +180,7 @@ class ContentTest extends AbstractLoggerTest {
         Object[] args = {secret, "plain"};
         LogEntry entry = new LogEntry(INFO, InfoObject.class, null, "{} {}", args);
         assertSame(secret, args[0], "the entry binds a copy");
-        assertEquals("[content 6 chars #" + Units.key("secret") + "] plain", entry.getFormattedMessage());
+        assertEquals("[content 6 chars #" + Contents.hash("secret") + "] plain", entry.getFormattedMessage());
         Object[] plain = {"a", "b"};
         assertSame(plain, new LogEntry(INFO, InfoObject.class, null, "{} {}", plain).getArgs(), "without content nothing is copied");
         assertArrayEquals(new Object[]{"a"}, new LogEntry(INFO, InfoObject.class, null, "{}", (Object) "a").getArgs());
@@ -169,11 +195,17 @@ class ContentTest extends AbstractLoggerTest {
         assertEquals("[a]", entry.getFields().get("items").toString());
         assertSame(entry.getFields().get("items"), entry.snapshot().getFields().get("items"), "a bound content cannot change");
 
-        try (LOG.Context ignored = LOG.context("items", content(items))) {
+        try (LOG.Context ignored = LOG.context("items", content(items)); LOG.Context plain = LOG.context("plain", "text")) {
             LogEntry inContext = new LogEntry(INFO, InfoObject.class, null, "m");
             items.add("c");
-            assertEquals("[a, b, c]", inContext.getContext().get("items").toString(), "the context renders when it is written");
-            assertEquals("[a, b, c]", inContext.snapshot().getContext().get("items"), "a snapshot renders it");
+            assertEquals("[a, b]", inContext.getContext().get("items").toString(), "a payload of the context is bound too");
+            assertSame(inContext.getContext().get("items"), inContext.snapshot().getContext().get("items"));
+            assertEquals(Arrays.asList("items", "plain"), new ArrayList<>(inContext.getContext().keySet()));
+            assertThrows(UnsupportedOperationException.class, () -> inContext.getContext().put("x", 1));
+            assertTrue(Contexts.current().get("items") instanceof LOG.Content, "the context of the thread is left as it is");
+        }
+        try (LOG.Context ignored = LOG.context("plain", "text")) {
+            assertSame(Contexts.current(), new LogEntry(INFO, InfoObject.class, null, "m").getContext(), "nothing to bind, nothing copied");
         }
     }
 
@@ -185,8 +217,8 @@ class ContentTest extends AbstractLoggerTest {
                 throw new IllegalStateException();
             }
         };
-        assertEquals("[content 19 chars #" + Units.key("[FAILED toString()]") + "]", content(broken).toString());
-        assertEquals("[content 19 chars #" + Units.key("[FAILED toString()]") + "]", message(InfoObject.class, "{}", content(broken)));
+        assertEquals("[content 19 chars #" + Contents.hash("[FAILED toString()]") + "]", content(broken).toString());
+        assertEquals("[content 19 chars #" + Contents.hash("[FAILED toString()]") + "]", message(InfoObject.class, "{}", content(broken)));
     }
 
     @Test
@@ -198,7 +230,7 @@ class ContentTest extends AbstractLoggerTest {
             LOG.error("failed");
             assertEquals("prompt hi", memory.getEntries().get(1).getFormattedMessage());
             LOG.info(InfoObject.class, "prompt {}", content("hi"));
-            assertEquals("prompt [content 2 chars #" + Units.key("hi") + "]", memory.getEntries().get(3).getFormattedMessage());
+            assertEquals("prompt [content 2 chars #" + Contents.hash("hi") + "]", memory.getEntries().get(3).getFormattedMessage());
         }
     }
 }
