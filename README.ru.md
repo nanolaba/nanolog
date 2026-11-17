@@ -36,46 +36,6 @@ Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](http
 - **Расширяемый.** Свой бэкенд — это одна лямбда или один класс, реализующий `ILogger`.
 - **Удобен агентам.** Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см. [Агентная разработка](#агентная-разработка).
 
-Вся библиотека целиком:
-
-```
-logging
-├── Agent.java
-├── CallerDetection.java
-├── Colors.java
-├── CompositeLogger.java
-├── ConsoleLogger.java
-├── Dbg.java
-├── DbgSource.java
-├── DefaultLoggerCreator.java
-├── Dump.java
-├── ILevelControl.java
-├── ILogger.java
-├── JsonLogger.java
-├── LOG.java
-├── LogEntry.java
-├── LoggerIntrospection.java
-├── MemoryLogger.java
-├── NanologChecks.java
-├── NanologExtension.java
-├── RunLog.java
-├── Settings.java
-├── ShortStackTrace.java
-├── Slf4jLogger.java
-├── Summary.java
-├── SummaryListener.java
-└── package-info.java
-```
-
-- `LOG` — статическая точка входа со всеми `trace` / `debug` / `info` / `warn` / `error` перегрузками и `dbg`.
-- `ILogger` — точка расширения: один абстрактный метод и необязательный фильтр уровней.
-- `LogEntry` — одна запись лога и форматирование сообщения.
-- `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — встроенные реализации: текст, JSON-строки и мост к SLF4J.
-- `MemoryLogger`, `CompositeLogger` — перехват записей в тестах и отправка записей в несколько логгеров.
-- `DefaultLoggerCreator` — выбирает логгер при старте по системному свойству или файлу настроек.
-- `SummaryListener` — печатает сводку запуска, когда JUnit выполнил тесты; JUnit загружает его сам.
-- `NanologExtension` — расширение JUnit 5, которое печатает лог теста, только если он упал.
-
 Последняя стабильная версия — **1.3**; версия в разработке — **1.4-SNAPSHOT** (см. [Changelog](#changelog)).
 
 ## Содержание

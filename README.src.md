@@ -52,19 +52,6 @@ ${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](http
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
 - **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
-${en:'The whole library:', ru:'Вся библиотека целиком:'}
-
-${widget:fileTree(path='src/main/java/com/nanolaba/logging', depth='1')}
-
-- `LOG` — ${en:'the static entry point with all the', ru:'статическая точка входа со всеми'} `trace` / `debug` / `info` / `warn` / `error` ${en:'overloads', ru:'перегрузками'} ${en:'and', ru:'и'} `dbg`.
-- `ILogger` — ${en:'the extension point: one abstract method plus an optional level filter', ru:'точка расширения: один абстрактный метод и необязательный фильтр уровней'}.
-- `LogEntry` — ${en:'one log record and the message formatter', ru:'одна запись лога и форматирование сообщения'}.
-- `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — ${en:'the bundled implementations: text, JSON lines and the bridge to SLF4J', ru:'встроенные реализации: текст, JSON-строки и мост к SLF4J'}.
-- `MemoryLogger`, `CompositeLogger` — ${en:'capturing entries in tests and sending them to several loggers', ru:'перехват записей в тестах и отправка записей в несколько логгеров'}.
-- `DefaultLoggerCreator` — ${en:'picks the logger at startup from a system property or a properties file', ru:'выбирает логгер при старте по системному свойству или файлу настроек'}.
-- `SummaryListener` — ${en:'prints the run summary when JUnit has run the tests; JUnit loads it by itself', ru:'печатает сводку запуска, когда JUnit выполнил тесты; JUnit загружает его сам'}.
-- `NanologExtension` — ${en:'a JUnit 5 extension that prints the log of a test only when it fails', ru:'расширение JUnit 5, которое печатает лог теста, только если он упал'}.
-
 ${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
 
 ${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true", numbering-style = "dotted", max-depth = "3")}

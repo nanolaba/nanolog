@@ -36,46 +36,6 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
-The whole library:
-
-```
-logging
-├── Agent.java
-├── CallerDetection.java
-├── Colors.java
-├── CompositeLogger.java
-├── ConsoleLogger.java
-├── Dbg.java
-├── DbgSource.java
-├── DefaultLoggerCreator.java
-├── Dump.java
-├── ILevelControl.java
-├── ILogger.java
-├── JsonLogger.java
-├── LOG.java
-├── LogEntry.java
-├── LoggerIntrospection.java
-├── MemoryLogger.java
-├── NanologChecks.java
-├── NanologExtension.java
-├── RunLog.java
-├── Settings.java
-├── ShortStackTrace.java
-├── Slf4jLogger.java
-├── Summary.java
-├── SummaryListener.java
-└── package-info.java
-```
-
-- `LOG` — the static entry point with all the `trace` / `debug` / `info` / `warn` / `error` overloads and `dbg`.
-- `ILogger` — the extension point: one abstract method plus an optional level filter.
-- `LogEntry` — one log record and the message formatter.
-- `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — the bundled implementations: text, JSON lines and the bridge to SLF4J.
-- `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
-- `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
-- `SummaryListener` — prints the run summary when JUnit has run the tests; JUnit loads it by itself.
-- `NanologExtension` — a JUnit 5 extension that prints the log of a test only when it fails.
-
 The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
