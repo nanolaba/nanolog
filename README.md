@@ -53,6 +53,7 @@ logging
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
 ├── NanologChecks.java
+├── Settings.java
 ├── ShortStackTrace.java
 ├── Slf4jLogger.java
 └── package-info.java
@@ -316,7 +317,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
-- **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. See [Levels and options without code](#levels-and-options-without-code).
+- **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. A mistyped setting is reported with the key it was probably meant to be, so a wrong name does not pass for a working one. See [Levels and options without code](#levels-and-options-without-code).
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement. Through SLF4J, the backend's own `%file:%line` reports the same call site.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
@@ -381,7 +382,7 @@ The default `ConsoleLogger` can be replaced in three ways:
 
    When `LOG` initialises, the keys of the file with the `nanolog.` prefix are copied
    into system properties without overwriting the ones already set via `-D` or an environment variable.
-   Other keys are ignored. The file path can be overridden with the `nanolog.config` property.
+   Other keys are ignored, and each one is reported (see below). The file path can be overridden with the `nanolog.config` property.
 
 Every property can also be set as an environment variable: upper case, dots replaced by underscores, so `nanolog.logger` becomes `NANOLOG_LOGGER`.
 Precedence, highest first: `LOG.init(logger)` → `-Dnanolog.logger` → `NANOLOG_LOGGER` → `nanolog.properties` → `ConsoleLogger`.
@@ -398,6 +399,16 @@ A no-argument `LOG.init()` re-reads the property and the file.
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
 `[NANOLOG]`-prefixed diagnostic to `System.err` and carries on with `ConsoleLogger`.
+
+A setting that **Nanolog** does not know is reported, not ignored without a word. When `LOG` initialises, each unknown `nanolog.*` system property, `NANOLOG_*` environment variable and key of `nanolog.properties` prints one `[NANOLOG]` line, with a suggestion when a known key differs by a typo or two:
+
+```
+[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?
+[NANOLOG] Unknown environment variable NANOLOG_LEVEL_COM_ACME; per-package levels go into NANOLOG_LEVELS=com.acme=DEBUG
+[NANOLOG] "level" in file:/app/classes/nanolog.properties is ignored: keys must start with "nanolog." (did you mean "nanolog.level"?)
+```
+
+`nanolog.console.*`, `nanolog.exception.*`, `nanolog.level.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
 
 > [!IMPORTANT]
 > `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code.
@@ -468,7 +479,7 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - The most specific rule wins: the class itself, then its enclosing classes, then its packages from the innermost outwards. A rule matches whole name segments only, so `com.acme.pay` does not cover `com.acme.payments`.
 - `nanolog.level.<name>` beats an item for the same name in `nanolog.levels`.
 - Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.
-- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on. A diagnostic is always one line: control characters in the value it repeats are printed as escapes such as `\u000a`.
+- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on. So does an unknown key, with the known key it was probably meant to be (`did you mean "nanolog.level"?`). A diagnostic is always one line: control characters in the value it repeats are printed as escapes such as `\u000a`.
 - `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
 
 ### Changing levels at run time
@@ -807,6 +818,7 @@ dependencies {
 - `LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.
 - Objects whose class has no `toString()` of its own are printed field by field instead of `Invoice@2f92e0f4`: always in `LOG.dbg`, and in `{}` arguments with `nanolog.dump=auto`. Classes of the JDK are never reflected into, so nothing needs `--add-opens` on JDK 17+; cycles, depth, items and string length are limited, and every cut says what it left out; fields named like secrets print `***`; records show their components, proxies only their class name.
 - Leftover `LOG.dbg` calls are easy to get rid of: when the JVM exits, one `[NANOLOG]` line lists the call sites that printed; `nanolog.dbg=off` silences the calls, `nanolog.dbg=fail` reports each one as a diagnostic that fails `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` fails a test while the sources call `LOG.dbg`, with the file, line and code of each call. `MemoryLogger.assertNoDiagnostics()` now says `Nanolog reported` instead of `strict mode reported`.
+- Settings that Nanolog does not know are reported when `LOG` initialises instead of being ignored: a mistyped `nanolog.*` system property, `NANOLOG_*` environment variable or key of `nanolog.properties` prints `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`, a key of the file without the `nanolog.` prefix is reported as ignored, and `NANOLOG_LEVEL_COM_ACME` points to `NANOLOG_LEVELS`. Keys of a custom logger under a namespace of its own are left alone.
 
 ### 1.3
 

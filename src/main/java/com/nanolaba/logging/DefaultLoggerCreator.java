@@ -2,16 +2,22 @@ package com.nanolaba.logging;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Chooses the logger that {@link LOG} starts with, and reads the settings of Nanolog.
  * <p>
  * Settings are looked up in system properties first, then in environment variables (upper case, dots replaced by
  * underscores: {@code nanolog.logger} is {@code NANOLOG_LOGGER}), then in {@code nanolog.properties} on the classpath.
- * The file contributes only keys with the {@code nanolog.} prefix, and only those not set otherwise.
+ * The file contributes only keys with the {@code nanolog.} prefix, and only those not set otherwise. Keys that Nanolog
+ * does not know are reported with a {@code [NANOLOG]} line when the default logger is created.
  */
 public class DefaultLoggerCreator {
 
@@ -67,6 +73,12 @@ public class DefaultLoggerCreator {
      * The source of environment variables; replaced in tests, since a JVM cannot change its own environment.
      */
     static Function<String, String> environment = System::getenv;
+
+    /**
+     * The names of the environment variables, for the check of unknown settings; values are still read through
+     * {@link #environment}, and a name it does not know is skipped. Replaced in tests together with it.
+     */
+    static Supplier<Set<String>> environmentNames = () -> System.getenv().keySet();
 
     private DefaultLoggerCreator() {
     }
@@ -162,8 +174,8 @@ public class DefaultLoggerCreator {
     }
 
     /**
-     * Loads {@code nanolog.properties}, then creates the logger named by {@value #PROPERTY_LOGGER_CLASS}, or a
-     * {@link ConsoleLogger}. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
+     * Loads {@code nanolog.properties} and reports the settings Nanolog does not know, then creates the logger named by
+     * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
      * {@code ConsoleLogger}.
      *
      * @return the new logger
@@ -195,9 +207,10 @@ public class DefaultLoggerCreator {
         if (classLoader == null) {
             classLoader = DefaultLoggerCreator.class.getClassLoader();
         }
-        if (classLoader.getResource(config) != null) {
+        URL resource = classLoader.getResource(config);
+        Properties props = new Properties();
+        if (resource != null) {
             try (InputStream stream = classLoader.getResourceAsStream(config)) {
-                Properties props = new Properties();
                 props.load(stream);
                 props.forEach((name, value) -> {
                     String key = (String) name;
@@ -213,5 +226,49 @@ public class DefaultLoggerCreator {
         } else if (!config.equals(DEFAULT_CONFIGURATION_FILE)) {
             System.err.printf("[NANOLOG] Property \"%s\" has been defined, but the file \"%s\" cannot be found %n", PROPERTY_LOGGER_CONFIG_FILE, config);
         }
+        reportUnknownSettings(props, String.valueOf(resource));
+    }
+
+    /**
+     * Prints a diagnostic for each setting Nanolog does not know: a mistyped key would otherwise be ignored without a
+     * word. A failure, such as a security manager that forbids reading the environment, skips the check.
+     *
+     * @param file     the keys of the configuration file, empty without one
+     * @param location where the file was found
+     */
+    private static void reportUnknownSettings(Properties file, String location) {
+        try {
+            Map<String, String> environmentVariables = new HashMap<>();
+            for (String name : environmentNames.get()) {
+                String value = environment.apply(name);
+                if (value != null) {
+                    environmentVariables.put(name, value);
+                }
+            }
+            for (String finding : Settings.findings(nanologProperties(System.getProperties()), environmentVariables,
+                                                    toMap(file), location)) {
+                printDiagnostic(finding);
+            }
+        } catch (RuntimeException e) {
+            // the check is a convenience: logging starts without it
+        }
+    }
+
+    private static Map<String, String> nanologProperties(Properties properties) {
+        Map<String, String> result = new HashMap<>();
+        for (String key : properties.stringPropertyNames()) {
+            if (key.startsWith(PROPERTY_PREFIX)) {
+                result.put(key, properties.getProperty(key));
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, String> toMap(Properties properties) {
+        Map<String, String> result = new HashMap<>();
+        for (String key : properties.stringPropertyNames()) {
+            result.put(key, properties.getProperty(key));
+        }
+        return result;
     }
 }

@@ -81,6 +81,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
 - `-Dnanolog.dump=auto` *1.4+*: `{}` arguments whose class has no `toString()` of its own print field by field, as in `LOG.dbg`, instead of `Order@2f92e0f4`; values with a `toString()` print as before.
 - `-Dnanolog.dbg=off` *1.4+* silences every `LOG.dbg` call, as in production; `-Dnanolog.dbg=fail` still prints them and reports each one, so `MemoryLogger.assertNoDiagnostics()` fails.
+- A mistyped key is reported when `LOG` initialises *1.4+*: `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`. Read the `[NANOLOG]` lines on `System.err` before trusting the output. Per-package levels from the environment go into `NANOLOG_LEVELS`; `NANOLOG_LEVEL_COM_ACME` does nothing.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a template an earlier test met first.
 
 ## Changing levels at run time *1.3+*
