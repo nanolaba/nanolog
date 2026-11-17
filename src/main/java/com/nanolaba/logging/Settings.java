@@ -16,7 +16,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.*;
  * without a word, and the output it should have changed looks plausible.
  * <p>
  * {@code nanolog.console.*}, {@code nanolog.exception.*}, {@code nanolog.level.*}, {@code nanolog.run.*},
- * {@code nanolog.unit.*}, {@code nanolog.buffer.*} and the keys directly under
+ * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*} and the keys directly under
  * {@code nanolog.} belong to Nanolog, so an unknown key there is reported. A custom logger keeps settings of its own
  * under a namespace of its own, such as {@code nanolog.mylogger.url}; such a key is reported only when it is one or two
  * edits away from a known one.
@@ -31,7 +31,7 @@ final class Settings {
             PROPERTY_LOGGER_CLASS, PROPERTY_LOGGER_CONFIG_FILE, PROPERTY_LEVEL, PROPERTY_LEVELS, PROPERTY_STRICT,
             PROPERTY_SOURCES, PROPERTY_DUMP, PROPERTY_DBG, PROPERTY_AGENT, PROPERTY_SUMMARY, PROPERTY_JUNIT_OUTPUT,
             PROPERTY_RUN, PROPERTY_RUN_DIR, PROPERTY_RUN_FORMAT, PROPERTY_RUN_KEEP, PROPERTY_RUN_MAX_SIZE,
-            PROPERTY_UNIT_SAMPLE, PROPERTY_UNIT_SLOW_MS, PROPERTY_BUFFER, PROPERTY_BUFFER_SIZE,
+            PROPERTY_UNIT_SAMPLE, PROPERTY_UNIT_SLOW_MS, PROPERTY_BUFFER, PROPERTY_BUFFER_SIZE, PROPERTY_CONTENT,
             ConsoleLogger.PROPERTY_SHOW_LEVEL, ConsoleLogger.PROPERTY_SHOW_DATE, ConsoleLogger.PROPERTY_SHOW_SOURCE,
             ConsoleLogger.PROPERTY_SHOW_SOURCE_FULL_NAME, ConsoleLogger.PROPERTY_SHOW_LOCATION,
             ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_SHOW_CONTEXT, ConsoleLogger.PROPERTY_STREAM,
@@ -43,10 +43,11 @@ final class Settings {
     /**
      * The namespaces whose every key belongs to Nanolog.
      */
-    private static final List<String> NAMESPACES = Arrays.asList("buffer", "console", "exception", "junit", "level", "run", "unit");
+    private static final List<String> NAMESPACES = Arrays.asList("buffer", "console", "content", "exception", "junit", "level", "run", "unit");
 
     private static final String LEVEL = "level";
     private static final String LEVEL_RULE = PROPERTY_LEVEL + ".";
+    private static final String CONTENT_RULE = PROPERTY_CONTENT + ".";
     private static final String VARIABLE_PREFIX = toEnvironmentName(PROPERTY_PREFIX);
     private static final String LEVEL_VARIABLE = toEnvironmentName(LEVEL_RULE);
 
@@ -128,7 +129,7 @@ final class Settings {
     }
 
     private static boolean isKnown(String key) {
-        return KNOWN.contains(key) || key.startsWith(LEVEL_RULE);
+        return KNOWN.contains(key) || key.startsWith(LEVEL_RULE) || key.startsWith(CONTENT_RULE);
     }
 
     /**

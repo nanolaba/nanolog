@@ -107,6 +107,12 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_UNIT_SLOW_MS = PROPERTY_PREFIX + "unit.slowMs";
     /**
+     * How much of a payload of {@code LOG.content(...)} is written: {@code hide}, the default, only its length and
+     * hash; {@code truncate:<characters>} its start; {@code show} all of it. {@code nanolog.content.<package or class>}
+     * sets it for a package or a class.
+     */
+    public static final String PROPERTY_CONTENT = PROPERTY_PREFIX + "content";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */

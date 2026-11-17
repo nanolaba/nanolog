@@ -1,0 +1,185 @@
+package com.nanolaba.logging;
+
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_CONTENT;
+import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
+import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
+
+/**
+ * The payloads of {@link LOG#content(Object)}: how much of them is written, by {@code nanolog.content} and its rules
+ * for packages and classes, {@code nanolog.content.<package or class>}. Hidden, a payload is its length and hash;
+ * truncated, its start; shown, all of it. What is written of the text is always escaped, so a payload cannot forge a
+ * line.
+ */
+final class Contents {
+
+    /**
+     * The limit that writes no text, only the length and the hash.
+     */
+    static final int HIDE = -1;
+
+    /**
+     * The limit that writes all of the text.
+     */
+    static final int SHOW = Integer.MAX_VALUE;
+
+    private static final String RULE_PREFIX = PROPERTY_CONTENT + ".";
+
+    /**
+     * The limit without a rule, from {@code nanolog.content}; read by {@link LOG#init()}.
+     */
+    static volatile int defaultLimit = HIDE;
+
+    /**
+     * The limits of the rules by package or class name; never modified, replaced by {@link #configure()}.
+     */
+    private static volatile Map<String, Integer> rules = new HashMap<>();
+
+    private Contents() {/**/}
+
+    /**
+     * Reads {@code nanolog.content} and the system properties {@code nanolog.content.<package or class>}, which
+     * include the keys of {@code nanolog.properties}.
+     */
+    static void configure() {
+        String value = getProperty(PROPERTY_CONTENT);
+        Integer limit = value == null ? null : parse(PROPERTY_CONTENT, value);
+        defaultLimit = limit == null ? HIDE : limit;
+        Map<String, Integer> read = new HashMap<>();
+        for (String key : System.getProperties().stringPropertyNames()) {
+            if (key.startsWith(RULE_PREFIX)) {
+                Integer rule = parse(key, System.getProperty(key));
+                if (rule != null) {
+                    read.put(key.substring(RULE_PREFIX.length()), rule);
+                }
+            }
+        }
+        rules = read;
+    }
+
+    /**
+     * Parses {@code hide}, {@code show} or {@code truncate:<characters>}, ignoring case and spaces.
+     *
+     * @return the limit; {@code null}, after a diagnostic, for an invalid value
+     */
+    private static Integer parse(String property, String value) {
+        String mode = value.trim().toLowerCase(Locale.ROOT);
+        if (mode.equals("hide")) {
+            return HIDE;
+        } else if (mode.equals("show")) {
+            return SHOW;
+        } else if (mode.startsWith("truncate:")) {
+            try {
+                int characters = Integer.parseInt(mode.substring("truncate:".length()).trim());
+                if (characters > 0) {
+                    return characters;
+                }
+            } catch (NumberFormatException e) {
+                // reported below
+            }
+        }
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected hide, show or truncate:<characters>");
+        return null;
+    }
+
+    /**
+     * The limit for the entries of a class: the rule of the class, of its enclosing classes, then of its packages
+     * from the innermost, or else {@code nanolog.content}.
+     */
+    static int limit(Class sourceClass) {
+        if (sourceClass != null) {
+            Map<String, Integer> current = rules;
+            String name = sourceClass.getName();
+            while (true) {
+                Integer limit = current.get(name);
+                if (limit != null) {
+                    return limit;
+                }
+                int cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
+                if (cut == -1) {
+                    break;
+                }
+                name = name.substring(0, cut);
+            }
+        }
+        return defaultLimit;
+    }
+
+    /**
+     * Binds the payloads among the arguments of an entry to the limit of its class: a payload, or a field whose value
+     * is one. The array of the caller is left as it is.
+     *
+     * @return {@code args} itself when it holds no payload
+     */
+    static Object[] bind(Object[] args, Class sourceClass) {
+        Object[] bound = args;
+        if (args != null) {
+            for (int i = 0; i < args.length; i++) {
+                Object argument = bind(args[i], sourceClass);
+                if (argument != args[i]) {
+                    if (bound == args) {
+                        bound = args.clone();
+                    }
+                    bound[i] = argument;
+                }
+            }
+        }
+        return bound;
+    }
+
+    /**
+     * Binds a payload, or a field whose value is one, to the limit of a class.
+     *
+     * @return {@code value} itself when it is neither
+     */
+    static Object bind(Object value, Class sourceClass) {
+        if (value instanceof LOG.Content) {
+            return ((LOG.Content) value).bind(sourceClass);
+        } else if (value instanceof LOG.Field && ((LOG.Field) value).getValue() instanceof LOG.Content) {
+            LOG.Field field = (LOG.Field) value;
+            return LOG.kv(field.getKey(), ((LOG.Content) field.getValue()).bind(sourceClass));
+        }
+        return value;
+    }
+
+    /**
+     * The text of a payload as a logger writes it: {@code [content 1834 chars #3f2a9c1b]} when hidden, otherwise the
+     * text, escaped, cut to the limit with {@code ... [+1754 chars]}.
+     */
+    static String render(String text, int limit) {
+        if (limit == HIDE) {
+            return "[content " + chars(text.length()) + " #" + Units.key(text) + "]";
+        }
+        boolean cut = text.length() > limit;
+        String shown = escape(cut ? text.substring(0, limit) : text);
+        return cut ? shown + "... [+" + chars(text.length() - limit) + "]" : shown;
+    }
+
+    private static String chars(int count) {
+        return count + (count == 1 ? " char" : " chars");
+    }
+
+    /**
+     * Line breaks as {@code \r} and {@code \n}, other control characters and U+2028/U+2029 as {@code \u001b}; a tab
+     * stays.
+     */
+    static String escape(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n') {
+                result.append("\\n");
+            } else if (c == '\r') {
+                result.append("\\r");
+            } else if (c != '\t' && (Character.isISOControl(c) || c == ' ' || c == ' ')) {
+                result.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+}

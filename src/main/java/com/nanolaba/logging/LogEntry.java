@@ -83,6 +83,9 @@ public class LogEntry {
 
     private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
                      long skippedCount, String callerBoundary, boolean dbg, boolean unitLine) {
+        // payloads take their text and the limit of the class now
+        message = Contents.bind(message, sourceClass);
+        args = Contents.bind(args, sourceClass);
         this.level = level;
         this.sourceClass = sourceClass;
         this.caller = caller;
@@ -326,8 +329,8 @@ public class LogEntry {
 
     /**
      * A copy to hold back in the buffer of {@code nanolog.buffer}: the arguments, fields and context rendered to text,
-     * as a {@code {}} argument would be, except {@code null}, strings, booleans, characters and the numbers of the JDK,
-     * which cannot change; text longer than {@link Breadcrumbs#MAX_CHARS} cut. The time, thread, call site and
+     * as a {@code {}} argument would be, except {@code null}, strings, booleans, characters, the numbers of the JDK and
+     * the payloads of {@code LOG.content(...)} bound to an entry, which cannot change; text longer than {@link Breadcrumbs#MAX_CHARS} cut. The time, thread, call site and
      * exception stay those of this entry.
      */
     LogEntry snapshot() {
@@ -376,7 +379,8 @@ public class LogEntry {
             return LOG.kv(((LOG.Field) value).getKey(), snapshotOf(((LOG.Field) value).getValue()));
         } else if (value instanceof String) {
             return cut((String) value);
-        } else if (value == null || value instanceof Boolean || value instanceof Character || JsonLogger.isNumber(value)) {
+        } else if (value == null || value instanceof Boolean || value instanceof Character || JsonLogger.isNumber(value) ||
+                   value instanceof LOG.Content && ((LOG.Content) value).isBound()) {
             return value;
         }
         return cut(argToString(value));

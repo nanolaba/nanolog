@@ -124,12 +124,18 @@ public class JsonLogger extends ConsoleLogger {
 
     /**
      * Appends a value with its JSON type: numbers of the JDK's number classes and booleans as they are, {@code null}
-     * as {@code null}, everything else as a string written like a {@code {}} argument. {@code NaN} and the
+     * as {@code null}, a hidden payload of {@code LOG.content(...)} as an object with its length and hash, everything
+     * else as a string written like a {@code {}} argument. {@code NaN} and the
      * infinities, which JSON has no numbers for, become strings.
      */
     static void appendValue(StringBuilder out, Object value) {
         if (value == null) {
             out.append("null");
+        } else if (value instanceof LOG.Content && ((LOG.Content) value).limit() == Contents.HIDE) {
+            String text = ((LOG.Content) value).text();
+            out.append("{\"content_len\":").append(text.length()).append(",\"content_hash\":");
+            appendString(out, Units.key(text));
+            out.append('}');
         } else if (value instanceof Boolean || isNumber(value)) {
             out.append(value);
         } else {

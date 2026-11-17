@@ -65,20 +65,21 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 9 [Message formatting](#message-formatting)
 	- 9.1 [Fields: named arguments](#fields-named-arguments)
 	- 9.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 10 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
-- 11 [Rate limiting](#rate-limiting)
-- 12 [Caller detection](#caller-detection)
-- 13 [Writing your own logger](#writing-your-own-logger)
-- 14 [Thread safety and performance](#thread-safety-and-performance)
-- 15 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 16 [Changelog](#changelog)
-	- 16.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 16.2 [1.3](#13)
-	- 16.3 [1.2](#12)
-	- 16.4 [1.1](#11)
-	- 16.5 [1.0](#10)
-- 17 [Contributing](#contributing)
-- 18 [License](#license)
+- 10 [Logging payloads safely](#logging-payloads-safely)
+- 11 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+- 12 [Rate limiting](#rate-limiting)
+- 13 [Caller detection](#caller-detection)
+- 14 [Writing your own logger](#writing-your-own-logger)
+- 15 [Thread safety and performance](#thread-safety-and-performance)
+- 16 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 17 [Changelog](#changelog)
+	- 17.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 17.2 [1.3](#13)
+	- 17.3 [1.2](#12)
+	- 17.4 [1.1](#11)
+	- 17.5 [1.0](#10)
+- 18 [Contributing](#contributing)
+- 19 [License](#license)
 
 
 ## Installation
@@ -165,6 +166,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info(throwable, "... {} ...", args)` | exception plus a parameterized message |
 | `LOG.info("... {} ...", args, throwable)` | the SLF4J order: a trailing exception that no `{}` consumes becomes the exception of the entry |
 | `LOG.info("Payment accepted", LOG.kv("orderId", id))` | a named argument: `orderId=A-17` after the message, a field in JSON; in a `{}` it prints its value, see [Fields](#fields-named-arguments) |
+| `LOG.debug("Prompt: {}", LOG.content(prompt))` | a payload written as its length and hash unless `nanolog.content` shows it, see [Logging payloads safely](#logging-payloads-safely) |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | change the global level or the level of a package while the application runs, see [Changing levels at run time](#changing-levels-at-run-time) |
@@ -509,6 +511,8 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.unit.slowMs` | the duration in milliseconds from which a unit is slow and always written | not set |
 | `nanolog.buffer` | `TRACE`, `DEBUG`, `INFO` or `WARN`: entries at that level and below are held back and written only before an `ERROR`, see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails) | `off` |
 | `nanolog.buffer.size` | how many entries the buffer keeps per thread or unit, the newest | `200` |
+| `nanolog.content` | how much of a payload of `LOG.content(...)` is written: `hide`, `truncate:<characters>` or `show`, see [Logging payloads safely](#logging-payloads-safely) | `hide` |
+| `nanolog.content.<package or class>` | the same for one package or class; the most specific rule wins | — |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
@@ -871,6 +875,27 @@ void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
 - Without strict mode there is nothing to report and `assertNoDiagnostics()` passes, so switch it on for the test run as above.
 - `nanolog.dbg=fail` reports `LOG.dbg` calls the same way, see [Leftover calls](#leftover-calls).
 
+## Logging payloads safely
+
+Prompts and responses of a language model, request bodies and documents are either not logged at all or logged raw, keys pasted into them included. `LOG.content(value)` is the middle ground: the text in development, a summary in production.
+
+```java
+LOG.debug("Prompt to {}: {}", model, LOG.content(prompt));
+// by default:                     Prompt to gpt-x: [content 1834 chars #3f2a9c1b]
+// -Dnanolog.content=truncate:20:  Prompt to gpt-x: You are a helpful as... [+1814 chars]
+// -Dnanolog.content=show:         Prompt to gpt-x: You are a helpful assistant.\nAnswer briefly. ...
+
+LOG.info("Answer received", LOG.kv("answer", LOG.content(answer)), LOG.kv("tokens", 812));
+// JSON: "fields":{"answer":{"content_len":5120,"content_hash":"9c41d2e7"},"tokens":812}
+```
+
+- **By default** a payload is its length and a hash of eight hexadecimal digits. Equal payloads have equal hashes, so a repeated prompt or a retry is recognised without its text. Java AI frameworks keep prompt content out of the logs by default for the same reason, and the logs a coding agent reads are sent to its model provider.
+- **`nanolog.content`** (`NANOLOG_CONTENT`) is `hide`, `truncate:<characters>` or `show`, and `nanolog.content.<package or class>` sets it for one package or class, the most specific rule winning, as with levels: `-Dnanolog.content.com.acme.llm=show` shows the prompts of one package while you debug. Rules for packages are system properties or keys of `nanolog.properties`.
+- **Escaped.** Whatever is written of the text has its line breaks and control characters escaped, `\n` and `\u001b`, so a pasted payload cannot forge a log line; a tab stays.
+- **Taken once.** The text is taken when the entry is created, with the guarded `toString()` of a `{}` argument, so a payload that changes later or breaks its `toString()` changes nothing.
+- **JSON.** In `"fields"` and `"context"` a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`; `message` and `args` hold the text as the console writes it.
+- **Not a secret filter.** A shown payload is written as it is, keys and passwords inside it included.
+
 ## Context: tag the lines of one request
 
 `LOG.context(key, value)` adds a pair to every entry the current thread logs until the scope is closed, so the lines of one request, job or test are found together, with `grep requestId=r-17` or by an agent reading the log:
@@ -1040,6 +1065,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Payloads: `LOG.content(prompt)` writes a prompt, a response or a request body as `[content 1834 chars #3f2a9c1b]`, its length and a hash, unless `nanolog.content=truncate:<characters>` or `show` says otherwise, for all classes or, through `nanolog.content.<package or class>`, for some. The text is taken when the entry is created and always escaped against forged lines; in JSON fields a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`.
 - Breadcrumbs: `nanolog.buffer=DEBUG` holds `DEBUG` and `TRACE` entries back, the newest 200 per thread (`nanolog.buffer.size`), and writes them before the next `ERROR` under `--- 37 earlier DEBUG entries ---`; inside `LOG.unit` the unit drops them when it succeeds and writes them after its line when it fails. Held-back levels count as enabled, entries are snapshots with the time of their call, and `JsonLogger` marks them `"breadcrumb":true`.
 - Wide events: `LOG.unit("checkout")` opens a unit of work that writes one canonical log line per request or job when it closes, `checkout ok 182 ms orderId=A-17 warn=1`: the outcome (`ok`, `error`, `interrupted`), the duration, the fields of `put(...)`, the counts of warnings and errors logged inside it and, for a failed unit, `error.type`, `error.message` and an `error.key` that stays the same between runs. Units nest (`parent=`), cross executors with `LOG.wrap`, are written as `interrupted` when the run ends while they are open, and `nanolog.unit.sample` / `nanolog.unit.slowMs` sample the fast successful ones; `run(...)` and `LOG.unit(name, body)` record a thrown exception.
 - Fields: `LOG.kv("orderId", id)` names an argument. In a `{}` it prints its value; without one `ConsoleLogger` and `Slf4jLogger` append `orderId=A-17` to the message and strict mode does not count it. `JsonLogger` writes every field into a `"fields"` object whose numbers and booleans keep their type, so `jq` selects entries by them, and `LogEntry.getFields()` gives them to any logger.

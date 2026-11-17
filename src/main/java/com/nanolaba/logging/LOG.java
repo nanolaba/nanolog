@@ -91,7 +91,7 @@ public class LOG {
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
      * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
-     * {@code nanolog.unit.*} and {@code nanolog.buffer.*}. Called once when the
+     * {@code nanolog.unit.*}, {@code nanolog.buffer.*} and {@code nanolog.content.*}. Called once when the
      * class initialises.
      */
     public static void init() {
@@ -106,6 +106,7 @@ public class LOG {
         Summary.mode = DefaultLoggerCreator.readSummaryMode(agent);
         Units.configure();
         Breadcrumbs.configure();
+        Contents.configure();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -1475,6 +1476,88 @@ public class LOG {
         if (isEnabled(current, level, sourceClass)) {
             write(current, LogEntry.createUnitLine(level, sourceClass, frame, throwable, args));
         }
+    }
+
+    // PAYLOADS
+
+    /**
+     * A payload of a logging call, made by {@link LOG#content(Object)}: a prompt, a response, a request body, a
+     * document. Written as its length and hash unless {@code nanolog.content} shows it.
+     */
+    public static final class Content {
+
+        private final Object value;
+        /**
+         * The text, taken when the payload was bound to an entry; {@code null} before.
+         */
+        private final String text;
+        private final int limit;
+
+        private Content(Object value, String text, int limit) {
+            this.value = value;
+            this.text = text;
+            this.limit = limit;
+        }
+
+        /**
+         * This payload bound to the limit of the class of an entry, with its text taken now, so that the entry keeps
+         * what the value was when it was logged; a bound payload stays as it is.
+         */
+        Content bind(Class sourceClass) {
+            return isBound() ? this : new Content(null, LogEntry.argToString(value), Contents.limit(sourceClass));
+        }
+
+        boolean isBound() {
+            return text != null;
+        }
+
+        /**
+         * The text of the value, as a {@code {}} argument writes it.
+         */
+        String text() {
+            return isBound() ? text : LogEntry.argToString(value);
+        }
+
+        /**
+         * The limit of the class of the entry, or of {@code nanolog.content} for a payload outside an entry.
+         */
+        int limit() {
+            return isBound() ? limit : Contents.defaultLimit;
+        }
+
+        /**
+         * The payload as loggers write it: {@code [content 1834 chars #3f2a9c1b]} when hidden, the start of the text
+         * with {@code ... [+1754 chars]} when truncated, all of it when shown; line breaks and control characters
+         * escaped. Never throws.
+         *
+         * @return the text to write
+         */
+        @Override
+        public String toString() {
+            return Contents.render(text(), limit());
+        }
+    }
+
+    /**
+     * Marks a payload, such as an LLM prompt, a response or a request body, so that the log shows it only on purpose:
+     * <pre>{@code
+     * LOG.debug("Prompt to {}: {}", model, LOG.content(prompt));
+     * // by default:                       Prompt to gpt-x: [content 1834 chars #3f2a9c1b]
+     * // with nanolog.content=truncate:20: Prompt to gpt-x: You are a helpful as... [+1814 chars]
+     * // with nanolog.content=show:        Prompt to gpt-x: You are a helpful assistant.\nAnswer briefly. ...
+     * }</pre>
+     * By default a payload is its length and a hash of eight hexadecimal digits, so equal payloads can be told apart
+     * without their text. {@code nanolog.content} is {@code hide}, {@code truncate:<characters>} or {@code show}, and
+     * {@code nanolog.content.<package or class>} sets it for a package or a class, the most specific rule winning, as
+     * with levels. Whatever is written of the text has its line breaks and control characters escaped, so a payload
+     * cannot forge a log line. The text is taken when the entry is created. In the {@code "fields"} of
+     * {@link JsonLogger} a hidden payload is {@code {"content_len":1834,"content_hash":"3f2a9c1b"}}.
+     *
+     * @param value the payload, written like a {@code {}} argument; may be {@code null}
+     * @return the argument to pass to a logging method, or to {@link #kv(String, Object)} as a value
+     */
+    public static Content content(Object value) {
+        return new Content(value, null, 0);
     }
 
     // RATE LIMITING
