@@ -23,6 +23,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 
 ## Why Nanolog
 
+- **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -40,6 +41,8 @@ logging
 ├── CallerDetection.java
 ├── CompositeLogger.java
 ├── ConsoleLogger.java
+├── Dbg.java
+├── DbgSource.java
 ├── DefaultLoggerCreator.java
 ├── ILevelControl.java
 ├── ILogger.java
@@ -53,7 +56,7 @@ logging
 └── package-info.java
 ```
 
-- `LOG` — the static entry point with all the `trace` / `debug` / `info` / `warn` / `error` overloads.
+- `LOG` — the static entry point with all the `trace` / `debug` / `info` / `warn` / `error` overloads and `dbg`.
 - `ILogger` — the extension point: one abstract method plus an optional level filter.
 - `LogEntry` — one log record and the message formatter.
 - `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — the bundled implementations: text, JSON lines and the bridge to SLF4J.
@@ -66,31 +69,32 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 1 [Installation](#installation)
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
-- 3 [Agent-driven development](#agent-driven-development)
-	- 3.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
-- 4 [Choosing a logger](#choosing-a-logger)
-	- 4.1 [ConsoleLogger](#consolelogger)
-	- 4.2 [Levels and options without code](#levels-and-options-without-code)
-	- 4.3 [Changing levels at run time](#changing-levels-at-run-time)
-	- 4.4 [Shorter stack traces](#shorter-stack-traces)
-	- 4.5 [JsonLogger](#jsonlogger)
-	- 4.6 [Slf4jLogger](#slf4jlogger)
-	- 4.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
-- 5 [Message formatting](#message-formatting)
-	- 5.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 6 [Rate limiting](#rate-limiting)
-- 7 [Caller detection](#caller-detection)
-- 8 [Writing your own logger](#writing-your-own-logger)
-- 9 [Thread safety and performance](#thread-safety-and-performance)
-- 10 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 11 [Changelog](#changelog)
-	- 11.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 11.2 [1.3](#13)
-	- 11.3 [1.2](#12)
-	- 11.4 [1.1](#11)
-	- 11.5 [1.0](#10)
-- 12 [Contributing](#contributing)
-- 13 [License](#license)
+- 3 [Print debugging: `LOG.dbg` prints the expression and its value](#print-debugging-logdbg-prints-the-expression-and-its-value)
+- 4 [Agent-driven development](#agent-driven-development)
+	- 4.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
+- 5 [Choosing a logger](#choosing-a-logger)
+	- 5.1 [ConsoleLogger](#consolelogger)
+	- 5.2 [Levels and options without code](#levels-and-options-without-code)
+	- 5.3 [Changing levels at run time](#changing-levels-at-run-time)
+	- 5.4 [Shorter stack traces](#shorter-stack-traces)
+	- 5.5 [JsonLogger](#jsonlogger)
+	- 5.6 [Slf4jLogger](#slf4jlogger)
+	- 5.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+- 6 [Message formatting](#message-formatting)
+	- 6.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
+- 7 [Rate limiting](#rate-limiting)
+- 8 [Caller detection](#caller-detection)
+- 9 [Writing your own logger](#writing-your-own-logger)
+- 10 [Thread safety and performance](#thread-safety-and-performance)
+- 11 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 12 [Changelog](#changelog)
+	- 12.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 12.2 [1.3](#13)
+	- 12.3 [1.2](#12)
+	- 12.4 [1.1](#11)
+	- 12.5 [1.0](#10)
+- 13 [Contributing](#contributing)
+- 14 [License](#license)
 
 
 ## Installation
@@ -180,11 +184,36 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
 | `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | change the global level or the level of a package while the application runs, see [Changing levels at run time](#changing-levels-at-run-time) |
 | `LOG.withLevel("com.acme", level)` | the same for a `try` block, restored at its end |
+| `LOG.dbg(expression)` | print the expression, its value and the call site, and return the value, see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value) |
 | `LOG.once().warn(...)` | log a statement only the first time it runs, see [Rate limiting](#rate-limiting) |
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
+
+## Print debugging: `LOG.dbg` prints the expression and its value
+
+`LOG.dbg(...)` is the Java counterpart of Rust's `dbg!` and Python's icecream: it prints the expression as written in the source, its value and type, and the file and line of the call, and returns the value, so it wraps any expression in place. Since 1.4.
+
+```java
+BigDecimal total = LOG.dbg(order.total());   // prints, then returns the value
+LOG.dbg(user, cart.size());
+LOG.dbg();                                   // prints "reached"
+```
+
+```
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:21)] order.total() = 129.90 (BigDecimal)
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:22)] user = "alice", cart.size() = 3 (Integer)
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reached
+```
+
+- The text comes from the source file of the call site. The source directory is derived from where the class was loaded: `target/classes` leads to `src/main/java`, `target/test-classes` to `src/test/java`, Gradle's `build/classes/java/main` to `src/main/java`, and the same for Kotlin; for other layouts the usual directories of the working directory are tried. `nanolog.sources=dir1,dir2` names them explicitly. Each call site is read once, arguments spread over several lines included.
+- Without the text only the values are printed, never an error: when no source directory is found (a production jar), the source file is newer than its class, or the line holds two `dbg` calls, since Java reports the line of a call but not its column.
+- Strings and chars are quoted and escaped, so a value never breaks the line; arrays are printed element by element; other values are followed by their type, unless their text starts with it, as `User{id=17}` does.
+- It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.
+- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name is easy to find and remove before a commit (`grep -rn "LOG.dbg("`).
+
+Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.
 
 ## Agent-driven development
 
@@ -265,6 +294,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 |---|---|---|
 | `nanolog.logger` | class name of the `ILogger` implementation | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
+| `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
@@ -673,7 +703,7 @@ dependencies {
 
 ### 1.4-SNAPSHOT
 
-In development, not released yet.
+- `LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.
 
 ### 1.3
 

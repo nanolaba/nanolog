@@ -36,6 +36,9 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
  * {@code toString()} becomes {@code [FAILED toString()]}, and a message {@code Supplier} that throws becomes the
  * message {@code [FAILED supplier: <exception>]}.
  * <p>
+ * For print debugging, {@link #dbg(Object)} prints an expression as written in the source together with its value
+ * and the call site, and returns the value: {@code LOG.dbg(order.total())}.
+ * <p>
  * The logger behind these methods is chosen at class initialisation by {@link DefaultLoggerCreator}
  * ({@code nanolog.logger}, {@code nanolog.properties}, {@link ConsoleLogger} by default) and can be replaced with
  * {@link #init(ILogger)}. Its levels can change while the application runs: {@link #setLevel(LogEntry.LogEntryLevel)},
@@ -1102,6 +1105,72 @@ public class LOG {
         return isEnabledForCaller(ERROR);
     }
 
+    // PRINT DEBUGGING
+
+    /**
+     * Prints the expression, its value and the call site, then returns the value, so it can wrap any expression in
+     * place, like Rust's {@code dbg!} and Python's icecream:
+     * <pre>{@code
+     * BigDecimal total = LOG.dbg(order.total());
+     * }</pre>
+     * prints {@code DBG 17.11.2026 10:15:02 [OrderService.checkout(OrderService.java:87)] order.total() = 129.90 (BigDecimal)}.
+     * <p>
+     * The text of the expression is read from the source file of the call site, found through the location of the
+     * calling class ({@code target/classes} leads to {@code src/main/java}) or {@code nanolog.sources}, and cached per
+     * call site. Without it only the value is printed: when no source directory is found (a production deployment),
+     * the source file is newer than its class, or the line holds two {@code dbg} calls. Strings and chars are quoted
+     * and escaped; other values are followed by their type unless their text starts with it.
+     * <p>
+     * The entry is logged at {@code DEBUG}, so {@code nanolog.level} and package rules apply to it, and
+     * {@link LogEntry#isDbg()} marks it: {@link ConsoleLogger} prints {@code DBG} and the call site, even without
+     * {@code showLocation}, and {@link JsonLogger} adds {@code "dbg":true}. Meant for temporary debug output; remove the calls when done.
+     *
+     * @param value the value to print
+     * @param <T>   the type of the value
+     * @return {@code value}, unchanged
+     */
+    public static <T> T dbg(T value) {
+        ILogger current = logger;
+        if (mayBeEnabled(current, DEBUG)) {
+            writeDbg(current, new Object[]{value});
+        }
+        return value;
+    }
+
+    /**
+     * Prints several expressions with their values and the call site:
+     * {@code LOG.dbg(user, cart.size())} prints {@code user = User{id=17}, cart.size() = 3 (Integer)}. See
+     * {@link #dbg(Object)}.
+     *
+     * @param first  the first value
+     * @param second the second value
+     * @param more   further values
+     */
+    public static void dbg(Object first, Object second, Object... more) {
+        ILogger current = logger;
+        if (mayBeEnabled(current, DEBUG)) {
+            writeDbg(current, Dbg.values(first, second, more));
+        }
+    }
+
+    /**
+     * Prints that the call site was reached: {@code DBG ... [OrderService.checkout(OrderService.java:89)] reached}.
+     * See {@link #dbg(Object)}.
+     */
+    public static void dbg() {
+        ILogger current = logger;
+        if (mayBeEnabled(current, DEBUG)) {
+            writeDbg(current, NO_ARGS);
+        }
+    }
+
+    private static void writeDbg(ILogger current, Object[] values) {
+        CallerDetection.Caller caller = findCaller();
+        if (isEnabled(current, DEBUG, caller.sourceClass)) {
+            write(current, Dbg.entry(caller, values, 0, LogEntry.LOG_BOUNDARY));
+        }
+    }
+
     // RATE LIMITING
 
     /**
@@ -1212,13 +1281,73 @@ public class LOG {
             ILogger current = logger;
             if (mayBeEnabled(current, level)) {
                 CallerDetection.Caller caller = findCaller();
-                if (isEnabled(current, level, caller.sourceClass)) {
-                    long skipped = caller.frame == null ? 0 : acquire(caller.frame, periodNanos);
-                    if (skipped >= 0) {
-                        write(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
-                                                       CALLER_BOUNDARY));
-                    }
+                long skipped = admit(current, level, caller);
+                if (skipped >= 0) {
+                    write(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
+                                                   CALLER_BOUNDARY));
                 }
+            }
+        }
+
+        /**
+         * Decides whether a call whose level may be enabled gets through.
+         *
+         * @return the number of calls skipped since the previous entry of the statement, or {@code -1} if the level is
+         * off for the caller or the call is skipped
+         */
+        private long admit(ILogger current, LogEntry.LogEntryLevel level, CallerDetection.Caller caller) {
+            if (!isEnabled(current, level, caller.sourceClass)) {
+                return -1;
+            }
+            return caller.frame == null ? 0 : acquire(caller.frame, periodNanos);
+        }
+
+        private void writeDbg(ILogger current, Object[] values) {
+            CallerDetection.Caller caller = findCaller();
+            long skipped = admit(current, DEBUG, caller);
+            if (skipped >= 0) {
+                write(current, Dbg.entry(caller, values, skipped, CALLER_BOUNDARY));
+            }
+        }
+
+        /**
+         * Prints the expression, its value and the call site, unless the statement is skipped, and returns the value.
+         * See {@link LOG#dbg(Object)}.
+         *
+         * @param value the value to print
+         * @param <T>   the type of the value
+         * @return {@code value}, unchanged, also when the statement is skipped
+         */
+        public <T> T dbg(T value) {
+            ILogger current = logger;
+            if (mayBeEnabled(current, DEBUG)) {
+                writeDbg(current, new Object[]{value});
+            }
+            return value;
+        }
+
+        /**
+         * Prints several expressions with their values and the call site, unless the statement is skipped. See
+         * {@link LOG#dbg(Object, Object, Object...)}.
+         *
+         * @param first  the first value
+         * @param second the second value
+         * @param more   further values
+         */
+        public void dbg(Object first, Object second, Object... more) {
+            ILogger current = logger;
+            if (mayBeEnabled(current, DEBUG)) {
+                writeDbg(current, Dbg.values(first, second, more));
+            }
+        }
+
+        /**
+         * Prints that the call site was reached, unless the statement is skipped. See {@link LOG#dbg()}.
+         */
+        public void dbg() {
+            ILogger current = logger;
+            if (mayBeEnabled(current, DEBUG)) {
+                writeDbg(current, NO_ARGS);
             }
         }
 

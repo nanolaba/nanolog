@@ -5,6 +5,7 @@
  * LOG.info("Application started");                    // the source class is detected from the stack
  * LOG.debug("Loaded {} items in {} ms", count, millis);
  * LOG.error("Failed to load {}", id, e);              // the trailing exception keeps its stack trace
+ * BigDecimal total = LOG.dbg(order.total());          // prints "order.total() = 129.90 (BigDecimal)" and the call site
  * }</pre>
  * <ul>
  *     <li>{@link com.nanolaba.logging.LOG} &mdash; the static entry point.</li>

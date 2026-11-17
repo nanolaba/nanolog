@@ -39,6 +39,7 @@ ${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](http
 
 ## ${en:'Why Nanolog', ru:'Зачем нужен Nanolog'}
 
+- **${en:'Print debugging that names its values.', ru:'Отладочная печать, которая называет значения.'}** ${en:'`LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; see', ru:'`LOG.dbg(order.total())` печатает `order.total() = 129.90 (BigDecimal)` с файлом и строкой вызова и возвращает значение, как `dbg!` в Rust и icecream в Python; см.'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}).
 - **${en:'No logger fields.', ru:'Нет полей логгера.'}** `LOG.info("...")` ${en:'works from any class; the caller is found by walking the stack', ru:'работает из любого класса, вызывающий определяется по стеку'}.
 - **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'No transitive libraries;', ru:'Никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
 - **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
@@ -53,7 +54,7 @@ ${en:'The whole library:', ru:'Вся библиотека целиком:'}
 
 ${widget:fileTree(path='src/main/java/com/nanolaba/logging', depth='1')}
 
-- `LOG` — ${en:'the static entry point with all the', ru:'статическая точка входа со всеми'} `trace` / `debug` / `info` / `warn` / `error` ${en:'overloads', ru:'перегрузками'}.
+- `LOG` — ${en:'the static entry point with all the', ru:'статическая точка входа со всеми'} `trace` / `debug` / `info` / `warn` / `error` ${en:'overloads', ru:'перегрузками'} ${en:'and', ru:'и'} `dbg`.
 - `ILogger` — ${en:'the extension point: one abstract method plus an optional level filter', ru:'точка расширения: один абстрактный метод и необязательный фильтр уровней'}.
 - `LogEntry` — ${en:'one log record and the message formatter', ru:'одна запись лога и форматирование сообщения'}.
 - `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — ${en:'the bundled implementations: text, JSON lines and the bridge to SLF4J', ru:'встроенные реализации: текст, JSON-строки и мост к SLF4J'}.
@@ -132,11 +133,39 @@ ${en:'Every level has the same set of overloads;', ru:'У каждого уро�
 | `LOG.isInfoEnabled()` | ${en:'level check, with or without an explicit class', ru:'проверка уровня, с явным классом или без'} |
 | `LOG.setLevel(level)`, `LOG.setLevel("com.acme", level)` | ${en:'change the global level or the level of a package while the application runs, see', ru:'смена глобального уровня или уровня пакета во время работы, см.'} [${en:'Changing levels at run time', ru:'Изменение уровней во время работы'}](#${en:'changing-levels-at-run-time', ru:'изменение-уровней-во-время-работы'}) |
 | `LOG.withLevel("com.acme", level)` | ${en:'the same for a `try` block, restored at its end', ru:'то же на время блока `try`, с восстановлением в конце'} |
+| `LOG.dbg(expression)` | ${en:'print the expression, its value and the call site, and return the value, see', ru:'печать выражения, его значения и места вызова с возвратом значения, см.'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}) |
 | `LOG.once().warn(...)` | ${en:'log a statement only the first time it runs, see', ru:'запись только при первом выполнении строки, см.'} [${en:'Rate limiting', ru:'Ограничение частоты'}](#${en:'rate-limiting', ru:'ограничение-частоты'}) |
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | ${en:'at most once per period, with the number of skipped calls on the next entry', ru:'не чаще раза за период, с числом пропущенных вызовов в следующей записи'} |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | ${en:'the universal entry point every overload delegates to', ru:'универсальная точка входа, к которой сводятся все перегрузки'} |
 
 ${en:'Every class and method is documented in the', ru:'Каждый класс и метод описан в'} [Javadoc](${javadoc}/${stableVersion}), ${en:'which IDEs also show from the sources jar.', ru:'который IDE показывают и из jar с исходниками.'}
+
+## ${en:'Print debugging: `LOG.dbg` prints the expression and its value', ru:'Отладочная печать: `LOG.dbg` печатает выражение и его значение'}
+
+`LOG.dbg(...)` is the Java counterpart of Rust's `dbg!` and Python's icecream: it prints the expression as written in the source, its value and type, and the file and line of the call, and returns the value, so it wraps any expression in place. Since 1.4.<!--en-->
+`LOG.dbg(...)` — аналог `dbg!` из Rust и icecream из Python для Java: печатает выражение так, как оно записано в исходнике, его значение и тип, файл и строку вызова и возвращает значение, поэтому им можно обернуть любое выражение прямо на месте. Начиная с 1.4.<!--ru-->
+
+${widget:import(path='${examples}/PrintDebugging.java', region='dbg', wrap='true')}
+
+```
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:21)] order.total() = 129.90 (BigDecimal)
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:22)] user = "alice", cart.size() = 3 (Integer)
+DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reached
+```
+
+- The text comes from the source file of the call site. The source directory is derived from where the class was loaded: `target/classes` leads to `src/main/java`, `target/test-classes` to `src/test/java`, Gradle's `build/classes/java/main` to `src/main/java`, and the same for Kotlin; for other layouts the usual directories of the working directory are tried. `nanolog.sources=dir1,dir2` names them explicitly. Each call site is read once, arguments spread over several lines included.<!--en-->
+- Текст берётся из исходного файла места вызова. Каталог исходников выводится из того, откуда загружен класс: `target/classes` ведёт к `src/main/java`, `target/test-classes` — к `src/test/java`, `build/classes/java/main` из Gradle — к `src/main/java`, и так же для Kotlin; для других раскладок пробуются обычные каталоги рабочей директории. `nanolog.sources=dir1,dir2` задаёт их явно. Каждое место вызова читается один раз, включая аргументы, разнесённые на несколько строк.<!--ru-->
+- Without the text only the values are printed, never an error: when no source directory is found (a production jar), the source file is newer than its class, or the line holds two `dbg` calls, since Java reports the line of a call but not its column.<!--en-->
+- Без текста печатаются только значения, и ошибки не бывает: когда каталог исходников не найден (jar в продакшене), исходник новее своего класса или на строке два вызова `dbg`, ведь Java сообщает строку вызова, но не колонку.<!--ru-->
+- Strings and chars are quoted and escaped, so a value never breaks the line; arrays are printed element by element; other values are followed by their type, unless their text starts with it, as `User{id=17}` does.<!--en-->
+- Строки и символы печатаются в кавычках и с экранированием, поэтому значение никогда не разрывает строку; массивы печатаются поэлементно; за остальными значениями следует их тип, если их текст не начинается с него, как `User{id=17}`.<!--ru-->
+- It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.<!--en-->
+- Это запись уровня `DEBUG`: действуют `nanolog.level` и правила пакетов, а уровень, выключенный везде, не стоит обхода стека. `ConsoleLogger` помечает её `DBG` и печатает место вызова даже без `showLocation`, `JsonLogger` добавляет `"dbg":true`, любой логгер отличает её по `LogEntry.isDbg()`. `LOG.once().dbg(...)` и `LOG.atMostEvery(...).dbg(...)` ограничивают её, как любую другую строку.<!--ru-->
+- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name is easy to find and remove before a commit (`grep -rn "LOG.dbg("`).<!--en-->
+- `dbg` задуман как временный, и для человека, и для кодового агента: отладочная печать, называющая свои значения, заменяет серию вызовов `System.out.println`, а её особое имя легко найти и убрать перед коммитом (`grep -rn "LOG.dbg("`).<!--ru-->
+
+Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.<!--en-->
+В Rust `dbg!` входит в стандартную библиотеку с версии 1.32 (2019), в Python есть `f"{x=}"` с версии 3.8 и пакет icecream; в JDK ничего похожего нет, а шаблон IDE вроде `soutv` в IntelliJ вписывает имя в код, где оно устаревает при переименовании.<!--ru-->
 
 ## ${en:'Agent-driven development', ru:'Агентная разработка'}
 
@@ -237,6 +266,7 @@ ${en:'A no-argument', ru:'Вызов'} `LOG.init()` ${en:'re-reads the property 
 |---|---|---|
 | `nanolog.logger` | ${en:'class name of the `ILogger` implementation', ru:'имя класса реализации `ILogger`'} | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | ${en:'classpath resource with the configuration', ru:'ресурс в classpath с конфигурацией'} | `nanolog.properties` |
+| `nanolog.sources` | ${en:'source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off', ru:'каталоги исходников, из которых `LOG.dbg` читает текст аргументов, через запятую; пустое значение отключает чтение'} | ${en:'derived from the class location', ru:'выводятся из расположения класса'} |
 | `nanolog.strict` | ${en:'report calls whose `{}` placeholders and arguments do not match, see', ru:'сообщать о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, см.'} [${en:'Message formatting', ru:'Форматирование сообщений'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `false` |
 
 Если класс из `nanolog.logger` не удалось создать, ${name} печатает в `System.err`<!--ru-->
@@ -572,7 +602,7 @@ ${widget:endIf}
 ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 ### ${pom.version}
 
-${en:'In development, not released yet.', ru:'В разработке, ещё не выпущена.'}
+- ${en:'`LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.', ru:'`LOG.dbg(expression)` печатает выражение так, как оно записано в исходнике, его значение и тип и место вызова и возвращает значение; `LOG.dbg(a, b, ...)` печатает несколько, `LOG.dbg()` — что строка достигнута. Без исходников печатаются только значения. `ConsoleLogger` помечает строку `DBG`, `JsonLogger` добавляет `"dbg":true`, `LogEntry.isDbg()` отличает запись; `nanolog.sources` задаёт каталоги исходников.'}
 ${widget:endIf}
 
 ### 1.3

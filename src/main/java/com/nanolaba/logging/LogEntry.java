@@ -46,6 +46,7 @@ public class LogEntry {
     private final String threadName;
     private final long skippedCount;
     private final String callerBoundary;
+    private final boolean dbg;
 
     private static final char ESCAPE_CHAR = '\\';
 
@@ -61,11 +62,11 @@ public class LogEntry {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
-        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY);
+        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY, false);
     }
 
     private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
-                     long skippedCount, String callerBoundary) {
+                     long skippedCount, String callerBoundary, boolean dbg) {
         this.level = level;
         this.sourceClass = sourceClass;
         this.caller = caller;
@@ -74,6 +75,7 @@ public class LogEntry {
         this.threadName = Thread.currentThread().getName();
         this.skippedCount = skippedCount;
         this.callerBoundary = callerBoundary;
+        this.dbg = dbg;
 
         String pattern = message == null ? null : safeToString(message);
         // formatted with the original arguments: an unused trailing throwable changes nothing in the text
@@ -159,10 +161,30 @@ public class LogEntry {
      */
     static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
                            long skippedCount, String callerBoundary) {
-        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary);
+        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, false);
     }
 
-    private static final String LOG_BOUNDARY = LOG.class.getName();
+    /**
+     * Creates the entry of a {@code LOG.dbg(...)} call: a {@code DEBUG} entry whose message is complete, so it has no
+     * arguments to format.
+     */
+    static LogEntry createDbg(Class sourceClass, StackTraceElement caller, String message, long skippedCount, String callerBoundary) {
+        return new LogEntry(LogEntryLevel.DEBUG, sourceClass, caller, null, message, NO_ARGS, skippedCount, callerBoundary, true);
+    }
+
+    static final String LOG_BOUNDARY = LOG.class.getName();
+
+    private static final Object[] NO_ARGS = new Object[0];
+
+    /**
+     * Whether the entry comes from {@code LOG.dbg(...)}: a temporary debug print of expressions and their values,
+     * logged at {@code DEBUG}. {@link ConsoleLogger} marks it {@code DBG} and prints its call site even without {@code showLocation}, and
+     * {@link JsonLogger} adds {@code "dbg":true}.
+     * @return {@code true} for an entry of {@code LOG.dbg(...)}
+     */
+    public boolean isDbg() {
+        return dbg;
+    }
 
     /**
      * The number of calls of a rate-limited statement ({@code LOG.once()}, {@code LOG.atMostEvery(...)}) that were
@@ -233,6 +255,7 @@ public class LogEntry {
                ", message=" + safeToString(getMessage()) +
                ", args=" + arrayToString(getArgs()) +
                (getSkippedCount() > 0 ? ", skipped=" + getSkippedCount() : "") +
+               (isDbg() ? ", dbg=true" : "") +
                '}';
     }
 

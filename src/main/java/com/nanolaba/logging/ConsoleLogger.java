@@ -764,7 +764,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Writes {@code [SourceClass]}, with the call site inside the brackets when {@code showLocation} is on.
+     * Writes {@code [SourceClass]}, with the call site inside the brackets when {@code showLocation} is on and always
+     * for an entry of {@code LOG.dbg(...)}.
      *
      * @param out   the text being built
      * @param entry the entry to write
@@ -776,7 +777,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             out.append("[");
             out.append(getSourceName(clz));
             StackTraceElement caller = entry.getCaller();
-            if (isShowLocation() && caller != null) {
+            if ((isShowLocation() || entry.isDbg()) && caller != null) {
                 out.append(getLocation(caller));
             }
             out.append("]");
@@ -842,14 +843,14 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Writes the level name.
+     * Writes the level name, or {@code DBG} for an entry of {@code LOG.dbg(...)}.
      *
      * @param out   the text being built
      * @param entry the entry to write
      */
     protected void writeLevel(StringWriter out, LogEntry entry) {
         if (isShowLevel() && entry.getLevel() != null) {
-            out.append(entry.getLevel().name());
+            out.append(entry.isDbg() ? "DBG" : entry.getLevel().name());
         }
     }
 

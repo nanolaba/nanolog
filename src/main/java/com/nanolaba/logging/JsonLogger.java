@@ -13,8 +13,9 @@ import java.time.format.DateTimeFormatter;
  *  "exception":{"class":"java.io.IOException","message":"timeout","stackTrace":"java.io.IOException: timeout\n\tat ..."}}
  * }</pre>
  * (shown on several lines here; the real output is a single line). Fields without a value are left out:
- * {@code template} and {@code args} appear only for parameterized messages, {@code caller} only when the source
- * class was detected, {@code exception} only with a throwable. Line breaks and control characters are escaped, so one
+ * {@code template} and {@code args} appear only for parameterized messages, {@code dbg} (always {@code true}) only for
+ * entries of {@code LOG.dbg(...)}, {@code caller} only when the source class was detected, {@code exception} only
+ * with a throwable. Line breaks and control characters are escaped, so one
  * entry is always exactly one line.
  * <p>
  * Levels, their properties ({@code nanolog.level}, package rules) and the output streams are those of
@@ -47,6 +48,9 @@ public class JsonLogger extends ConsoleLogger {
         appendString(out, formatTimestamp(entry.getTimestamp()));
         if (entry.getLevel() != null) {
             appendField(out, "level", entry.getLevel().name());
+        }
+        if (entry.isDbg()) {
+            out.append(",\"dbg\":true");
         }
         if (entry.getSourceClass() != null) {
             appendField(out, "logger", entry.getSourceClass().getName());

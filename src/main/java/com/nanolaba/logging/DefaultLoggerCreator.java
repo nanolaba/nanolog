@@ -39,6 +39,12 @@ public class DefaultLoggerCreator {
      * {@code true} reports calls whose {@code {}} placeholders and arguments do not match.
      */
     public static final String PROPERTY_STRICT = PROPERTY_PREFIX + "strict";
+    /**
+     * The source directories {@link LOG#dbg(Object)} reads the text of its arguments from, comma-separated. Without
+     * it they are derived from the location of the calling class ({@code target/classes} leads to
+     * {@code src/main/java}); an empty value turns the reading off.
+     */
+    public static final String PROPERTY_SOURCES = PROPERTY_PREFIX + "sources";
 
     /**
      * The resource read when {@value #PROPERTY_LOGGER_CONFIG_FILE} is not set.
