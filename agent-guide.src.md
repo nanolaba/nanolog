@@ -73,7 +73,7 @@ ${widget:import(path='${examples}/NoDbgCallsLeftTest.java', region='test', wrap=
 
 ## Agent mode *1.4+*
 
-When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows only `WARN`, `ERROR` and `LOG.dbg`, without dates and with short stack traces, and the full log goes to the run log. One `[NANOLOG]` line on `System.err` says so:
+When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows only `WARN`, `ERROR` and `LOG.dbg`, one line per entry (line breaks written as `\n`, the stack trace included), without dates and with short stack traces, and the full log goes to the run log. One `[NANOLOG]` line on `System.err` says so:
 
 ```
 [NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /app/target/nanolog/latest.log, WARN and ERROR also in /app/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
@@ -103,6 +103,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
 - `-Dnanolog.dump=auto` *1.4+*: `{}` arguments whose class has no `toString()` of its own print field by field, as in `LOG.dbg`, instead of `Order@2f92e0f4`; values with a `toString()` print as before.
 - `-Dnanolog.dbg=off` *1.4+* silences every `LOG.dbg` call, as in production; `-Dnanolog.dbg=fail` still prints them and reports each one, so `MemoryLogger.assertNoDiagnostics()` fails.
+- `-Dnanolog.console.multiline=escape` *1.4+*: every entry on one physical line, line breaks written as `\n`, so `grep` and `tail -n` count entries; `indent` starts further lines with a tab instead. Both escape terminal control characters.
 - `-Dnanolog.run=on` *1.4+*, the default in agent mode: every entry also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`; the absolute path is printed at startup), and each `WARN` and `ERROR` as one line to `latest.errors.log`. Read that file instead of running again to filter the output, and `tail -f` it for a server in the background. `runs/` keeps the last 10 runs; `-Dnanolog.run.format=json` writes `JsonLogger` lines for `jq`.
 - A mistyped key is reported when `LOG` initialises *1.4+*: `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`. Read the `[NANOLOG]` lines on `System.err` before trusting the output. Per-package levels from the environment go into `NANOLOG_LEVELS`; `NANOLOG_LEVEL_COM_ACME` does nothing.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a template an earlier test met first.

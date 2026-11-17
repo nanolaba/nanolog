@@ -20,6 +20,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
 import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
 import static com.nanolaba.logging.DefaultLoggerCreator.quietly;
 import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
+import static com.nanolaba.logging.DefaultLoggerCreator.readChoice;
 
 /**
  * The default logger: one line per entry, {@code ERROR} to {@code System.err} and everything else to
@@ -80,6 +81,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
      */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
+    /**
+     * Property for {@link #setMultiline(String)}: {@code keep}, {@code indent} or {@code escape}.
+     */
+    public static final String PROPERTY_MULTILINE = "nanolog.console.multiline";
 
     private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
     private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
@@ -102,6 +107,14 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     private List<String> exceptionExclude = Collections.emptyList();
     private int exceptionMaxFrames = 0;
+
+    private static final String KEEP = "keep";
+    private static final String INDENT = "indent";
+    private static final String ESCAPE = "escape";
+    private static final String[] MULTILINE_MODES = {KEEP, INDENT, ESCAPE};
+    private static final String EXPECTED_MULTILINE = "keep, indent or escape";
+
+    private String multiline = KEEP;
 
     /**
      * The level the switches hold without {@code nanolog.level}: {@code TRACE}, or {@code WARN} in agent mode.
@@ -140,6 +153,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         applyStream();
+        multiline = readChoice(PROPERTY_MULTILINE, MULTILINE_MODES);
         applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
         rules = new Rules(readLevelRules());
@@ -148,8 +162,9 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * The defaults of agent mode, for the console of the default logger when a coding agent runs the program: the
-     * level {@code WARN} instead of {@code TRACE}, also for {@link #resetLevels()}, no date, and stack traces without
-     * the frames of {@link Agent#EXCLUDE}, at most {@link Agent#MAX_FRAMES} of each throwable. A setting that is given
+     * level {@code WARN} instead of {@code TRACE}, also for {@link #resetLevels()}, no date, one line per entry
+     * ({@code multiline=escape}), and stack traces without the frames of {@link Agent#EXCLUDE}, at most
+     * {@link Agent#MAX_FRAMES} of each throwable. A setting that is given
      * wins; an invalid one gives these defaults. The settings are read again quietly: the constructor has reported
      * the invalid ones.
      *
@@ -159,6 +174,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         defaultThreshold = LogEntry.LogEntryLevel.WARN.ordinal();
         return quietly(() -> {
             showDate = readBoolean(PROPERTY_SHOW_DATE, false);
+            multiline = readChoice(PROPERTY_MULTILINE, ESCAPE, KEEP, INDENT);
             applyExceptionSettings(Agent.EXCLUDE, Agent.MAX_FRAMES);
             applyThreshold(defaultThreshold);
             return applyGlobalLevel();
@@ -630,7 +646,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSkipped(out, entry);
         writeThrowable(out, entry);
 
-        return out.toString();
+        return applyMultiline(out.toString());
     }
 
     /**
@@ -1021,6 +1037,88 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     public ConsoleLogger setShowLocation(boolean showLocation) {
         this.showLocation = showLocation;
         return this;
+    }
+
+    /**
+     * Returns what is done with line breaks and control characters: {@code keep}, {@code indent} or {@code escape}.
+     *
+     * @return the mode; {@code keep} by default
+     */
+    public String getMultiline() {
+        return multiline;
+    }
+
+    /**
+     * Chooses what an entry does with line breaks and control characters, in its message, its stack trace and any
+     * other part. {@code keep}, the default, writes them as they are. {@code indent} starts every line of an entry
+     * after the first with a tab, as stack frames are, so a line that does not start with a tab begins an entry and a
+     * message cannot forge one. {@code escape} writes {@code \r} and {@code \n} as these two characters, so an entry is
+     * one physical line, ready for {@code grep} and {@code tail}. Both modes write other control characters, such as the
+     * escape sequences of a terminal, as {@code \}{@code u001b}, keep the tab and drop the line breaks at the end. Also set by
+     * {@code nanolog.console.multiline}; {@link JsonLogger} escapes its lines anyway.
+     *
+     * @param multiline {@code keep}, {@code indent} or {@code escape}, ignoring case and surrounding spaces; anything
+     *                  else prints a diagnostic and changes nothing
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setMultiline(String multiline) {
+        String mode = multilineNamed(multiline);
+        if (mode == null) {
+            printDiagnostic("Invalid value " + (multiline == null ? "null" : "\"" + multiline + "\"") +
+                            " in setMultiline: expected " + EXPECTED_MULTILINE + "; nothing changed");
+        } else {
+            this.multiline = mode;
+        }
+        return this;
+    }
+
+    private static String multilineNamed(String value) {
+        if (value != null) {
+            for (String mode : MULTILINE_MODES) {
+                if (mode.equalsIgnoreCase(value.trim())) {
+                    return mode;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The entry as {@link #getMultiline()} says: unchanged for {@code keep}.
+     */
+    private String applyMultiline(String text) {
+        String mode = multiline;
+        if (KEEP.equals(mode)) {
+            return text;
+        }
+        int end = text.length();
+        while (end > 0 && (text.charAt(end - 1) == '\n' || text.charAt(end - 1) == '\r')) {
+            end--;
+        }
+        boolean indent = INDENT.equals(mode);
+        StringBuilder result = new StringBuilder(end + 16);
+        // the line breaks at the end are gone, so a line break is always followed by another character
+        for (int i = 0; i < end; i++) {
+            char c = text.charAt(i);
+            if (c == '\r' || c == '\n') {
+                if (indent) {
+                    if (c == '\r' && text.charAt(i + 1) == '\n') {
+                        i++;
+                    }
+                    result.append(System.lineSeparator());
+                    if (text.charAt(i + 1) != '\t') {
+                        result.append('\t');
+                    }
+                } else {
+                    result.append(c == '\r' ? "\\r" : "\\n");
+                }
+            } else if (c != '\t' && (Character.isISOControl(c) || c == ' ' || c == ' ')) {
+                result.append(String.format("\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 
     /**

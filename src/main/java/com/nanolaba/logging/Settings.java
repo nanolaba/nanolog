@@ -33,6 +33,7 @@ final class Settings {
             ConsoleLogger.PROPERTY_SHOW_LEVEL, ConsoleLogger.PROPERTY_SHOW_DATE, ConsoleLogger.PROPERTY_SHOW_SOURCE,
             ConsoleLogger.PROPERTY_SHOW_SOURCE_FULL_NAME, ConsoleLogger.PROPERTY_SHOW_LOCATION,
             ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_STREAM, ConsoleLogger.PROPERTY_DATE_FORMAT,
+            ConsoleLogger.PROPERTY_MULTILINE,
             ConsoleLogger.PROPERTY_EXCEPTION_EXCLUDE, ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES));
 
     /**

@@ -169,9 +169,11 @@ class AgentModeTest extends AbstractLoggerTest {
         }
 
         String out = getOutAndClear();
-        assertTrue(out.startsWith("WARN [AgentModeTest] Shipping failed java.lang.IllegalStateException: no stock" + NL +
+        String escaped = NL.replace("\r", "\\r").replace("\n", "\\n");
+        assertTrue(out.startsWith("WARN [AgentModeTest] Shipping failed java.lang.IllegalStateException: no stock" + escaped +
                                   "\tat com.nanolaba.logging.AgentModeTest.failToShip(AgentModeTest.java:"), out);
-        assertTrue(out.contains(" frames excluded" + NL), out);
+        assertTrue(out.contains(" frames excluded" + escaped), out);
+        assertTrue(out.endsWith(NL) && out.indexOf('\n') == out.length() - 1, "one line per entry: " + out);
         assertFalse(out.contains("Method.invoke"), out);
         assertFalse(out.contains("hidden"), out);
     }
