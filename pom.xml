@@ -96,6 +96,13 @@
             <version>${slf4j.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- only for NanologExtension, which a test of a user registers -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit5.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- only for SummaryListener, which JUnit loads through ServiceLoader in the test runs of a user -->
         <dependency>
             <groupId>org.junit.platform</groupId>

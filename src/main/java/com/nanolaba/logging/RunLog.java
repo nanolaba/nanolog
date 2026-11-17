@@ -242,6 +242,25 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
+     * Writes entries that were held back from a logger to the run log, if that logger writes the run log: a composite
+     * of the default logger with it. For {@link NanologExtension}, which keeps the log of a passing test off the
+     * console but not out of the file.
+     *
+     * @param logger  the logger the entries were held back from
+     * @param entries the entries, oldest first
+     */
+    static void replay(ILogger logger, List<LogEntry> entries) {
+        RunLog runLog = current();
+        if (runLog != null && logger instanceof CompositeLogger && ((CompositeLogger) logger).getLoggers().contains(runLog)) {
+            for (LogEntry entry : entries) {
+                if (runLog.isEnabled(entry.getLevel(), entry.getSourceClass())) {
+                    runLog.log(entry);
+                }
+            }
+        }
+    }
+
+    /**
      * Closes the run log of this JVM and lets the next {@link #attach} open a new one; for tests.
      */
     static synchronized void reset() {

@@ -256,6 +256,40 @@ class CaptureTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testALoggerInstalledInsideACaptureReceivesTheEntries() {
+        try (MemoryLogger capture = MemoryLogger.capture()) {
+            try (MemoryLogger installed = MemoryLogger.install()) {
+                LOG.info("both");
+
+                assertEquals(Collections.singletonList("both"), messages(installed));
+            }
+            assertEquals(Collections.singletonList("both"), messages(capture));
+        }
+        assertEquals(Collections.emptyList(), messages(global));
+    }
+
+    @Test
+    public void testABufferTakesTheLevelsOfTheLoggerAndHoldsTheEntriesBack() {
+        ConsoleLogger console = new ConsoleLogger().setLevel("WARN");
+        LOG.init(console);
+
+        try (MemoryLogger buffer = MemoryLogger.buffer()) {
+            assertFalse(LOG.isDebugEnabled(), "the levels of the logger");
+            LOG.debug("below the level");
+            LOG.warn("held back");
+            try (MemoryLogger capture = MemoryLogger.capture()) {
+                LOG.debug("for the capture only");
+
+                assertEquals(Collections.singletonList("for the capture only"), messages(capture));
+            }
+
+            assertEquals(Collections.singletonList("held back"), messages(buffer));
+            assertTrue(buffer.keptFrom == console);
+        }
+        assertEquals("", getOutAndClear());
+    }
+
+    @Test
     public void testAnInstalledMemoryLoggerAndACaptureWorkTogether() {
         try (MemoryLogger installed = MemoryLogger.install()) {
             try (MemoryLogger capture = MemoryLogger.capture()) {

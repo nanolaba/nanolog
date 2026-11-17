@@ -56,6 +56,7 @@ logging
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
 ├── NanologChecks.java
+├── NanologExtension.java
 ├── RunLog.java
 ├── Settings.java
 ├── ShortStackTrace.java
@@ -72,6 +73,7 @@ logging
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
 - `SummaryListener` — prints the run summary when JUnit has run the tests; JUnit loads it by itself.
+- `NanologExtension` — a JUnit 5 extension that prints the log of a test only when it fails.
 
 The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
@@ -95,21 +97,22 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 5.5 [JsonLogger](#jsonlogger)
 	- 5.6 [Slf4jLogger](#slf4jlogger)
 	- 5.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
-- 6 [Message formatting](#message-formatting)
-	- 6.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 7 [Rate limiting](#rate-limiting)
-- 8 [Caller detection](#caller-detection)
-- 9 [Writing your own logger](#writing-your-own-logger)
-- 10 [Thread safety and performance](#thread-safety-and-performance)
-- 11 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 12 [Changelog](#changelog)
-	- 12.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 12.2 [1.3](#13)
-	- 12.3 [1.2](#12)
-	- 12.4 [1.1](#11)
-	- 12.5 [1.0](#10)
-- 13 [Contributing](#contributing)
-- 14 [License](#license)
+- 6 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
+- 7 [Message formatting](#message-formatting)
+	- 7.1 [Checking placeholders in tests](#checking-placeholders-in-tests)
+- 8 [Rate limiting](#rate-limiting)
+- 9 [Caller detection](#caller-detection)
+- 10 [Writing your own logger](#writing-your-own-logger)
+- 11 [Thread safety and performance](#thread-safety-and-performance)
+- 12 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 13 [Changelog](#changelog)
+	- 13.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 13.2 [1.3](#13)
+	- 13.3 [1.2](#12)
+	- 13.4 [1.1](#11)
+	- 13.5 [1.0](#10)
+- 14 [Contributing](#contributing)
+- 15 [License](#license)
 
 
 ## Installation
@@ -336,6 +339,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. A log statement is never the reason a test turns red. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of staying silent.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **Green tests stay quiet.** `@ExtendWith(NanologExtension.class)` prints the log of a test only when the test fails, framed by its name, so a run of five hundred tests shows the log of the one that broke. See [Logs in tests](#logs-in-tests-only-the-failing-ones).
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The end of the output says what happened.** In agent mode the run ends with a summary: the counts by level, each kind of warning and error with its call site and count, the trace of the first error and the path of the full log. It is printed last, so it survives when the agent keeps only the tail. See [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 - **The last run stays readable.** In agent mode, or with `nanolog.run=on`, the run also writes `target/nanolog/latest.log`, with warnings and errors in `latest.errors.log`, and prints the path. The agent reads the file instead of running a five-minute suite again for every `grep`, and follows a background server with `tail -f`. See [Run log](#run-log).
@@ -481,6 +485,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
 | `nanolog.dbg` | `off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see [Leftover calls](#leftover-calls) | `on` |
 | `nanolog.agent` | `auto` detects a coding agent from its environment variables, `on` and `off` decide instead, see [Agent mode](#agent-mode-nanolog-detects-coding-agents) | `auto` |
+| `nanolog.junit.output` | which logs of tests `NanologExtension` prints: `failed`, `all` or `none`, see [Logs in tests](#logs-in-tests-only-the-failing-ones) | `failed` |
 | `nanolog.summary` | `on` prints a summary at the end of the run, `errors` only after a `WARN` or `ERROR`, see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation) | `off`, in agent mode `on` |
 | `nanolog.run` | `on` also writes every entry of the run to `latest.log`, see [Run log](#run-log) | `off`, in agent mode `on` |
 | `nanolog.run.dir` | the directory of the run log, relative to the working directory | `target/nanolog`, `build/nanolog` or `.nanolog` |
@@ -706,7 +711,7 @@ void chargeIsRetriedInParallel() { // safe while JUnit runs other tests in paral
 }
 ```
 
-- The capture takes every level, whatever the levels of the logger, and the entries of this thread do not reach that logger; `captureForwarding()` passes them on as well, at the levels the logger has enabled. The findings of strict mode and of `nanolog.dbg=fail` on this thread go to the capture too, for `assertNoDiagnostics()`.
+- The capture takes every level, whatever the levels of the logger, and the entries of this thread do not reach that logger, though a logger installed while the capture is open, `MemoryLogger.install()` for one, receives them; `captureForwarding()` passes them on as well, at the levels the logger has enabled. The findings of strict mode and of `nanolog.dbg=fail` on this thread go to the capture too, for `assertNoDiagnostics()`.
 - Only the current thread is captured: entries that the code under test logs from a thread pool reach the logger of `LOG`. Captures nest, and `close()` may run on any thread.
 - Without an open capture logging reads one counter and nothing else of the captures.
 
@@ -716,6 +721,32 @@ void chargeIsRetriedInParallel() { // safe while JUnit runs other tests in paral
 MemoryLogger memory = new MemoryLogger(1000); // keeps the newest 1000 entries
 LOG.init(new CompositeLogger(memory, new ConsoleLogger()));
 ```
+
+## Logs in tests: only the failing ones
+
+The log of a passing test is noise; the log of a failing one is the evidence. A Spring Boot test suite can print thousands of lines per green run, and the agent, or the person, reading it cannot find the failure in them. `NanologExtension` holds back what each test writes and prints it only when the test fails. Since 1.4.
+
+```java
+@ExtendWith(NanologExtension.class)
+class PaymentServiceTest {
+
+    @Test
+    void chargeIsRetried() { ... }
+}
+```
+
+```
+--- log of PaymentServiceTest.chargeIsRetried ---
+INFO 17.11.2026 10:15:02 [PaymentService] Charging order 17
+WARN 17.11.2026 10:15:02 [PaymentService] Charge of 42 failed, retrying
+--- end of the log of PaymentServiceTest.chargeIsRetried ---
+```
+
+- **What is held back.** What the thread of the test writes to the logger of `LOG`, at the levels of that logger, from the `@BeforeEach` methods to the `@AfterEach` ones. When the test fails, it is written to that logger after all, between the two lines above; when it passes or is aborted, it goes only to the [run log](#run-log), if that is on. A failed test that logged nothing prints nothing.
+- **Parallel tests.** Each test holds back its own thread, so tests that JUnit runs in parallel keep their logs apart. Entries that the code under test logs from a thread pool are not held back.
+- **MemoryLogger works as usual.** A test that installs a `MemoryLogger` or opens `MemoryLogger.capture()` sees its entries; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
+- **Settings.** `nanolog.junit.output` (`NANOLOG_JUNIT_OUTPUT`): `failed`, the default, `all` (every log, as it is written) or `none`. With `junit.jupiter.extensions.autodetection.enabled=true` in `junit-platform.properties` JUnit registers the extension for every test class, without `@ExtendWith`.
+- **No dependency.** The extension is compiled against the JUnit Jupiter API, which the tests have anyway; **Nanolog** itself still has none.
 
 ## Message formatting
 
@@ -931,6 +962,7 @@ dependencies {
 - Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 - Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, without dates and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; a level or a display setting that is set wins.
 - Run summary, `nanolog.summary=on|off|errors`, on by default in agent mode: the run ends with the counts by level, each kind of warning and error with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the run log, printed last so that it survives when an agent keeps only the tail of the output. In test runs `SummaryListener`, which the JUnit Platform loads by itself, prints it, and the list of `LOG.dbg` calls, when the tests have run: Surefire drops what a shutdown hook of its forked JVM prints, which hid that list in Maven test runs.
+- `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `MemoryLogger.capture()` and `captureForwarding()` capture the entries of the current thread only, every level, while the logger of `LOG` stays installed for the other threads, so tests that run in parallel in one JVM can assert on their own log. The findings of strict mode on that thread reach the capture as well.
 
 ### 1.3

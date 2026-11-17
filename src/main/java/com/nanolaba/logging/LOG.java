@@ -1652,12 +1652,14 @@ public class LOG {
         }
         List<MemoryLogger> captures = captures();
         if (captures != null) {
+            // the levels may have been passed only for a capture that takes every level: ask the logger itself
+            boolean accepted = entry.isDbg() && Dbg.ignoreLevels || accepts(current, entry.getLevel(), entry.getSourceClass());
             for (MemoryLogger capture : captures) {
-                capture.log(entry);
+                if (capture.everyLevel || accepted) {
+                    capture.log(entry);
+                }
             }
-            // the levels were passed for the captures, which take every level: ask the logger itself
-            if (!forwards(captures) ||
-                !(entry.isDbg() && Dbg.ignoreLevels || accepts(current, entry.getLevel(), entry.getSourceClass()))) {
+            if (!accepted || keeps(captures, current)) {
                 return;
             }
         }
@@ -1683,7 +1685,7 @@ public class LOG {
      * enabled, so the entry still gets a chance to be written.
      */
     private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
-        return captures() != null || accepts(current, level, sourceClass);
+        return takesEveryLevel(captures()) || accepts(current, level, sourceClass);
     }
 
     /**
@@ -1702,7 +1704,7 @@ public class LOG {
      * Asks a logger whether a level may be enabled for any class, with the same guard as {@link #isEnabled}.
      */
     private static boolean mayBeEnabled(ILogger current, LogEntry.LogEntryLevel level) {
-        if (captures() != null) {
+        if (takesEveryLevel(captures())) {
             return true;
         }
         try {
@@ -1795,7 +1797,7 @@ public class LOG {
             for (MemoryLogger capture : captures) {
                 capture.onDiagnostic(diagnostic);
             }
-            if (!forwards(captures)) {
+            if (keeps(captures, current)) {
                 return;
             }
         }
@@ -1864,15 +1866,30 @@ public class LOG {
     }
 
     /**
-     * Whether the entries of the thread also reach the logger: not while one of its captures keeps them.
+     * Whether one of the captures of the thread keeps its entries from this logger: the logger that was installed
+     * when it opened.
      */
-    private static boolean forwards(List<MemoryLogger> captures) {
+    private static boolean keeps(List<MemoryLogger> captures, ILogger current) {
         for (MemoryLogger capture : captures) {
-            if (!capture.forwarding) {
-                return false;
+            if (capture.keptFrom == current) {
+                return true;
             }
         }
-        return true;
+        return false;
+    }
+
+    /**
+     * Whether one of the captures of the thread takes every level, so that every level counts as enabled.
+     */
+    private static boolean takesEveryLevel(List<MemoryLogger> captures) {
+        if (captures != null) {
+            for (MemoryLogger capture : captures) {
+                if (capture.everyLevel) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String describeSource(LogEntry entry) {

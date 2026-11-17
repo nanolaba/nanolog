@@ -24,6 +24,8 @@
  *     properties, environment variables or {@code nanolog.properties}.</li>
  *     <li>{@link com.nanolaba.logging.SummaryListener} &mdash; prints the run summary when JUnit has run the tests;
  *     the JUnit Platform loads it by itself.</li>
+ *     <li>{@link com.nanolaba.logging.NanologExtension} &mdash; a JUnit 5 extension that prints the log of a test only
+ *     when the test fails.</li>
  * </ul>
  */
 package com.nanolaba.logging;

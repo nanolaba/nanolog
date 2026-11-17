@@ -35,9 +35,15 @@ public class MemoryLogger implements ILogger, AutoCloseable {
      */
     List<MemoryLogger> capture;
     /**
-     * Whether the entries of a capture still reach the logger of {@code LOG}.
+     * The logger a capture keeps the entries of its thread from: the logger of {@code LOG} when it opened, or
+     * {@code null} for one that forwards them. A logger installed later, such as {@link #install()} in the test,
+     * still receives them.
      */
-    boolean forwarding;
+    ILogger keptFrom;
+    /**
+     * Whether a capture takes every level; a buffer of {@link NanologExtension} takes the levels of the logger.
+     */
+    boolean everyLevel;
 
     /**
      * Creates a logger without a capacity limit.
@@ -86,7 +92,8 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     /**
      * Captures the entries the current thread logs until {@link #close()}, every level, for a test that may run in
      * parallel with others: the logger of {@code LOG} stays installed for the other threads, and the entries of this
-     * thread do not reach it. Entries logged by other threads, a pool the code under test hands work to included,
+     * thread do not reach it; a logger installed while the capture is open, {@link #install()} for one, receives
+     * them. Entries logged by other threads, a pool the code under test hands work to included,
      * are not captured. Captures nest: the entries of an inner one reach the outer ones as well. The findings of
      * strict mode and of {@code nanolog.dbg=fail} on this thread go to the capture too.
      *
@@ -107,8 +114,21 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     private static MemoryLogger startCapture(boolean forwarding) {
+        return startCapture(forwarding ? null : LOG.getLogger(), true);
+    }
+
+    /**
+     * Holds back what the current thread writes to the logger of {@code LOG}, at the levels of that logger, until
+     * {@link NanologExtension} decides what to do with it; for that extension.
+     */
+    static MemoryLogger buffer() {
+        return startCapture(LOG.getLogger(), false);
+    }
+
+    private static MemoryLogger startCapture(ILogger keptFrom, boolean everyLevel) {
         MemoryLogger memory = new MemoryLogger();
-        memory.forwarding = forwarding;
+        memory.keptFrom = keptFrom;
+        memory.everyLevel = everyLevel;
         LOG.startCapture(memory);
         return memory;
     }

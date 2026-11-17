@@ -83,6 +83,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_SUMMARY = PROPERTY_PREFIX + "summary";
     /**
+     * Which logs of tests {@link NanologExtension} prints: {@code failed}, the default, only those of failing tests;
+     * {@code all} every log, as it is written; {@code none} no log.
+     */
+    public static final String PROPERTY_JUNIT_OUTPUT = PROPERTY_PREFIX + "junit.output";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
