@@ -51,6 +51,12 @@ public class DefaultLoggerCreator {
      * {@code toString()}.
      */
     public static final String PROPERTY_DUMP = PROPERTY_PREFIX + "dump";
+    /**
+     * What {@link LOG#dbg(Object)} calls do: {@code on}, the default, prints them; {@code off} prints nothing, for
+     * production; {@code fail} prints them and reports each call as a diagnostic, which fails
+     * {@link MemoryLogger#assertNoDiagnostics()}.
+     */
+    public static final String PROPERTY_DBG = PROPERTY_PREFIX + "dbg";
 
     /**
      * The resource read when {@value #PROPERTY_LOGGER_CONFIG_FILE} is not set.
@@ -112,6 +118,23 @@ public class DefaultLoggerCreator {
         }
         printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DUMP + "\": expected auto or off");
         return false;
+    }
+
+    /**
+     * Reads {@value #PROPERTY_DBG}: {@code on}, {@code off} or {@code fail}, ignoring case and surrounding spaces. No
+     * value gives {@code on}; an invalid one prints a diagnostic and gives {@code on} as well.
+     */
+    static Dbg.Mode readDbgMode() {
+        String value = getProperty(PROPERTY_DBG);
+        if (value != null) {
+            for (Dbg.Mode mode : Dbg.Mode.values()) {
+                if (mode.name().equalsIgnoreCase(value.trim())) {
+                    return mode;
+                }
+            }
+            printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DBG + "\": expected on, off or fail");
+        }
+        return Dbg.Mode.ON;
     }
 
     /**

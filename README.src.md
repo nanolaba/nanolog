@@ -161,8 +161,8 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reache
 - Строки и символы печатаются в кавычках и с экранированием, поэтому значение никогда не разрывает строку; коллекции, словари и массивы печатаются поэлементно, объекты без собственного `toString()` — поле за полем (см. ниже); за остальными значениями следует их тип, если их текст не начинается с него, как у `Invoice{id=17, ...}`.<!--ru-->
 - It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.<!--en-->
 - Это запись уровня `DEBUG`: действуют `nanolog.level` и правила пакетов, а уровень, выключенный везде, не стоит обхода стека. `ConsoleLogger` помечает её `DBG` и печатает место вызова даже без `showLocation`, `JsonLogger` добавляет `"dbg":true`, любой логгер отличает её по `LogEntry.isDbg()`. `LOG.once().dbg(...)` и `LOG.atMostEvery(...).dbg(...)` ограничивают её, как любую другую строку.<!--ru-->
-- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name is easy to find and remove before a commit (`grep -rn "LOG.dbg("`).<!--en-->
-- `dbg` задуман как временный, и для человека, и для кодового агента: отладочная печать, называющая свои значения, заменяет серию вызовов `System.out.println`, а её особое имя легко найти и убрать перед коммитом (`grep -rn "LOG.dbg("`).<!--ru-->
+- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name lets ${name} find the calls left behind, see [Leftover calls](#leftover-calls).<!--en-->
+- `dbg` задуман как временный, и для человека, и для кодового агента: отладочная печать, называющая свои значения, заменяет серию вызовов `System.out.println`, а по её особому имени ${name} находит забытые вызовы, см. [Забытые вызовы](#забытые-вызовы).<!--ru-->
 
 Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.<!--en-->
 В Rust `dbg!` входит в стандартную библиотеку с версии 1.32 (2019), в Python есть `f"{x=}"` с версии 3.8 и пакет icecream; в JDK ничего похожего нет, а шаблон IDE вроде `soutv` в IntelliJ вписывает имя в код, где оно устаревает при переименовании.<!--ru-->
@@ -194,6 +194,53 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.inspect(PrintDebugging.java:52)] invoice
 The same dump is available for `{}` arguments of every log call with `nanolog.dump=auto`, see [Message formatting](#message-formatting).<!--en-->
 Тот же дамп доступен для аргументов `{}` любого вызова лога с `nanolog.dump=auto`, см. [Форматирование сообщений](#форматирование-сообщений).<!--ru-->
 
+### ${en:'Leftover calls', ru:'Забытые вызовы'}
+
+`dbg` is meant to be temporary, and debug prints are easy to leave behind, by people and coding agents alike. ${name} knows its calls by name, so it can find them. Since 1.4.<!--en-->
+`dbg` задуман как временный, а отладочную печать легко забыть в коде, и человеку, и кодовому агенту. ${name} знает свои вызовы по имени и поэтому умеет их находить. Начиная с 1.4.<!--ru-->
+
+When the JVM exits, one line on `System.err` lists the call sites that printed, in the order they first ran, so the end of a test run or of a debugging session shows what is left:<!--en-->
+При завершении JVM одна строка в `System.err` перечисляет места вызова, которые печатали, в порядке первого запуска, поэтому в конце тестового прогона или отладки видно, что осталось:<!--ru-->
+
+```
+[NANOLOG] 3 LOG.dbg calls ran in this JVM: OrderService.java:87, OrderService.java:88, CartService.java:31
+```
+
+A test in the project fails while the sources still call `LOG.dbg` and names every call:<!--en-->
+Тест в проекте падает, пока в исходниках остаются вызовы `LOG.dbg`, и называет каждый из них:<!--ru-->
+
+${widget:import(path='${examples}/NoDbgCallsLeftTest.java', region='test', wrap='true')}
+
+```
+java.lang.AssertionError: 2 LOG.dbg calls left in the code; remove them:
+src/main/java/com/acme/OrderService.java:87: BigDecimal total = LOG.dbg(order.total());
+src/main/java/com/acme/CartService.java:31: LOG.dbg();
+```
+
+- `NanologChecks.assertNoDbgCalls` reads the `.java` and `.kt` files under the directories as text: no compiler plugin, no annotation processor, no extra dependency. It finds `LOG.dbg(...)`, `LOG.once().dbg(...)`, `LOG.atMostEvery(...).dbg(...)`, `LOG::dbg` and a static import of `LOG.dbg`, also split over lines, and skips comments, strings and text blocks, so a Javadoc that shows `LOG.dbg` does not count.<!--en-->
+- `NanologChecks.assertNoDbgCalls` читает файлы `.java` и `.kt` в каталогах как текст: без плагина компилятора, обработчика аннотаций и лишних зависимостей. Он находит `LOG.dbg(...)`, `LOG.once().dbg(...)`, `LOG.atMostEvery(...).dbg(...)`, `LOG::dbg` и статический импорт `LOG.dbg`, в том числе разнесённые на несколько строк, и пропускает комментарии, строки и текстовые блоки, поэтому Javadoc с примером `LOG.dbg` не считается.<!--ru-->
+- A relative directory resolves against the working directory, which is the module directory in Maven and Gradle test runs. A directory that does not exist fails the test instead of passing it with nothing checked.<!--en-->
+- Относительный каталог отсчитывается от рабочей директории, а в тестовых запусках Maven и Gradle это каталог модуля. Несуществующий каталог роняет тест, а не пропускает его без проверки.<!--ru-->
+
+`nanolog.dbg` (`NANOLOG_DBG`) decides what the calls do at run time:<!--en-->
+`nanolog.dbg` (`NANOLOG_DBG`) определяет, что делают вызовы во время работы:<!--ru-->
+
+| `nanolog.dbg` | ${en:'Calls', ru:'Вызовы'} |
+|---|---|
+| `on` | ${en:'print; the default', ru:'печатают; значение по умолчанию'} |
+| `off` | ${en:'print nothing and cost one check, before any stack walk; for production', ru:'ничего не печатают и стоят одной проверки, до обхода стека; для продакшена'} |
+| `fail` | ${en:'still print and return their value, and each one is reported as a diagnostic', ru:'по-прежнему печатают и возвращают значение, и о каждом сообщается диагностикой'} |
+
+With `fail`, each call site prints one line on `System.err`, and every call reaches the logger through `ILogger.onDiagnostic`, so `MemoryLogger.assertNoDiagnostics()` fails, as with [strict mode](#checking-placeholders-in-tests). Nothing is thrown:<!--en-->
+С `fail` каждое место вызова печатает одну строку в `System.err`, а каждый вызов доходит до логгера через `ILogger.onDiagnostic`, поэтому `MemoryLogger.assertNoDiagnostics()` падает, как и в [strict-режиме](#проверка-плейсхолдеров-в-тестах). Исключение не бросается:<!--ru-->
+
+```
+[NANOLOG] com.acme.OrderService.checkout(OrderService.java:87): LOG.dbg call left in the code (nanolog.dbg=fail)
+```
+
+Like the entries themselves, the list at exit and the reports cover only calls whose `DEBUG` level is enabled; the test above finds every call.<!--en-->
+Как и сами записи, список при выходе и диагностики учитывают только вызовы, у которых включён уровень `DEBUG`; тест выше находит все вызовы.<!--ru-->
+
 ## ${en:'Agent-driven development', ru:'Агентная разработка'}
 
 When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs the code,<!--en-->
@@ -223,6 +270,8 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 - **Вся библиотека помещается в контекстное окно.** Один пакет небольших классов, одна точка входа, этот README и [Javadoc](${javadoc}/${stableVersion}). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.<!--ru-->
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).<!--en-->
 - **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).<!--ru-->
+- **Debug prints do not stay behind.** A forgotten `System.out.println` looks like any other output; a `LOG.dbg` call has a name of its own. The run lists the ones that printed, `nanolog.dbg=off` silences them in production, and `NanologChecks.assertNoDbgCalls` fails a test while one is left in the sources, with the file and line the agent has to fix. See [Leftover calls](#leftover-calls).<!--en-->
+- **Отладочная печать не остаётся в коде.** Забытый `System.out.println` ничем не отличается от обычного вывода, а у вызова `LOG.dbg` своё имя. Запуск перечисляет вызовы, которые печатали, `nanolog.dbg=off` заглушает их в продакшене, а `NanologChecks.assertNoDbgCalls` роняет тест, пока хоть один остаётся в исходниках, и называет файл и строку, которые агенту нужно исправить. См. [Забытые вызовы](#забытые-вызовы).<!--ru-->
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend ${name}, not only use it.<!--en-->
 - **Сам репозиторий готов к работе агентов.** [AGENTS.md](AGENTS.md) описывает сборку, инварианты и требования к тестам (JUnit и 100% мутационное покрытие), поэтому агент может не только использовать ${name}, но и чинить и расширять его.<!--ru-->
 
@@ -241,14 +290,17 @@ Two files give an agent the rules of the library in a few hundred lines, without
 
   ${en:'Other agents that support the Agent Skills format read the same file from their own skills directory.', ru:'Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.'}
 
-Можно ничего не устанавливать: достаточно одного абзаца в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:<!--ru-->
-Without installing anything, one paragraph in `AGENTS.md` (or `CLAUDE.md`) of the project is enough:<!--en-->
+Можно ничего не устанавливать: достаточно нескольких строк в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:<!--ru-->
+Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the project are enough:<!--en-->
 
 ```markdown
 ## Logging
 
 This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
 read https://raw.githubusercontent.com/nanolaba/nanolog/main/llms.txt
+
+For temporary debug output use LOG.dbg(...), never System.out.println, and remove every
+LOG.dbg call before you finish: the test with NanologChecks.assertNoDbgCalls must pass.
 ```
 
 Оба файла генерируются из `agent-guide.src.md` при каждой сборке: версии берутся из `pom.xml`, примеры кода —<!--ru-->
@@ -294,6 +346,7 @@ ${en:'A no-argument', ru:'Вызов'} `LOG.init()` ${en:'re-reads the property 
 | `nanolog.logger` | ${en:'class name of the `ILogger` implementation', ru:'имя класса реализации `ILogger`'} | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | ${en:'classpath resource with the configuration', ru:'ресурс в classpath с конфигурацией'} | `nanolog.properties` |
 | `nanolog.sources` | ${en:'source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off', ru:'каталоги исходников, из которых `LOG.dbg` читает текст аргументов, через запятую; пустое значение отключает чтение'} | ${en:'derived from the class location', ru:'выводятся из расположения класса'} |
+| `nanolog.dbg` | ${en:'`off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see', ru:'`off` заглушает `LOG.dbg`, `fail` сообщает о каждом вызове диагностикой, см.'} [${en:'Leftover calls', ru:'Забытые вызовы'}](#${en:'leftover-calls', ru:'забытые-вызовы'}) | `on` |
 | `nanolog.dump` | ${en:'`auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see', ru:'`auto` печатает аргументы `{}`, у класса которых нет собственного `toString()`, поле за полем, см.'} [${en:'Message formatting', ru:'Форматирование сообщений'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `off` |
 | `nanolog.strict` | ${en:'report calls whose `{}` placeholders and arguments do not match, see', ru:'сообщать о вызовах, у которых плейсхолдеры `{}` не совпадают с аргументами, см.'} [${en:'Message formatting', ru:'Форматирование сообщений'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `false` |
 
@@ -523,6 +576,7 @@ ${widget:import(path='${examples}/CapturingLogs.java', region='diagnostics', wra
 
 - ${en:'`getDiagnostics()` returns the findings, `assertNoDiagnostics()` fails with all of them in the message; `clear()` drops them together with the entries. `CompositeLogger` passes them to its delegates.', ru:'`getDiagnostics()` возвращает находки, `assertNoDiagnostics()` падает со всеми ними в сообщении; `clear()` удаляет их вместе с записями. `CompositeLogger` передаёт их своим делегатам.'}
 - ${en:'Without strict mode there is nothing to report and `assertNoDiagnostics()` passes, so switch it on for the test run as above.', ru:'Без strict-режима сообщать не о чем, и `assertNoDiagnostics()` проходит, поэтому включите его для тестового запуска, как показано выше.'}
+- ${en:'`nanolog.dbg=fail` reports `LOG.dbg` calls the same way, see [Leftover calls](#leftover-calls).', ru:'`nanolog.dbg=fail` так же сообщает о вызовах `LOG.dbg`, см. [Забытые вызовы](#забытые-вызовы).'}
 
 ## ${en:'Rate limiting', ru:'Ограничение частоты'}
 
@@ -634,6 +688,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 
 - ${en:'`LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.', ru:'`LOG.dbg(expression)` печатает выражение так, как оно записано в исходнике, его значение и тип и место вызова и возвращает значение; `LOG.dbg(a, b, ...)` печатает несколько, `LOG.dbg()` — что строка достигнута. Без исходников печатаются только значения. `ConsoleLogger` помечает строку `DBG`, `JsonLogger` добавляет `"dbg":true`, `LogEntry.isDbg()` отличает запись; `nanolog.sources` задаёт каталоги исходников.'}
 - ${en:'Objects whose class has no `toString()` of its own are printed field by field instead of `Invoice@2f92e0f4`: always in `LOG.dbg`, and in `{}` arguments with `nanolog.dump=auto`. Classes of the JDK are never reflected into, so nothing needs `--add-opens` on JDK 17+; cycles, depth, items and string length are limited, and every cut says what it left out; fields named like secrets print `***`; records show their components, proxies only their class name.', ru:'Объекты, у класса которых нет собственного `toString()`, печатаются поле за полем, а не как `Invoice@2f92e0f4`: всегда в `LOG.dbg`, а в аргументах `{}` — с `nanolog.dump=auto`. В классы JDK рефлексия не заглядывает, поэтому на JDK 17+ не нужен `--add-opens`; циклы, глубина, число элементов и длина строк ограничены, и каждое ограничение сообщает, что отброшено; поля с именами секретов печатаются как `***`; записи показывают свои компоненты, прокси — только имя класса.'}
+- ${en:'Leftover `LOG.dbg` calls are easy to get rid of: when the JVM exits, one `[NANOLOG]` line lists the call sites that printed; `nanolog.dbg=off` silences the calls, `nanolog.dbg=fail` reports each one as a diagnostic that fails `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` fails a test while the sources call `LOG.dbg`, with the file, line and code of each call. `MemoryLogger.assertNoDiagnostics()` now says `Nanolog reported` instead of `strict mode reported`.', ru:'От забытых вызовов `LOG.dbg` легко избавиться: при завершении JVM одна строка `[NANOLOG]` перечисляет места вызова, которые печатали; `nanolog.dbg=off` заглушает вызовы, `nanolog.dbg=fail` сообщает о каждом диагностикой, на которой падает `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` роняет тест, пока в исходниках есть `LOG.dbg`, и называет файл, строку и код каждого вызова. `MemoryLogger.assertNoDiagnostics()` теперь пишет `Nanolog reported` вместо `strict mode reported`.'}
 ${widget:endIf}
 
 ### 1.3

@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.DEBUG;
@@ -29,11 +30,14 @@ class DbgTest extends AbstractLoggerTest {
     private static final String NL = System.lineSeparator();
 
     private final CallerDetection.Locator originalLocator = LOG.callerLocator;
+    private final Consumer<Thread> originalHooks = Dbg.shutdownHooks;
     private final AtomicLong now = new AtomicLong(1_000_000_000L);
     private MemoryLogger memory;
 
     @BeforeEach
     public void install() {
+        Dbg.clearCalls();
+        Dbg.shutdownHooks = hook -> { };
         DbgSource.clearCache();
         Dump.clearCache();
         LOG.clearLimits();
@@ -44,6 +48,8 @@ class DbgTest extends AbstractLoggerTest {
     @AfterEach
     public void restore() {
         memory.close();
+        Dbg.shutdownHooks = originalHooks;
+        Dbg.clearCalls();
         LOG.callerLocator = originalLocator;
         LOG.nanoClock = System::nanoTime;
         System.clearProperty(DefaultLoggerCreator.PROPERTY_SOURCES);

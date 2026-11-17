@@ -52,6 +52,7 @@ logging
 ├── LogEntry.java
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
+├── NanologChecks.java
 ├── ShortStackTrace.java
 ├── Slf4jLogger.java
 └── package-info.java
@@ -72,6 +73,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 2.1 [API at a glance](#api-at-a-glance)
 - 3 [Print debugging: `LOG.dbg` prints the expression and its value](#print-debugging-logdbg-prints-the-expression-and-its-value)
 	- 3.1 [Objects without `toString()`](#objects-without-tostring)
+	- 3.2 [Leftover calls](#leftover-calls)
 - 4 [Agent-driven development](#agent-driven-development)
 	- 4.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Choosing a logger](#choosing-a-logger)
@@ -213,7 +215,7 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reache
 - Without the text only the values are printed, never an error: when no source directory is found (a production jar), the source file is newer than its class, or the line holds two `dbg` calls, since Java reports the line of a call but not its column.
 - Strings and chars are quoted and escaped, so a value never breaks the line; collections, maps and arrays are printed item by item, objects without a `toString()` of their own field by field (see below); other values are followed by their type, unless their text starts with it, as `Invoice{id=17, ...}` does.
 - It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.
-- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name is easy to find and remove before a commit (`grep -rn "LOG.dbg("`).
+- `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name lets **Nanolog** find the calls left behind, see [Leftover calls](#leftover-calls).
 
 Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.
 
@@ -262,6 +264,50 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.inspect(PrintDebugging.java:52)] invoice
 
 The same dump is available for `{}` arguments of every log call with `nanolog.dump=auto`, see [Message formatting](#message-formatting).
 
+### Leftover calls
+
+`dbg` is meant to be temporary, and debug prints are easy to leave behind, by people and coding agents alike. **Nanolog** knows its calls by name, so it can find them. Since 1.4.
+
+When the JVM exits, one line on `System.err` lists the call sites that printed, in the order they first ran, so the end of a test run or of a debugging session shows what is left:
+
+```
+[NANOLOG] 3 LOG.dbg calls ran in this JVM: OrderService.java:87, OrderService.java:88, CartService.java:31
+```
+
+A test in the project fails while the sources still call `LOG.dbg` and names every call:
+
+```java
+@Test
+void noDebugPrintsLeft() {
+    NanologChecks.assertNoDbgCalls("src/main/java"); // lists the file, line and code of every call
+}
+```
+
+```
+java.lang.AssertionError: 2 LOG.dbg calls left in the code; remove them:
+src/main/java/com/acme/OrderService.java:87: BigDecimal total = LOG.dbg(order.total());
+src/main/java/com/acme/CartService.java:31: LOG.dbg();
+```
+
+- `NanologChecks.assertNoDbgCalls` reads the `.java` and `.kt` files under the directories as text: no compiler plugin, no annotation processor, no extra dependency. It finds `LOG.dbg(...)`, `LOG.once().dbg(...)`, `LOG.atMostEvery(...).dbg(...)`, `LOG::dbg` and a static import of `LOG.dbg`, also split over lines, and skips comments, strings and text blocks, so a Javadoc that shows `LOG.dbg` does not count.
+- A relative directory resolves against the working directory, which is the module directory in Maven and Gradle test runs. A directory that does not exist fails the test instead of passing it with nothing checked.
+
+`nanolog.dbg` (`NANOLOG_DBG`) decides what the calls do at run time:
+
+| `nanolog.dbg` | Calls |
+|---|---|
+| `on` | print; the default |
+| `off` | print nothing and cost one check, before any stack walk; for production |
+| `fail` | still print and return their value, and each one is reported as a diagnostic |
+
+With `fail`, each call site prints one line on `System.err`, and every call reaches the logger through `ILogger.onDiagnostic`, so `MemoryLogger.assertNoDiagnostics()` fails, as with [strict mode](#checking-placeholders-in-tests). Nothing is thrown:
+
+```
+[NANOLOG] com.acme.OrderService.checkout(OrderService.java:87): LOG.dbg call left in the code (nanolog.dbg=fail)
+```
+
+Like the entries themselves, the list at exit and the reports cover only calls whose `DEBUG` level is enabled; the test above finds every call.
+
 ## Agent-driven development
 
 When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs the code,
@@ -278,6 +324,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
+- **Debug prints do not stay behind.** A forgotten `System.out.println` looks like any other output; a `LOG.dbg` call has a name of its own. The run lists the ones that printed, `nanolog.dbg=off` silences them in production, and `NanologChecks.assertNoDbgCalls` fails a test while one is left in the sources, with the file and line the agent has to fix. See [Leftover calls](#leftover-calls).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
 ### Using Nanolog from a coding agent
@@ -294,13 +341,16 @@ Two files give an agent the rules of the library in a few hundred lines, without
 
   Other agents that support the Agent Skills format read the same file from their own skills directory.
 
-Without installing anything, one paragraph in `AGENTS.md` (or `CLAUDE.md`) of the project is enough:
+Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the project are enough:
 
 ```markdown
 ## Logging
 
 This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
 read https://raw.githubusercontent.com/nanolaba/nanolog/main/llms.txt
+
+For temporary debug output use LOG.dbg(...), never System.out.println, and remove every
+LOG.dbg call before you finish: the test with NanologChecks.assertNoDbgCalls must pass.
 ```
 
 Both files are generated from `agent-guide.src.md` on every build: the versions come from `pom.xml`, the code
@@ -342,6 +392,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.logger` | class name of the `ILogger` implementation | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
+| `nanolog.dbg` | `off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see [Leftover calls](#leftover-calls) | `on` |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
@@ -618,6 +669,7 @@ void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
 
 - `getDiagnostics()` returns the findings, `assertNoDiagnostics()` fails with all of them in the message; `clear()` drops them together with the entries. `CompositeLogger` passes them to its delegates.
 - Without strict mode there is nothing to report and `assertNoDiagnostics()` passes, so switch it on for the test run as above.
+- `nanolog.dbg=fail` reports `LOG.dbg` calls the same way, see [Leftover calls](#leftover-calls).
 
 ## Rate limiting
 
@@ -754,6 +806,7 @@ dependencies {
 
 - `LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.
 - Objects whose class has no `toString()` of its own are printed field by field instead of `Invoice@2f92e0f4`: always in `LOG.dbg`, and in `{}` arguments with `nanolog.dump=auto`. Classes of the JDK are never reflected into, so nothing needs `--add-opens` on JDK 17+; cycles, depth, items and string length are limited, and every cut says what it left out; fields named like secrets print `***`; records show their components, proxies only their class name.
+- Leftover `LOG.dbg` calls are easy to get rid of: when the JVM exits, one `[NANOLOG]` line lists the call sites that printed; `nanolog.dbg=off` silences the calls, `nanolog.dbg=fail` reports each one as a diagnostic that fails `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` fails a test while the sources call `LOG.dbg`, with the file, line and code of each call. `MemoryLogger.assertNoDiagnostics()` now says `Nanolog reported` instead of `strict mode reported`.
 
 ### 1.3
 

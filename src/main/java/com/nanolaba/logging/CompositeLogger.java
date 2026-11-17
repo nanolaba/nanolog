@@ -74,7 +74,7 @@ public class CompositeLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Passes a finding of strict mode to every delegate. A delegate that throws is reported once per class and
+     * Passes a finding of strict mode or of {@code nanolog.dbg=fail} to every delegate. A delegate that throws is reported once per class and
      * skipped; the others still receive the finding.
      *
      * @param message the finding

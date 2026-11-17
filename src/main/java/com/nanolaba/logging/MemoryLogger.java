@@ -246,7 +246,8 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
-     * Keeps a finding of strict mode, dropping the oldest one if the capacity is exceeded.
+     * Keeps a finding of strict mode or of {@code nanolog.dbg=fail}, dropping the oldest one if the capacity is
+     * exceeded.
      *
      * @param message the finding
      */
@@ -261,10 +262,10 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
-     * Returns a snapshot of the findings of strict mode, oldest first: one per call whose {@code {}} placeholders and
-     * arguments did not match, while {@code nanolog.strict=true}.
+     * Returns a snapshot of the findings, oldest first: one per call whose {@code {}} placeholders and arguments did
+     * not match, while {@code nanolog.strict=true}, and one per {@code LOG.dbg} call, while {@code nanolog.dbg=fail}.
      *
-     * @return a snapshot of the findings of strict mode, oldest first
+     * @return a snapshot of the findings, oldest first
      */
     public List<String> getDiagnostics() {
         synchronized (entries) {
@@ -273,16 +274,17 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
-     * Fails if strict mode reported a call whose {@code {}} placeholders and arguments do not match. Strict mode must
-     * be on ({@code -Dnanolog.strict=true}, for example in the Surefire configuration); without it there is nothing to
+     * Fails if Nanolog reported a finding: a call whose {@code {}} placeholders and arguments do not match, with
+     * {@code -Dnanolog.strict=true}, or a {@code LOG.dbg} call, with {@code -Dnanolog.dbg=fail}. The checks must be on,
+     * for example in the Surefire configuration; without them there is nothing to
      * report and the assertion passes.
      *
-     * @throws AssertionError with every finding, each naming the call site and the template
+     * @throws AssertionError with every finding, each naming its call site
      */
     public void assertNoDiagnostics() {
         List<String> found = getDiagnostics();
         if (!found.isEmpty()) {
-            StringBuilder message = new StringBuilder("Expected no diagnostics, but strict mode reported ").append(found.size()).append(':');
+            StringBuilder message = new StringBuilder("Expected no diagnostics, but Nanolog reported ").append(found.size()).append(':');
             for (String diagnostic : found) {
                 message.append(System.lineSeparator()).append(diagnostic);
             }
@@ -291,7 +293,7 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     }
 
     /**
-     * Drops all captured entries and findings of strict mode.
+     * Drops all captured entries and findings.
      */
     public void clear() {
         synchronized (entries) {

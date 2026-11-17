@@ -33,7 +33,7 @@ The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVer
 7. Logging never throws: a broken `toString()` becomes `[FAILED toString()]`, a lazy message whose lambda throws becomes `[FAILED supplier: <exception>]` *1.3+*. Do not wrap log calls in `try`/`catch`.
 8. A custom `ILogger` that itself logs through `LOG` must pass its source class explicitly, because caller detection skips every `ILogger` class. If it throws, the call that logged does not fail: Nanolog prints one `[NANOLOG]` line per logger class and writes the entry to `System.err` instead *1.3+*.
 9. In a loop, a retry or a poll, log through `LOG.once()` or `LOG.atMostEvery(...)` *1.3+*: a line repeated thousands of times crowds the context window and pushes out the one that matters. The next line that gets through says how many were skipped, `[skipped 241]`.
-10. For temporary debug output use `LOG.dbg(...)` *1.4+*, never `System.out.println`, and remove every `LOG.dbg` call before you finish.
+10. For temporary debug output use `LOG.dbg(...)` *1.4+*, never `System.out.println`, and remove every `LOG.dbg` call before you finish; `NanologChecks.assertNoDbgCalls("src/main/java")` in a test lists the ones left.
 
 ## Call shapes
 
@@ -63,9 +63,13 @@ LOG.dbg(user, cart.size());   // user = User{id=17}, cart.size() = 3 (Integer)
 LOG.dbg();                    // reached
 ```
 
-The text is read from the source file, found from the class location (`target/classes` leads to `src/main/java`) or `-Dnanolog.sources=dir1,dir2`. Without it, or with two `dbg` calls on one line, only the values are printed. It is a `DEBUG` entry, so `NANOLOG_LEVEL=INFO` silences it; `ConsoleLogger` marks it `DBG`, `JsonLogger` adds `"dbg":true`. Find leftovers with `grep -rn "LOG.dbg("`.
+The text is read from the source file, found from the class location (`target/classes` leads to `src/main/java`) or `-Dnanolog.sources=dir1,dir2`. Without it, or with two `dbg` calls on one line, only the values are printed. It is a `DEBUG` entry, so `NANOLOG_LEVEL=INFO` silences it; `ConsoleLogger` marks it `DBG`, `JsonLogger` adds `"dbg":true`. When the JVM exits, one `[NANOLOG]` line on `System.err` lists the `dbg` call sites that printed.
 
 An object without a `toString()` of its own prints field by field, `Invoice{id=17, lines=[Line{sku="A-1", qty=2}]}`, instead of `Invoice@2f92e0f4` *1.4+*. Classes of the JDK are walked through their public API, never by reflection, so no `--add-opens` is needed. Fields named like secrets (`password`, `token`, `apiKey`...) print `***`, proxies print only their class name, and cycles, depth, items and string length are cut with a note of what was left out. `-Dnanolog.dump=auto` applies the same to `{}` arguments of every log call; it is off by default.
+
+Remove every `LOG.dbg` call before you finish. This test fails while one is left in the sources, with the file, line and code of each; it reads `.java` and `.kt` files as text, so comments and strings do not count *1.4+*:
+
+${widget:import(path='${examples}/NoDbgCallsLeftTest.java', region='test', wrap='true')}
 
 ## Choosing the output
 
@@ -84,6 +88,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.console.showThread=true` *1.3+*: adds the thread name, `[main]`, after the date, to tell the lines of a thread pool apart.
 - `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
 - `-Dnanolog.dump=auto` *1.4+*: `{}` arguments whose class has no `toString()` of its own print field by field, as in `LOG.dbg`, instead of `Order@2f92e0f4`; values with a `toString()` print as before.
+- `-Dnanolog.dbg=off` *1.4+* silences every `LOG.dbg` call, as in production; `-Dnanolog.dbg=fail` still prints them and reports each one, so `MemoryLogger.assertNoDiagnostics()` fails.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a template an earlier test met first.
 
 ## Changing levels at run time *1.3+*

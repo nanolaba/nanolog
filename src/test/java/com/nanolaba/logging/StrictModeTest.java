@@ -223,7 +223,7 @@ class StrictModeTest extends AbstractLoggerTest {
         assertEquals("[NANOLOG] " + diagnostics.get(0) + System.lineSeparator(), getErrAndClear(), "standard error reports a template once");
 
         AssertionError error = assertThrows(AssertionError.class, memory::assertNoDiagnostics);
-        assertEquals("Expected no diagnostics, but strict mode reported 2:" + System.lineSeparator() +
+        assertEquals("Expected no diagnostics, but Nanolog reported 2:" + System.lineSeparator() +
                      diagnostics.get(0) + System.lineSeparator() + diagnostics.get(1), error.getMessage());
     }
 

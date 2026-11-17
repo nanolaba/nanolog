@@ -86,13 +86,14 @@ public class LOG {
 
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
-     * {@code nanolog.strict} and {@code nanolog.dump}. Called once when the class initialises.
+     * {@code nanolog.strict}, {@code nanolog.dump} and {@code nanolog.dbg}. Called once when the class initialises.
      */
     public static void init() {
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
-        // after the logger: creating it loads nanolog.properties, which may set nanolog.strict and nanolog.dump
+        // after the logger: creating it loads nanolog.properties, which may set the other settings
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
         Dump.auto = DefaultLoggerCreator.readDumpAuto();
+        Dbg.mode = DefaultLoggerCreator.readDbgMode();
     }
 
     /**
@@ -1124,7 +1125,12 @@ public class LOG {
      * <p>
      * The entry is logged at {@code DEBUG}, so {@code nanolog.level} and package rules apply to it, and
      * {@link LogEntry#isDbg()} marks it: {@link ConsoleLogger} prints {@code DBG} and the call site, even without
-     * {@code showLocation}, and {@link JsonLogger} adds {@code "dbg":true}. Meant for temporary debug output; remove the calls when done.
+     * {@code showLocation}, and {@link JsonLogger} adds {@code "dbg":true}.
+     * <p>
+     * Meant for temporary debug output, so the calls are easy to get rid of: when the JVM exits, one {@code [NANOLOG]}
+     * line on {@code System.err} lists the call sites that printed; {@code nanolog.dbg=off} silences every call, and
+     * {@code nanolog.dbg=fail} reports each one as a diagnostic, which fails {@link MemoryLogger#assertNoDiagnostics()};
+     * {@link NanologChecks#assertNoDbgCalls} fails a test while the sources still call it.
      *
      * @param value the value to print
      * @param <T>   the type of the value
@@ -1132,7 +1138,7 @@ public class LOG {
      */
     public static <T> T dbg(T value) {
         ILogger current = logger;
-        if (mayBeEnabled(current, DEBUG)) {
+        if (mayPrintDbg(current)) {
             writeDbg(current, new Object[]{value});
         }
         return value;
@@ -1149,7 +1155,7 @@ public class LOG {
      */
     public static void dbg(Object first, Object second, Object... more) {
         ILogger current = logger;
-        if (mayBeEnabled(current, DEBUG)) {
+        if (mayPrintDbg(current)) {
             writeDbg(current, Dbg.values(first, second, more));
         }
     }
@@ -1160,7 +1166,7 @@ public class LOG {
      */
     public static void dbg() {
         ILogger current = logger;
-        if (mayBeEnabled(current, DEBUG)) {
+        if (mayPrintDbg(current)) {
             writeDbg(current, NO_ARGS);
         }
     }
@@ -1168,8 +1174,28 @@ public class LOG {
     private static void writeDbg(ILogger current, Object[] values) {
         CallerDetection.Caller caller = findCaller();
         if (isEnabled(current, DEBUG, caller.sourceClass)) {
-            write(current, Dbg.entry(caller, values, 0, LogEntry.LOG_BOUNDARY));
+            writeDbgEntry(current, Dbg.entry(caller, values, 0, LogEntry.LOG_BOUNDARY));
         }
+    }
+
+    /**
+     * Whether a {@code dbg} call may print: not with {@code nanolog.dbg=off}, and only if {@code DEBUG} may be enabled.
+     * Checked before anything is allocated or the stack is walked.
+     */
+    private static boolean mayPrintDbg(ILogger current) {
+        return Dbg.mode != Dbg.Mode.OFF && mayBeEnabled(current, DEBUG);
+    }
+
+    /**
+     * Writes the entry of a {@code dbg} call, remembering its call site for the list printed at exit; with
+     * {@code nanolog.dbg=fail}, reports the call first.
+     */
+    private static void writeDbgEntry(ILogger current, LogEntry entry) {
+        boolean first = Dbg.ran(entry.getCaller());
+        if (Dbg.mode == Dbg.Mode.FAIL) {
+            diagnose(current, describeSource(entry) + ": LOG.dbg call left in the code (nanolog.dbg=fail)", first);
+        }
+        write(current, entry);
     }
 
     // RATE LIMITING
@@ -1307,7 +1333,7 @@ public class LOG {
             CallerDetection.Caller caller = findCaller();
             long skipped = admit(current, DEBUG, caller);
             if (skipped >= 0) {
-                write(current, Dbg.entry(caller, values, skipped, CALLER_BOUNDARY));
+                writeDbgEntry(current, Dbg.entry(caller, values, skipped, CALLER_BOUNDARY));
             }
         }
 
@@ -1321,7 +1347,7 @@ public class LOG {
          */
         public <T> T dbg(T value) {
             ILogger current = logger;
-            if (mayBeEnabled(current, DEBUG)) {
+            if (mayPrintDbg(current)) {
                 writeDbg(current, new Object[]{value});
             }
             return value;
@@ -1337,7 +1363,7 @@ public class LOG {
          */
         public void dbg(Object first, Object second, Object... more) {
             ILogger current = logger;
-            if (mayBeEnabled(current, DEBUG)) {
+            if (mayPrintDbg(current)) {
                 writeDbg(current, Dbg.values(first, second, more));
             }
         }
@@ -1347,7 +1373,7 @@ public class LOG {
          */
         public void dbg() {
             ILogger current = logger;
-            if (mayBeEnabled(current, DEBUG)) {
+            if (mayPrintDbg(current)) {
                 writeDbg(current, NO_ARGS);
             }
         }
@@ -1709,15 +1735,22 @@ public class LOG {
         if (placeholders != args.length) {
             String diagnostic = describeSource(entry) + ": " + count(placeholders, "placeholder") + ", " +
                                 count(args.length, "argument") + " in \"" + template + "\"";
-            if (REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null) {
-                DefaultLoggerCreator.printDiagnostic(diagnostic);
-            }
-            // every occurrence: a test must see a mismatch that an earlier test already printed
-            try {
-                current.onDiagnostic(diagnostic);
-            } catch (Throwable t) {
-                reportLoggerFailure(current, t, "its diagnostics are printed to System.err only");
-            }
+            diagnose(current, diagnostic, REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null);
+        }
+    }
+
+    /**
+     * Reports a finding: to {@code System.err} the first time only, so a loop does not flood it, and to the logger
+     * every time, since a test must see a finding that an earlier test already printed.
+     */
+    private static void diagnose(ILogger current, String diagnostic, boolean first) {
+        if (first) {
+            DefaultLoggerCreator.printDiagnostic(diagnostic);
+        }
+        try {
+            current.onDiagnostic(diagnostic);
+        } catch (Throwable t) {
+            reportLoggerFailure(current, t, "its diagnostics are printed to System.err only");
         }
     }
 

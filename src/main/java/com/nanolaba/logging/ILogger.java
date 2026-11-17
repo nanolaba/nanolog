@@ -51,13 +51,13 @@ public interface ILogger {
     }
 
     /**
-     * Receives a finding of strict mode ({@code nanolog.strict=true}) about the entry this logger is about to
-     * receive: a call whose {@code {}} placeholders and arguments do not match. {@code LOG} prints such a finding to
-     * {@code System.err} once per template; this method gets every occurrence, so a test can fail on it even when an
-     * earlier test met the same template first. {@link MemoryLogger} keeps them for
-     * {@link MemoryLogger#assertNoDiagnostics()}; the default ignores them.
+     * Receives a finding about the entry this logger is about to receive: with {@code nanolog.strict=true}, a call
+     * whose {@code {}} placeholders and arguments do not match; with {@code nanolog.dbg=fail}, a {@code LOG.dbg} call.
+     * {@code LOG} prints such a finding to {@code System.err} once per template or call site; this method gets every
+     * occurrence, so a test can fail on it even when an earlier test met the same finding first. {@link MemoryLogger}
+     * keeps them for {@link MemoryLogger#assertNoDiagnostics()}; the default ignores them.
      *
-     * @param message the finding, as printed after {@code [NANOLOG]}: the call site, the counts and the template
+     * @param message the finding, as printed after {@code [NANOLOG]}: the call site, then what is wrong
      */
     default void onDiagnostic(String message) {
     }

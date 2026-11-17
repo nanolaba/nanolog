@@ -1,11 +1,19 @@
 package com.nanolaba.logging;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * The entries of {@link LOG#dbg(Object)}: each argument as written in the source, followed by its value and type,
  * {@code order.total() = 129.90 (BigDecimal)}. Without the source text only the values are printed.
+ * <p>
+ * {@code dbg} is meant to be temporary, so its call sites are remembered and listed when the JVM exits, and
+ * {@code nanolog.dbg} switches the calls off or reports each of them.
  */
 final class Dbg {
 
@@ -14,7 +22,95 @@ final class Dbg {
      */
     static final String REACHED = "reached";
 
+    /**
+     * What {@code dbg} calls do, {@code nanolog.dbg}.
+     */
+    enum Mode {
+        /**
+         * Print; the default.
+         */
+        ON,
+        /**
+         * Print nothing and cost nothing beyond the call, for production.
+         */
+        OFF,
+        /**
+         * Print, and report every call as a diagnostic, so {@code MemoryLogger.assertNoDiagnostics()} fails.
+         */
+        FAIL
+    }
+
+    /**
+     * The mode, read by {@link LOG#init()}; {@code volatile} for the same reason as its logger.
+     */
+    static volatile Mode mode = Mode.ON;
+
+    /**
+     * Registers the hook that lists the call sites at exit. Tests replace it to run the hook themselves and must
+     * restore it afterwards.
+     */
+    static Consumer<Thread> shutdownHooks = Runtime.getRuntime()::addShutdownHook;
+
+    /**
+     * The call sites of the {@code dbg} entries written in this JVM, in the order they first ran. Call sites are lines
+     * of code, so the set stays as small as the code.
+     */
+    private static final Set<String> CALLS = Collections.synchronizedSet(new LinkedHashSet<>());
+
+    private static final AtomicBoolean HOOK_REGISTERED = new AtomicBoolean();
+
     private Dbg() {/**/}
+
+    /**
+     * Remembers that a {@code dbg} call site wrote an entry. The first call registers the hook that lists them at
+     * exit; a JVM that is already shutting down, or a security manager that forbids hooks, leaves the list unprinted.
+     *
+     * @param frame the frame of the call; {@code null} if unknown
+     * @return {@code true} the first time the call site runs
+     */
+    static boolean ran(StackTraceElement frame) {
+        if (HOOK_REGISTERED.compareAndSet(false, true)) {
+            try {
+                shutdownHooks.accept(new Thread(Dbg::printCalls, "nanolog-dbg"));
+            } catch (RuntimeException e) {
+                // IllegalStateException during shutdown, SecurityException: the calls are still printed
+            }
+        }
+        return CALLS.add(site(frame));
+    }
+
+    /**
+     * The call site as listed at exit: {@code OrderService.java:87}.
+     */
+    static String site(StackTraceElement frame) {
+        if (frame == null) {
+            return "unknown source";
+        }
+        String file = frame.getFileName() == null ? frame.getClassName() : frame.getFileName();
+        return frame.getLineNumber() < 0 ? file : file + ":" + frame.getLineNumber();
+    }
+
+    /**
+     * Prints the call sites that ran, the shutdown hook; nothing if none did.
+     */
+    static void printCalls() {
+        List<String> calls;
+        synchronized (CALLS) {
+            calls = new ArrayList<>(CALLS);
+        }
+        if (!calls.isEmpty()) {
+            DefaultLoggerCreator.printDiagnostic(calls.size() + (calls.size() == 1 ? " LOG.dbg call" : " LOG.dbg calls") +
+                                                 " ran in this JVM: " + String.join(", ", calls));
+        }
+    }
+
+    /**
+     * Forgets the call sites and the hook; for tests.
+     */
+    static void clearCalls() {
+        CALLS.clear();
+        HOOK_REGISTERED.set(false);
+    }
 
     /**
      * The entry of a call whose level is enabled for its caller.

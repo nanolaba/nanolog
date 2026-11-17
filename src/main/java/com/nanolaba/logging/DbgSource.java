@@ -35,7 +35,7 @@ final class DbgSource {
      */
     static final int MAX_LINES = 50;
 
-    private static final String CALL = "dbg";
+    static final String CALL = "dbg";
 
     /**
      * The text of each call site, empty when it could not be found. Call sites are lines of code, so the map stays
@@ -136,17 +136,22 @@ final class DbgSource {
         return Files.isRegularFile(compiled) && Files.getLastModifiedTime(source).compareTo(Files.getLastModifiedTime(compiled)) > 0;
     }
 
-    private static List<String> readLines(Path source) throws IOException {
+    /**
+     * The text of a source file: UTF-8, or Latin-1 if it is not valid UTF-8.
+     */
+    static String readText(Path source) throws IOException {
         byte[] bytes = Files.readAllBytes(source);
-        String text;
         try {
-            text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+            return StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
         } catch (CharacterCodingException e) {
             // javac before JDK 18 reads the platform encoding; Latin-1 at least keeps the code, which is ASCII, intact
-            text = new String(bytes, StandardCharsets.ISO_8859_1);
+            return new String(bytes, StandardCharsets.ISO_8859_1);
         }
+    }
+
+    private static List<String> readLines(Path source) throws IOException {
         List<String> lines = new ArrayList<>();
-        BufferedReader reader = new BufferedReader(new StringReader(text));
+        BufferedReader reader = new BufferedReader(new StringReader(readText(source)));
         for (String line = reader.readLine(); line != null; line = reader.readLine()) {
             lines.add(line);
         }
@@ -332,7 +337,7 @@ final class DbgSource {
     /**
      * Whitespace or the start of a comment: both separate tokens and are dropped from the text.
      */
-    private static boolean isBlank(String text, int i) {
+    static boolean isBlank(String text, int i) {
         return Character.isWhitespace(text.charAt(i)) || text.startsWith("//", i) || text.startsWith("/*", i);
     }
 
@@ -340,7 +345,7 @@ final class DbgSource {
      * The end of the token at {@code i}: a string, char or text block literal, a comment, an identifier, or a single
      * character.
      */
-    private static int tokenEnd(String text, int i) {
+    static int tokenEnd(String text, int i) {
         char c = text.charAt(i);
         if (c == '"' || c == '\'') {
             return literalEnd(text, i);
