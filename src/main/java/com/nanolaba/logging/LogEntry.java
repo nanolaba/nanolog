@@ -339,8 +339,14 @@ public class LogEntry {
         return delimiterStartIndex >= 2 && msg.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR;
     }
 
+    /**
+     * A {@code {}} argument as text: its guarded {@code toString()}, arrays element by element. With
+     * {@code nanolog.dump=auto}, values without a {@code toString()} of their own are dumped field by field.
+     */
     static String argToString(Object o) {
-        if (o == null) {
+        if (Dump.auto) {
+            return Dump.argument(o);
+        } else if (o == null) {
             return "null";
         } else if (!o.getClass().isArray()) {
             return safeToString(o);

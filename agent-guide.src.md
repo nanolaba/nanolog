@@ -65,6 +65,8 @@ LOG.dbg();                    // reached
 
 The text is read from the source file, found from the class location (`target/classes` leads to `src/main/java`) or `-Dnanolog.sources=dir1,dir2`. Without it, or with two `dbg` calls on one line, only the values are printed. It is a `DEBUG` entry, so `NANOLOG_LEVEL=INFO` silences it; `ConsoleLogger` marks it `DBG`, `JsonLogger` adds `"dbg":true`. Find leftovers with `grep -rn "LOG.dbg("`.
 
+An object without a `toString()` of its own prints field by field, `Invoice{id=17, lines=[Line{sku="A-1", qty=2}]}`, instead of `Invoice@2f92e0f4` *1.4+*. Classes of the JDK are walked through their public API, never by reflection, so no `--add-opens` is needed. Fields named like secrets (`password`, `token`, `apiKey`...) print `***`, proxies print only their class name, and cycles, depth, items and string length are cut with a note of what was left out. `-Dnanolog.dump=auto` applies the same to `{}` arguments of every log call; it is off by default.
+
 ## Choosing the output
 
 - Default: `ConsoleLogger`, one line per entry, `LEVEL dd.MM.yyyy HH:mm:ss [SourceClass] message`, `ERROR` to `System.err`, everything else to `System.out`. Every level is enabled.
@@ -81,6 +83,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.console.showLocation=true`: adds the call site, `[PaymentService.charge(PaymentService.java:87)]`, to every line.
 - `-Dnanolog.console.showThread=true` *1.3+*: adds the thread name, `[main]`, after the date, to tell the lines of a thread pool apart.
 - `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
+- `-Dnanolog.dump=auto` *1.4+*: `{}` arguments whose class has no `toString()` of its own print field by field, as in `LOG.dbg`, instead of `Order@2f92e0f4`; values with a `toString()` print as before.
 - `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a template an earlier test met first.
 
 ## Changing levels at run time *1.3+*

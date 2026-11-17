@@ -23,7 +23,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 
 ## Why Nanolog
 
-- **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
+- **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -44,6 +44,7 @@ logging
 ├── Dbg.java
 ├── DbgSource.java
 ├── DefaultLoggerCreator.java
+├── Dump.java
 ├── ILevelControl.java
 ├── ILogger.java
 ├── JsonLogger.java
@@ -70,6 +71,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
 - 3 [Print debugging: `LOG.dbg` prints the expression and its value](#print-debugging-logdbg-prints-the-expression-and-its-value)
+	- 3.1 [Objects without `toString()`](#objects-without-tostring)
 - 4 [Agent-driven development](#agent-driven-development)
 	- 4.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Choosing a logger](#choosing-a-logger)
@@ -209,11 +211,56 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reache
 
 - The text comes from the source file of the call site. The source directory is derived from where the class was loaded: `target/classes` leads to `src/main/java`, `target/test-classes` to `src/test/java`, Gradle's `build/classes/java/main` to `src/main/java`, and the same for Kotlin; for other layouts the usual directories of the working directory are tried. `nanolog.sources=dir1,dir2` names them explicitly. Each call site is read once, arguments spread over several lines included.
 - Without the text only the values are printed, never an error: when no source directory is found (a production jar), the source file is newer than its class, or the line holds two `dbg` calls, since Java reports the line of a call but not its column.
-- Strings and chars are quoted and escaped, so a value never breaks the line; arrays are printed element by element; other values are followed by their type, unless their text starts with it, as `User{id=17}` does.
+- Strings and chars are quoted and escaped, so a value never breaks the line; collections, maps and arrays are printed item by item, objects without a `toString()` of their own field by field (see below); other values are followed by their type, unless their text starts with it, as `Invoice{id=17, ...}` does.
 - It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.
 - `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name is easy to find and remove before a commit (`grep -rn "LOG.dbg("`).
 
 Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.
+
+### Objects without `toString()`
+
+An object whose class has no `toString()` of its own is printed field by field, not as `Invoice@2f92e0f4`. Since 1.4.
+
+```java
+// no toString() in any of them
+static class Customer {
+    String name = "alice";
+    String password = "s3cr3t";
+}
+
+static class Line {
+    String sku;
+    int qty;
+
+    Line(String sku, int qty) {
+        this.sku = sku;
+        this.qty = qty;
+    }
+}
+
+static class Invoice {
+    long id = 17;
+    List<Line> lines = Arrays.asList(new Line("A-1", 2), new Line("B-7", 1));
+    Customer customer = new Customer();
+}
+
+void inspect(Invoice invoice) {
+    LOG.dbg(invoice);
+}
+```
+
+```
+DBG 17.11.2026 10:15:02 [PrintDebugging.inspect(PrintDebugging.java:52)] invoice = Invoice{id=17, lines=[Line{sku="A-1", qty=2}, Line{sku="B-7", qty=1}], customer=Customer{name="alice", password=***}}
+```
+
+- A class with a `toString()` of its own keeps it and is never reflected into. Classes of the JDK are never reflected into either: collections, maps, arrays and `Optional` are walked through their public API, any other JDK value prints its `toString()`. So the dump needs no `--add-opens` on JDK 17+ and cannot fail with `InaccessibleObjectException`, unlike Commons Lang `ReflectionToStringBuilder`. A field that cannot be read prints `<inaccessible>`.
+- The fields of superclasses come first; static and synthetic fields are left out. A record prints its components, `Point[x=1, ys=[2, 3]]`, with arrays element by element, which its generated `toString()` does not do.
+- Every limit says what it left out: an object met again inside itself prints `<cycle: Invoice>`; a container more than three levels below the printed value prints `Customer{... (+2 more)}`; a collection, map or array shows at most 100 items, then `... (+900 more)`; a string inside a dump shows at most 1000 characters, then `... (+24 more chars)`. A string passed to `dbg` itself is never cut.
+- A field or a string map key whose name contains `password`, `passwd`, `secret`, `token`, `apiKey`, `credential` or `authorization`, ignoring case, `_` and `-`, prints `***` unless it is `null`, so `accessToken` and `X-Api-Key` are hidden too.
+- Proxies and lambdas print only their class name: a Hibernate proxy (`$HibernateProxy$`), a CGLIB or Javassist class (`$$`) or a `java.lang.reflect.Proxy` is never called, so printing an entity never triggers lazy loading.
+- Nothing escapes: a failure while dumping a value prints `[FAILED dump()]`, as a broken `toString()` prints `[FAILED toString()]`.
+
+The same dump is available for `{}` arguments of every log call with `nanolog.dump=auto`, see [Message formatting](#message-formatting).
 
 ## Agent-driven development
 
@@ -295,6 +342,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.logger` | class name of the `ILogger` implementation | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
+| `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
@@ -519,6 +567,7 @@ LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.I
 - Every `toString()` is guarded: if it throws, the value becomes `[FAILED toString()]` and nothing propagates to the caller. A throwable whose stack trace cannot be printed becomes `[FAILED printStackTrace()]`.
 - A lazy message is guarded the same way: if its `Supplier` throws, the entry is still logged, with the message `[FAILED supplier: <exception>]`, for example `[FAILED supplier: java.lang.IllegalStateException: no report]`; the exception and the arguments of the entry are kept. The supplier runs at most once.
 - The message object itself may be anything, not only a `String`; it is converted with the same guarded `toString()`.
+- With `nanolog.dump=auto` (`NANOLOG_DUMP=auto`) an argument whose class has no `toString()` of its own is printed field by field, as in [`LOG.dbg`](#objects-without-tostring): `LOG.info("Added {}", line)` prints `Added Line{sku="A-1", qty=2}` instead of `Added Line@1e643faf`. Collections, maps, arrays and `Optional` are walked, so a list of such objects is printed the same way. Everything with a `toString()` of its own, strings included, prints as before, without quotes, limits or redaction. The setting is off by default because it changes existing output; `JsonLogger` puts the result into `message` and `args` as text. Since 1.4.
 
 ### Checking placeholders in tests
 
@@ -704,6 +753,7 @@ dependencies {
 ### 1.4-SNAPSHOT
 
 - `LOG.dbg(expression)` prints the expression as written in the source, its value and type, and the call site, and returns the value; `LOG.dbg(a, b, ...)` prints several, `LOG.dbg()` that the line was reached. Without the source only the values are printed. `ConsoleLogger` marks the line `DBG`, `JsonLogger` adds `"dbg":true`, `LogEntry.isDbg()` tells the entry apart; `nanolog.sources` names the source directories.
+- Objects whose class has no `toString()` of its own are printed field by field instead of `Invoice@2f92e0f4`: always in `LOG.dbg`, and in `{}` arguments with `nanolog.dump=auto`. Classes of the JDK are never reflected into, so nothing needs `--add-opens` on JDK 17+; cycles, depth, items and string length are limited, and every cut says what it left out; fields named like secrets print `***`; records show their components, proxies only their class name.
 
 ### 1.3
 

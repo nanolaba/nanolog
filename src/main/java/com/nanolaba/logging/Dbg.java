@@ -71,37 +71,22 @@ final class Dbg {
     }
 
     /**
-     * A value as {@code dbg} prints it: strings and chars quoted and escaped, so the value stays on one line;
-     * anything else as in a message, followed by its type unless the text starts with the type name.
+     * A value as {@code dbg} prints it: strings and chars quoted and escaped, so the value stays on one line; objects
+     * without a {@code toString()} of their own field by field; each followed by its type unless the text starts
+     * with the type name. A string passed to {@code dbg} itself is never cut.
      */
     static String render(Object value) {
         if (value == null) {
             return "null";
         } else if (value instanceof String) {
-            return quote((String) value);
+            return Dump.quote((String) value);
         } else if (value instanceof Character) {
-            return quote((Character) value);
+            return Dump.quote((Character) value);
         }
-        String text = LogEntry.argToString(value);
+        String text = Dump.dump(value);
         // an enum constant with a body is an instance of an anonymous subclass: name the enum, not Mode$1
         Class type = value instanceof Enum ? ((Enum) value).getDeclaringClass() : value.getClass();
         String name = LogEntry.simpleName(type);
         return text.startsWith(name) ? text : text + " (" + name + ")";
-    }
-
-    private static String quote(String value) {
-        StringBuilder out = new StringBuilder();
-        JsonLogger.appendString(out, value);
-        return out.toString();
-    }
-
-    private static String quote(char value) {
-        if (value == '\'') {
-            return "'\\''";
-        } else if (value == '"') {
-            return "'\"'";
-        }
-        String quoted = quote(String.valueOf(value));
-        return "'" + quoted.substring(1, quoted.length() - 1) + "'";
     }
 }

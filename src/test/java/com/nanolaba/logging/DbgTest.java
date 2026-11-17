@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,7 @@ class DbgTest extends AbstractLoggerTest {
     @BeforeEach
     public void install() {
         DbgSource.clearCache();
+        Dump.clearCache();
         LOG.clearLimits();
         LOG.nanoClock = now::get;
         memory = MemoryLogger.install();
@@ -176,7 +178,7 @@ class DbgTest extends AbstractLoggerTest {
         assertSame(names, LOG.dbg(names));
         LOG.dbg(new int[]{1, 2});
 
-        assertEquals("names = [a, b] (String[])", memory.getEntries().get(0).getFormattedMessage());
+        assertEquals("names = [\"a\", \"b\"] (String[])", memory.getEntries().get(0).getFormattedMessage());
         assertEquals("new int[]{1, 2} = [1, 2] (int[])", memory.getEntries().get(1).getFormattedMessage());
     }
 
@@ -244,6 +246,29 @@ class DbgTest extends AbstractLoggerTest {
 
         assertEquals("new Point() = Point[1, 2]", memory.getEntries().get(0).getFormattedMessage());
         assertEquals("new Broken() = [FAILED toString()] (Broken)", memory.getEntries().get(1).getFormattedMessage());
+    }
+
+    static final class Invoice {
+        long id = 17;
+        List<String> lines = Collections.singletonList("A-1");
+        Point point = new Point();
+        String password = "s3cr3t";
+    }
+
+    @Test
+    public void testObjectsWithoutToStringAreDumpedFieldByField() {
+        LOG.dbg(new Invoice());
+
+        assertEquals("new Invoice() = Invoice{id=17, lines=[\"A-1\"], point=Point[1, 2], password=***}", message());
+    }
+
+    @Test
+    public void testAStringPassedToDbgIsNeverCut() {
+        String text = String.join("", Collections.nCopies(Dump.MAX_STRING + 1, "a"));
+
+        LOG.dbg(text);
+
+        assertEquals("text = \"" + text + "\"", message());
     }
 
     @Test

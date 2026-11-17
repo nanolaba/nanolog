@@ -45,6 +45,12 @@ public class DefaultLoggerCreator {
      * {@code src/main/java}); an empty value turns the reading off.
      */
     public static final String PROPERTY_SOURCES = PROPERTY_PREFIX + "sources";
+    /**
+     * {@code auto} renders {@code {}} arguments whose class has no {@code toString()} of its own field by field, as
+     * {@link LOG#dbg(Object)} does, instead of {@code Order@2f92e0f4}; {@code off}, the default, leaves them to
+     * {@code toString()}.
+     */
+    public static final String PROPERTY_DUMP = PROPERTY_PREFIX + "dump";
 
     /**
      * The resource read when {@value #PROPERTY_LOGGER_CONFIG_FILE} is not set.
@@ -91,6 +97,21 @@ public class DefaultLoggerCreator {
         }
         printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected true or false");
         return defaultValue;
+    }
+
+    /**
+     * Reads {@value #PROPERTY_DUMP}: {@code true} for {@code auto}, {@code false} for {@code off} or no value, ignoring
+     * case and surrounding spaces. An invalid value prints a diagnostic and gives {@code false}.
+     */
+    static boolean readDumpAuto() {
+        String value = getProperty(PROPERTY_DUMP);
+        if (value == null || "off".equalsIgnoreCase(value.trim())) {
+            return false;
+        } else if ("auto".equalsIgnoreCase(value.trim())) {
+            return true;
+        }
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DUMP + "\": expected auto or off");
+        return false;
     }
 
     /**

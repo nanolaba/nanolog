@@ -85,13 +85,14 @@ public class LOG {
     private LOG() {/**/}
 
     /**
-     * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file and
-     * {@code nanolog.strict}. Called once when the class initialises.
+     * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
+     * {@code nanolog.strict} and {@code nanolog.dump}. Called once when the class initialises.
      */
     public static void init() {
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
-        // after the logger: creating it loads nanolog.properties, which may set nanolog.strict
+        // after the logger: creating it loads nanolog.properties, which may set nanolog.strict and nanolog.dump
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
+        Dump.auto = DefaultLoggerCreator.readDumpAuto();
     }
 
     /**
