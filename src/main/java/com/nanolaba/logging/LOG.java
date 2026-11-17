@@ -96,7 +96,12 @@ public class LOG {
         Dump.auto = DefaultLoggerCreator.readDumpAuto();
         Dbg.mode = DefaultLoggerCreator.readDbgMode();
         // creating the logger has reported an invalid nanolog.agent
-        Dbg.ignoreLevels = DefaultLoggerCreator.quietly(Agent::detect) != null;
+        boolean agent = DefaultLoggerCreator.quietly(Agent::detect) != null;
+        Dbg.ignoreLevels = agent;
+        Summary.mode = DefaultLoggerCreator.readSummaryMode(agent);
+        if (Summary.mode != Summary.Mode.OFF) {
+            Summary.registerHook();
+        }
     }
 
     /**
@@ -1638,6 +1643,9 @@ public class LOG {
     private static void write(ILogger current, LogEntry entry) {
         if (strict) {
             checkPlaceholders(current, entry);
+        }
+        if (Summary.mode != Summary.Mode.OFF) {
+            Summary.count(entry);
         }
         try {
             current.log(entry);

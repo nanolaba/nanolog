@@ -77,6 +77,12 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_AGENT = PROPERTY_PREFIX + "agent";
     /**
+     * The run summary at the end of the run, the part of the output that survives when a coding agent keeps only the
+     * end: {@code on}, the default in agent mode, {@code off}, the default otherwise, or {@code errors}, printed only
+     * after a {@code WARN} or {@code ERROR}.
+     */
+    public static final String PROPERTY_SUMMARY = PROPERTY_PREFIX + "summary";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
@@ -184,6 +190,16 @@ public class DefaultLoggerCreator {
             printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DBG + "\": expected on, off or fail");
         }
         return Dbg.Mode.ON;
+    }
+
+    /**
+     * Reads {@value #PROPERTY_SUMMARY}: {@code on} by default in agent mode, {@code off} otherwise. An invalid value
+     * prints a diagnostic and gives the default.
+     */
+    static Summary.Mode readSummaryMode(boolean agent) {
+        String mode = agent ? readChoice(PROPERTY_SUMMARY, "on", "off", "errors")
+                            : readChoice(PROPERTY_SUMMARY, "off", "on", "errors");
+        return Summary.Mode.valueOf(mode.toUpperCase(Locale.ROOT));
     }
 
     /**

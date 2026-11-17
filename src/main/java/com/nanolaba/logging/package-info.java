@@ -1,7 +1,8 @@
 /**
  * Nanolog: a tiny logging facade with static methods and automatic caller detection, so no class needs a logger
  * field. It runs on its own or on top of SLF4J, and has no runtime dependencies. When an AI coding agent runs the
- * program, agent mode keeps the console short and writes the full log to a file ({@code nanolog.agent}).
+ * program, agent mode keeps the console short, writes the full log to a file ({@code nanolog.agent}) and ends the run
+ * with a summary that survives a truncated output ({@code nanolog.summary}).
  * <pre>{@code
  * LOG.info("Application started");                    // the source class is detected from the stack
  * LOG.debug("Loaded {} items in {} ms", count, millis);
@@ -21,6 +22,8 @@
  *     <li>{@link com.nanolaba.logging.DefaultLoggerCreator} &mdash; the startup choice of the logger and the
  *     settings: {@code nanolog.logger}, {@code nanolog.level}, {@code nanolog.strict} and others, from system
  *     properties, environment variables or {@code nanolog.properties}.</li>
+ *     <li>{@link com.nanolaba.logging.SummaryListener} &mdash; prints the run summary when JUnit has run the tests;
+ *     the JUnit Platform loads it by itself.</li>
  * </ul>
  */
 package com.nanolaba.logging;

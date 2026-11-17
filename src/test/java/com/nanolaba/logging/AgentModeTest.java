@@ -41,15 +41,15 @@ class AgentModeTest extends AbstractLoggerTest {
 
     private final Map<String, String> environment = new HashMap<>();
     private final Supplier<Set<String>> originalNames = DefaultLoggerCreator.environmentNames;
-    private final Consumer<Thread> originalHooks = Dbg.shutdownHooks;
+    private final Consumer<Thread> originalHooks = Summary.shutdownHooks;
     private final List<Thread> hooks = new ArrayList<>();
 
     @BeforeEach
     public void setUp() {
         DefaultLoggerCreator.environment = environment::get;
         DefaultLoggerCreator.environmentNames = environment::keySet;
-        Dbg.shutdownHooks = hooks::add;
-        Dbg.clearCalls();
+        Summary.shutdownHooks = hooks::add;
+        Summary.reset();
         DbgSource.clearCache();
         LOG.clearLimits();
         RunLog.reset();
@@ -68,8 +68,8 @@ class AgentModeTest extends AbstractLoggerTest {
         RunLog.reset();
         Agent.reset();
         Dbg.ignoreLevels = false;
-        Dbg.clearCalls();
-        Dbg.shutdownHooks = originalHooks;
+        Summary.reset();
+        Summary.shutdownHooks = originalHooks;
         LOG.clearLimits();
         LOG.init();
     }

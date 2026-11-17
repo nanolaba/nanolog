@@ -27,7 +27,7 @@ class DbgLifecycleTest extends AbstractLoggerTest {
     private static final String NL = System.lineSeparator();
     private static final String FILE = "DbgLifecycleTest.java:";
 
-    private final Consumer<Thread> originalHooks = Dbg.shutdownHooks;
+    private final Consumer<Thread> originalHooks = Summary.shutdownHooks;
     private final CallerDetection.Locator originalLocator = LOG.callerLocator;
     private final List<Thread> hooks = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
@@ -35,8 +35,8 @@ class DbgLifecycleTest extends AbstractLoggerTest {
 
     @BeforeEach
     public void install() {
-        Dbg.clearCalls();
-        Dbg.shutdownHooks = hooks::add;
+        Summary.reset();
+        Summary.shutdownHooks = hooks::add;
         DefaultLoggerCreator.environment = environment::get;
         DbgSource.clearCache();
         Dump.clearCache();
@@ -47,8 +47,8 @@ class DbgLifecycleTest extends AbstractLoggerTest {
     @AfterEach
     public void restore() {
         memory.close();
-        Dbg.shutdownHooks = originalHooks;
-        Dbg.clearCalls();
+        Summary.shutdownHooks = originalHooks;
+        Summary.reset();
         LOG.callerLocator = originalLocator;
         DefaultLoggerCreator.environment = System::getenv;
         System.clearProperty(DefaultLoggerCreator.PROPERTY_DBG);
@@ -86,7 +86,7 @@ class DbgLifecycleTest extends AbstractLoggerTest {
 
         assertEquals(5, memory.getEntries().size(), "every call is printed as before");
         assertEquals(1, hooks.size(), "one hook, registered by the first call");
-        assertEquals("nanolog-dbg", hooks.get(0).getName());
+        assertEquals("nanolog-summary", hooks.get(0).getName());
         assertEquals("[NANOLOG] 3 LOG.dbg calls ran in this JVM: " + FILE + first + ", " + FILE + second + ", " + FILE + third + NL,
                      exit());
     }
@@ -142,7 +142,7 @@ class DbgLifecycleTest extends AbstractLoggerTest {
     @Test
     public void testAClearedListPrintsNothing() {
         LOG.dbg(1);
-        Dbg.clearCalls();
+        Summary.reset();
 
         assertEquals("", exit());
     }
@@ -157,7 +157,7 @@ class DbgLifecycleTest extends AbstractLoggerTest {
 
     @Test
     public void testAHookThatCannotBeRegisteredDoesNotFailTheCall() {
-        Dbg.shutdownHooks = hook -> {
+        Summary.shutdownHooks = hook -> {
             throw new IllegalStateException("Shutdown in progress");
         };
 

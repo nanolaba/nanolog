@@ -30,14 +30,14 @@ class DbgTest extends AbstractLoggerTest {
     private static final String NL = System.lineSeparator();
 
     private final CallerDetection.Locator originalLocator = LOG.callerLocator;
-    private final Consumer<Thread> originalHooks = Dbg.shutdownHooks;
+    private final Consumer<Thread> originalHooks = Summary.shutdownHooks;
     private final AtomicLong now = new AtomicLong(1_000_000_000L);
     private MemoryLogger memory;
 
     @BeforeEach
     public void install() {
-        Dbg.clearCalls();
-        Dbg.shutdownHooks = hook -> { };
+        Summary.reset();
+        Summary.shutdownHooks = hook -> { };
         DbgSource.clearCache();
         Dump.clearCache();
         LOG.clearLimits();
@@ -48,8 +48,8 @@ class DbgTest extends AbstractLoggerTest {
     @AfterEach
     public void restore() {
         memory.close();
-        Dbg.shutdownHooks = originalHooks;
-        Dbg.clearCalls();
+        Summary.shutdownHooks = originalHooks;
+        Summary.reset();
         LOG.callerLocator = originalLocator;
         LOG.nanoClock = System::nanoTime;
         System.clearProperty(DefaultLoggerCreator.PROPERTY_SOURCES);

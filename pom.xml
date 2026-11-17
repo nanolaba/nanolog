@@ -9,7 +9,7 @@
     <name>Nanolog</name>
     <url>https://github.com/nanolaba/nanolog</url>
     <description>Zero-dependency logging library for Java 8+: static LOG calls without logger fields, LOG.dbg print debugging that shows each expression with its value, an
-        agent mode that keeps the console short when an AI coding agent runs the code, automatic caller detection, levels changed at run time, JSON lines, log capture in
+        agent mode that keeps the console short and ends the run with a summary when an AI coding agent runs the code, automatic caller detection, levels changed at run time, JSON lines, log capture in
         tests and a bridge to SLF4J.
     </description>
 
@@ -26,6 +26,7 @@
 
         <!-- libs-->
         <junit5.version>5.10.2</junit5.version>
+        <junit-platform.version>1.10.2</junit-platform.version>
         <slf4j.version>2.0.12</slf4j.version>
         <commons-lang3.version>3.17.0</commons-lang3.version>
 
@@ -93,6 +94,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- only for SummaryListener, which JUnit loads through ServiceLoader in the test runs of a user -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>${junit-platform.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

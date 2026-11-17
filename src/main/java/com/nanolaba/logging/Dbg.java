@@ -5,8 +5,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /**
  * The entries of {@link LOG#dbg(Object)}: each argument as written in the source, followed by its value and type,
@@ -52,36 +50,22 @@ final class Dbg {
     static volatile boolean ignoreLevels;
 
     /**
-     * Registers the hook that lists the call sites at exit. Tests replace it to run the hook themselves and must
-     * restore it afterwards.
-     */
-    static Consumer<Thread> shutdownHooks = Runtime.getRuntime()::addShutdownHook;
-
-    /**
      * The call sites of the {@code dbg} entries written in this JVM, in the order they first ran. Call sites are lines
      * of code, so the set stays as small as the code.
      */
     private static final Set<String> CALLS = Collections.synchronizedSet(new LinkedHashSet<>());
 
-    private static final AtomicBoolean HOOK_REGISTERED = new AtomicBoolean();
-
     private Dbg() {/**/}
 
     /**
-     * Remembers that a {@code dbg} call site wrote an entry. The first call registers the hook that lists them at
-     * exit; a JVM that is already shutting down, or a security manager that forbids hooks, leaves the list unprinted.
+     * Remembers that a {@code dbg} call site wrote an entry, for the end of the run ({@link Summary#printOnce()}), and
+     * makes sure that the end is printed.
      *
      * @param frame the frame of the call; {@code null} if unknown
      * @return {@code true} the first time the call site runs
      */
     static boolean ran(StackTraceElement frame) {
-        if (HOOK_REGISTERED.compareAndSet(false, true)) {
-            try {
-                shutdownHooks.accept(new Thread(Dbg::printCalls, "nanolog-dbg"));
-            } catch (RuntimeException e) {
-                // IllegalStateException during shutdown, SecurityException: the calls are still printed
-            }
-        }
+        Summary.registerHook();
         return CALLS.add(site(frame));
     }
 
@@ -97,25 +81,37 @@ final class Dbg {
     }
 
     /**
-     * Prints the call sites that ran, the shutdown hook; nothing if none did.
+     * The call sites that ran, {@code 2 LOG.dbg calls ran in this JVM: OrderService.java:87, Cart.java:31}.
+     *
+     * @return the line; {@code null} if none ran
      */
-    static void printCalls() {
+    static String callsLine() {
         List<String> calls;
         synchronized (CALLS) {
             calls = new ArrayList<>(CALLS);
         }
-        if (!calls.isEmpty()) {
-            DefaultLoggerCreator.printDiagnostic(calls.size() + (calls.size() == 1 ? " LOG.dbg call" : " LOG.dbg calls") +
-                                                 " ran in this JVM: " + String.join(", ", calls));
+        if (calls.isEmpty()) {
+            return null;
+        }
+        return calls.size() + (calls.size() == 1 ? " LOG.dbg call" : " LOG.dbg calls") + " ran in this JVM: " +
+               String.join(", ", calls);
+    }
+
+    /**
+     * Prints the call sites that ran, at the end of the run without the summary; nothing if none did.
+     */
+    static void printCalls() {
+        String calls = callsLine();
+        if (calls != null) {
+            DefaultLoggerCreator.printDiagnostic(calls);
         }
     }
 
     /**
-     * Forgets the call sites and the hook; for tests.
+     * Forgets the call sites; for tests, through {@link Summary#reset()}.
      */
     static void clearCalls() {
         CALLS.clear();
-        HOOK_REGISTERED.set(false);
     }
 
     /**

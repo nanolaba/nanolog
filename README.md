@@ -25,6 +25,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 
 - **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 - **Detects coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: the output of a failing test run shrank from 565 lines to 43; see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
+- **A summary that survives truncation.** Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -59,6 +60,8 @@ logging
 ├── Settings.java
 ├── ShortStackTrace.java
 ├── Slf4jLogger.java
+├── Summary.java
+├── SummaryListener.java
 └── package-info.java
 ```
 
@@ -68,6 +71,7 @@ logging
 - `ConsoleLogger`, `JsonLogger`, `Slf4jLogger` — the bundled implementations: text, JSON lines and the bridge to SLF4J.
 - `MemoryLogger`, `CompositeLogger` — capturing entries in tests and sending them to several loggers.
 - `DefaultLoggerCreator` — picks the logger at startup from a system property or a properties file.
+- `SummaryListener` — prints the run summary when JUnit has run the tests; JUnit loads it by itself.
 
 The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
@@ -80,8 +84,9 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 3.2 [Leftover calls](#leftover-calls)
 - 4 [Agent-driven development](#agent-driven-development)
 	- 4.1 [Agent mode: Nanolog detects coding agents](#agent-mode-nanolog-detects-coding-agents)
-	- 4.2 [Run log](#run-log)
-	- 4.3 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
+	- 4.2 [Run summary: the part of the output that survives truncation](#run-summary-the-part-of-the-output-that-survives-truncation)
+	- 4.3 [Run log](#run-log)
+	- 4.4 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Choosing a logger](#choosing-a-logger)
 	- 5.1 [ConsoleLogger](#consolelogger)
 	- 5.2 [Levels and options without code](#levels-and-options-without-code)
@@ -274,7 +279,7 @@ The same dump is available for `{}` arguments of every log call with `nanolog.du
 
 `dbg` is meant to be temporary, and debug prints are easy to leave behind, by people and coding agents alike. **Nanolog** knows its calls by name, so it can find them. Since 1.4.
 
-When the JVM exits, one line on `System.err` lists the call sites that printed, in the order they first ran, so the end of a test run or of a debugging session shows what is left:
+At the end of the run, when JUnit has run the tests or when the JVM exits, one line on `System.err` lists the call sites that printed, in the order they first ran, so the end of a test run or of a debugging session shows what is left; with the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation) on, the line is part of it:
 
 ```
 [NANOLOG] 3 LOG.dbg calls ran in this JVM: OrderService.java:87, OrderService.java:88, CartService.java:31
@@ -332,6 +337,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
+- **The end of the output says what happened.** In agent mode the run ends with a summary: the counts by level, each kind of warning and error with its call site and count, the trace of the first error and the path of the full log. It is printed last, so it survives when the agent keeps only the tail. See [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 - **The last run stays readable.** In agent mode, or with `nanolog.run=on`, the run also writes `target/nanolog/latest.log`, with warnings and errors in `latest.errors.log`, and prints the path. The agent reads the file instead of running a five-minute suite again for every `grep`, and follows a background server with `tail -f`. See [Run log](#run-log).
 - **Debug prints do not stay behind.** A forgotten `System.out.println` looks like any other output; a `LOG.dbg` call has a name of its own. The run lists the ones that printed, `nanolog.dbg=off` silences them in production, and `NanologChecks.assertNoDbgCalls` fails a test while one is left in the sources, with the file and line the agent has to fix. See [Leftover calls](#leftover-calls).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
@@ -364,7 +370,35 @@ Without agent mode the same run printed 534 lines of **Nanolog** output: three l
 - **`LOG.dbg` prints whatever the levels**: the agent put it there to see the value. `nanolog.dbg=off` still silences it.
 - **The run log is on** and keeps every level, the date, the thread, the call site and the whole stack trace, so the agent reads `latest.log` instead of running again with another level; `nanolog.run=off` turns it off. See [Run log](#run-log).
 - **One line says what happened**, once per JVM: what turned agent mode on, what the console shows and where the full log is.
+- **The run ends with a summary**, printed last: see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation); `nanolog.summary=off` turns it off.
 - **Only Nanolog's own output changes.** The defaults above apply to the default logger, `ConsoleLogger` or `JsonLogger`; a logger set with `LOG.init(logger)`, or another class named by `nanolog.logger`, keeps its settings, and nothing outside **Nanolog** is touched. A test that reads what the default logger prints to the console sees less under an agent: capture the entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM (`environmentVariables` of Surefire).
+
+### Run summary: the part of the output that survives truncation
+
+A coding agent often sees only the start and the end of a long output. Claude Code shows a failing command as an excerpt of its head and tail, about 10,000 characters ([tools reference](https://code.claude.com/docs/en/tools-reference)); Cursor cuts the output of a command at 20,000 characters ([forum](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); agents add `| tail -30` themselves and rarely ask for the rest ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). The error that matters is often in the part that was dropped. **Nanolog** prints a summary of the run last, where it survives. Since 1.4.
+
+```
+[NANOLOG] Run summary: 454 entries: 1 ERROR, 1 WARN, 151 INFO, 301 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
+[NANOLOG]   ERROR x1 at OrderServiceTest.java:17: The batch failed
+[NANOLOG]       java.lang.IllegalStateException: Cannot reserve stock for order 150
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:28)
+[NANOLOG]           at com.acme.shop.OrderService.process(OrderService.java:18)
+[NANOLOG]           ... 2 frames excluded
+[NANOLOG]           at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)
+[NANOLOG]           ... 71 frames excluded
+[NANOLOG]       Caused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150
+[NANOLOG]           at com.acme.shop.OrderService.update(OrderService.java:34)
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:26)
+[NANOLOG]           ... 75 more
+[NANOLOG]   WARN x1 at OrderService.java:24: Order {}: stock of SKU A-7 below the threshold
+```
+
+In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects-coding-agents) example these 13 lines end 14 lines before the end of the output, after Surefire has printed the failure, so `tail -30` keeps them.
+
+- **What.** The number of entries by level; each kind of warning and error, by level, call site and message template, with how often it was logged, errors first; the stack trace of the first error with an exception, without the frames of agent mode and with every cause; the `LOG.dbg` calls that ran; the path of the [run log](#run-log).
+- **Bounded.** At most 10 kinds and 15 lines of the trace are shown; the rest is counted (`... and 7 more kinds of WARN and ERROR`). Counting keeps no entry, only a counter per level and per kind, for at most 1000 kinds, and costs nothing while the summary is off.
+- **When.** `nanolog.summary=on` (`NANOLOG_SUMMARY`), the default in agent mode; `errors` prints it only after a `WARN` or `ERROR`; `off`, the default otherwise. It goes to `System.err` once per JVM: when JUnit has run the tests, through `SummaryListener`, which the JUnit Platform loads by itself in Maven, Gradle and the IDE; otherwise when the JVM exits. Surefire drops what a shutdown hook of its forked JVM prints, which is why test runs need the listener. Gradle prints the output of tests only with `testLogging.showStandardStreams = true`.
+- **A jar of your own.** `SummaryListener` is compiled against the JUnit Platform Launcher API, which a test run provides, so **Nanolog** still has no dependencies. A shaded jar that keeps `META-INF/services/org.junit.platform.launcher.TestExecutionListener` must keep `SummaryListener` too, or JUnit stops with a `ServiceConfigurationError`.
 
 ### Run log
 
@@ -447,6 +481,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
 | `nanolog.dbg` | `off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see [Leftover calls](#leftover-calls) | `on` |
 | `nanolog.agent` | `auto` detects a coding agent from its environment variables, `on` and `off` decide instead, see [Agent mode](#agent-mode-nanolog-detects-coding-agents) | `auto` |
+| `nanolog.summary` | `on` prints a summary at the end of the run, `errors` only after a `WARN` or `ERROR`, see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation) | `off`, in agent mode `on` |
 | `nanolog.run` | `on` also writes every entry of the run to `latest.log`, see [Run log](#run-log) | `off`, in agent mode `on` |
 | `nanolog.run.dir` | the directory of the run log, relative to the working directory | `target/nanolog`, `build/nanolog` or `.nanolog` |
 | `nanolog.run.format` | `text` or `json` | `text` |
@@ -879,6 +914,7 @@ dependencies {
 - Settings that Nanolog does not know are reported when `LOG` initialises instead of being ignored: a mistyped `nanolog.*` system property, `NANOLOG_*` environment variable or key of `nanolog.properties` prints `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`, a key of the file without the `nanolog.` prefix is reported as ignored, and `NANOLOG_LEVEL_COM_ACME` points to `NANOLOG_LEVELS`. Keys of a custom logger under a namespace of its own are left alone.
 - Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 - Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, without dates and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; a level or a display setting that is set wins.
+- Run summary, `nanolog.summary=on|off|errors`, on by default in agent mode: the run ends with the counts by level, each kind of warning and error with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the run log, printed last so that it survives when an agent keeps only the tail of the output. In test runs `SummaryListener`, which the JUnit Platform loads by itself, prints it, and the list of `LOG.dbg` calls, when the tests have run: Surefire drops what a shutdown hook of its forked JVM prints, which hid that list in Maven test runs.
 
 ### 1.3
 

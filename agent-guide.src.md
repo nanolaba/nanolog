@@ -12,7 +12,7 @@
 Maintainer note: this template generates llms.txt and skills/nanolog/SKILL.md during mvn compile. Edit it, never the outputs.<!--nrg.ignore-->
 ---<!--skill-->
 name: nanolog<!--skill-->
-description: Use when writing, reviewing or debugging Java code that logs through Nanolog (com.nanolaba:nanolog, the static com.nanolaba.logging.LOG class), when adding log calls to a project that depends on it, when reading its output as a coding agent, or when asserting log output in its tests. Covers the call shapes, the rules that differ from SLF4J, print debugging with LOG.dbg, agent mode and the run log, settings without code changes and capturing entries in tests.<!--skill-->
+description: Use when writing, reviewing or debugging Java code that logs through Nanolog (com.nanolaba:nanolog, the static com.nanolaba.logging.LOG class), when adding log calls to a project that depends on it, when reading its output as a coding agent, or when asserting log output in its tests. Covers the call shapes, the rules that differ from SLF4J, print debugging with LOG.dbg, agent mode, the run summary and the run log, settings without code changes and capturing entries in tests.<!--skill-->
 ---<!--skill-->
 <!--skill-->
 # Nanolog
@@ -80,6 +80,7 @@ When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `G
 ```
 
 - Read `latest.log` (every level, thread, call site, whole stack traces) instead of running again with another level or filter.
+- The run ends with `[NANOLOG] Run summary: ...`, printed last: the counts by level, each kind of `WARN` and `ERROR` with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of `latest.log`. Read it first; it survives `| tail`. `NANOLOG_SUMMARY=on` prints it outside agent mode too, `errors` only after a `WARN` or `ERROR`, `off` never.
 - `LOG.dbg` prints whatever the levels. `NANOLOG_LEVEL=DEBUG` brings more to the console.
 - `NANOLOG_AGENT=off` turns agent mode off; `NANOLOG_AGENT=on` turns it on where the variables do not reach (`sudo`, `docker run`, `ssh`).
 - A test that reads the console output of the default logger sees less under an agent: capture entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM.
