@@ -53,6 +53,7 @@ logging
 ├── LoggerIntrospection.java
 ├── MemoryLogger.java
 ├── NanologChecks.java
+├── RunLog.java
 ├── Settings.java
 ├── ShortStackTrace.java
 ├── Slf4jLogger.java
@@ -76,7 +77,8 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 3.1 [Objects without `toString()`](#objects-without-tostring)
 	- 3.2 [Leftover calls](#leftover-calls)
 - 4 [Agent-driven development](#agent-driven-development)
-	- 4.1 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
+	- 4.1 [Run log](#run-log)
+	- 4.2 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Choosing a logger](#choosing-a-logger)
 	- 5.1 [ConsoleLogger](#consolelogger)
 	- 5.2 [Levels and options without code](#levels-and-options-without-code)
@@ -325,8 +327,23 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
+- **The last run stays readable.** With `nanolog.run=on` the run also writes `target/nanolog/latest.log`, with warnings and errors in `latest.errors.log`, and prints the path. The agent reads the file instead of running a five-minute suite again for every `grep`, and follows a background server with `tail -f`. See [Run log](#run-log).
 - **Debug prints do not stay behind.** A forgotten `System.out.println` looks like any other output; a `LOG.dbg` call has a name of its own. The run lists the ones that printed, `nanolog.dbg=off` silences them in production, and `NanologChecks.assertNoDbgCalls` fails a test while one is left in the sources, with the file and line the agent has to fix. See [Leftover calls](#leftover-calls).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
+
+### Run log
+
+With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a file at a predictable place. A coding agent reads the output of the last run there instead of running it again to filter it once more, and follows a server that runs in the background. Off by default. Since 1.4.
+
+```
+[NANOLOG] Run log: /home/me/shop/target/nanolog/latest.log; WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log
+```
+
+- **Where.** `target/nanolog` in a Maven module, `build/nanolog` in a Gradle one, `.nanolog` otherwise, which gets a `.gitignore`; `nanolog.run.dir` names another directory. The absolute path is printed when `LOG` initialises, because search tools often skip ignored `*.log` files.
+- **What.** `latest.log` holds every entry, with the thread and the call site; `nanolog.run.format=json` writes the lines of `JsonLogger` instead, ready for `jq`. `latest.errors.log` holds each `WARN` and `ERROR` as one line, cheap to follow with `tail -f`.
+- **History.** Each run writes `runs/<time>-<pid>.log`, and `latest.log` is a second name of the newest one, a hard link, so it shows the run live and is written once. The last 10 runs are kept (`nanolog.run.keep`); a file stops at 100 MB with a note (`nanolog.run.maxSize`). Where hard links are not supported, the file of the run is printed instead of `latest.log`.
+- **Levels.** The run log reads `nanolog.level` and the package rules as `ConsoleLogger` does, but keeps levels of its own: `LOG.setLevel` changes both, and a console that shows less leaves the file complete.
+- **Safe.** An entry is on disk as soon as it is logged, even if the JVM is killed. An I/O error prints one `[NANOLOG]` line and turns the run log off; logging goes on. The file is opened once per JVM: `LOG.init()` keeps writing it, `LOG.init(logger)` replaces it together with the default logger.
 
 ### Using Nanolog from a coding agent
 
@@ -394,6 +411,11 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
 | `nanolog.dbg` | `off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see [Leftover calls](#leftover-calls) | `on` |
+| `nanolog.run` | `on` also writes every entry of the run to `latest.log`, see [Run log](#run-log) | `off` |
+| `nanolog.run.dir` | the directory of the run log, relative to the working directory | `target/nanolog`, `build/nanolog` or `.nanolog` |
+| `nanolog.run.format` | `text` or `json` | `text` |
+| `nanolog.run.keep` | how many runs the run log keeps, this one included | `10` |
+| `nanolog.run.maxSize` | the size in megabytes at which a file of the run log stops, with a note | `100` |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, see [Message formatting](#message-formatting) | `false` |
 
@@ -408,7 +430,7 @@ A setting that **Nanolog** does not know is reported, not ignored without a word
 [NANOLOG] "level" in file:/app/classes/nanolog.properties is ignored: keys must start with "nanolog." (did you mean "nanolog.level"?)
 ```
 
-`nanolog.console.*`, `nanolog.exception.*`, `nanolog.level.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
+`nanolog.console.*`, `nanolog.exception.*`, `nanolog.level.*`, `nanolog.run.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
 
 > [!IMPORTANT]
 > `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code.
@@ -819,6 +841,7 @@ dependencies {
 - Objects whose class has no `toString()` of its own are printed field by field instead of `Invoice@2f92e0f4`: always in `LOG.dbg`, and in `{}` arguments with `nanolog.dump=auto`. Classes of the JDK are never reflected into, so nothing needs `--add-opens` on JDK 17+; cycles, depth, items and string length are limited, and every cut says what it left out; fields named like secrets print `***`; records show their components, proxies only their class name.
 - Leftover `LOG.dbg` calls are easy to get rid of: when the JVM exits, one `[NANOLOG]` line lists the call sites that printed; `nanolog.dbg=off` silences the calls, `nanolog.dbg=fail` reports each one as a diagnostic that fails `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` fails a test while the sources call `LOG.dbg`, with the file, line and code of each call. `MemoryLogger.assertNoDiagnostics()` now says `Nanolog reported` instead of `strict mode reported`.
 - Settings that Nanolog does not know are reported when `LOG` initialises instead of being ignored: a mistyped `nanolog.*` system property, `NANOLOG_*` environment variable or key of `nanolog.properties` prints `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`, a key of the file without the `nanolog.` prefix is reported as ignored, and `NANOLOG_LEVEL_COM_ACME` points to `NANOLOG_LEVELS`. Keys of a custom logger under a namespace of its own are left alone.
+- Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 
 ### 1.3
 

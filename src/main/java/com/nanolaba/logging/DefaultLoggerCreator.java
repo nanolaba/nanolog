@@ -3,6 +3,7 @@ package com.nanolaba.logging;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +64,29 @@ public class DefaultLoggerCreator {
      * {@link MemoryLogger#assertNoDiagnostics()}.
      */
     public static final String PROPERTY_DBG = PROPERTY_PREFIX + "dbg";
+    /**
+     * {@code on} also writes every entry of the run to {@code latest.log} in {@value #PROPERTY_RUN_DIR}, for a coding
+     * agent to read back instead of running again; {@code off}, the default, writes no file.
+     */
+    public static final String PROPERTY_RUN = PROPERTY_PREFIX + "run";
+    /**
+     * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
+     * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
+     */
+    public static final String PROPERTY_RUN_DIR = PROPERTY_RUN + ".dir";
+    /**
+     * The format of the run log: {@code text}, the default, in the layout of {@link ConsoleLogger} with the thread and
+     * the call site, or {@code json}, the lines of {@link JsonLogger}.
+     */
+    public static final String PROPERTY_RUN_FORMAT = PROPERTY_RUN + ".format";
+    /**
+     * How many runs the run log keeps, this one included; 10 by default.
+     */
+    public static final String PROPERTY_RUN_KEEP = PROPERTY_RUN + ".keep";
+    /**
+     * The size in megabytes at which a file of the run log stops, with a note; 100 by default.
+     */
+    public static final String PROPERTY_RUN_MAX_SIZE = PROPERTY_RUN + ".maxSize";
 
     /**
      * The resource read when {@value #PROPERTY_LOGGER_CONFIG_FILE} is not set.
@@ -79,6 +103,12 @@ public class DefaultLoggerCreator {
      * {@link #environment}, and a name it does not know is skipped. Replaced in tests together with it.
      */
     static Supplier<Set<String>> environmentNames = () -> System.getenv().keySet();
+
+    /**
+     * Set on a thread that creates a second logger from the same settings, whose invalid values the first one has
+     * reported already.
+     */
+    private static final ThreadLocal<Boolean> QUIET = new ThreadLocal<>();
 
     private DefaultLoggerCreator() {
     }
@@ -150,6 +180,61 @@ public class DefaultLoggerCreator {
     }
 
     /**
+     * Reads a setting with a fixed set of values, ignoring case and surrounding spaces. No value gives the first one;
+     * an invalid one prints a diagnostic and gives the first one as well.
+     *
+     * @param choices the values, the default first
+     * @return the value as it is spelled in {@code choices}
+     */
+    static String readChoice(String property, String... choices) {
+        String value = getProperty(property);
+        if (value != null) {
+            for (String choice : choices) {
+                if (choice.equalsIgnoreCase(value.trim())) {
+                    return choice;
+                }
+            }
+            String expected = String.join(", ", Arrays.asList(choices).subList(0, choices.length - 1)) + " or " +
+                              choices[choices.length - 1];
+            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected " + expected);
+        }
+        return choices[0];
+    }
+
+    /**
+     * Reads a positive whole number, ignoring surrounding spaces. No value gives the default; an invalid one prints a
+     * diagnostic and gives the default as well.
+     */
+    static int readPositive(String property, int defaultValue) {
+        String value = getProperty(property);
+        if (value != null) {
+            try {
+                int number = Integer.parseInt(value.trim());
+                if (number > 0) {
+                    return number;
+                }
+            } catch (NumberFormatException e) {
+                // reported below
+            }
+            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected a positive number");
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Runs an action with the diagnostics of this thread muted: for a second logger created from the same settings,
+     * whose invalid values the first one has reported already.
+     */
+    static <T> T quietly(Supplier<T> action) {
+        QUIET.set(Boolean.TRUE);
+        try {
+            return action.get();
+        } finally {
+            QUIET.remove();
+        }
+    }
+
+    /**
      * Prints a {@code [NANOLOG]} diagnostic to {@code System.err}. Configuration mistakes must not break logging.
      * <p>
      * A diagnostic echoes values it did not choose: settings, a level passed to {@code LOG.setLevel} from a request,
@@ -157,7 +242,9 @@ public class DefaultLoggerCreator {
      * {@code \}{@code u000a} escapes, so a diagnostic is always one line and no value can forge a line of its own.
      */
     static void printDiagnostic(String message) {
-        System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+        if (QUIET.get() == null) {
+            System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+        }
     }
 
     private static String escapeControlCharacters(String text) {
@@ -175,15 +262,18 @@ public class DefaultLoggerCreator {
 
     /**
      * Loads {@code nanolog.properties} and reports the settings Nanolog does not know, then creates the logger named by
-     * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
+     * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. With {@value #PROPERTY_RUN}{@code =on} the result is a
+     * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
      * {@code ConsoleLogger}.
      *
      * @return the new logger
      */
     public static ILogger createDefaultLogger() {
-
         loadPropertiesFromFile();
+        return RunLog.attach(createConfiguredLogger());
+    }
 
+    private static ILogger createConfiguredLogger() {
         String logger = getProperty(PROPERTY_LOGGER_CLASS);
         if (logger != null && !logger.isEmpty()) {
             try {
