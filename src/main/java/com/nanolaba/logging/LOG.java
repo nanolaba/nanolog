@@ -3,10 +3,13 @@ package com.nanolaba.logging;
 import java.io.PrintStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -1647,6 +1650,17 @@ public class LOG {
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.count(entry);
         }
+        List<MemoryLogger> captures = captures();
+        if (captures != null) {
+            for (MemoryLogger capture : captures) {
+                capture.log(entry);
+            }
+            // the levels were passed for the captures, which take every level: ask the logger itself
+            if (!forwards(captures) ||
+                !(entry.isDbg() && Dbg.ignoreLevels || accepts(current, entry.getLevel(), entry.getSourceClass()))) {
+                return;
+            }
+        }
         try {
             current.log(entry);
         } catch (Throwable t) {
@@ -1669,6 +1683,13 @@ public class LOG {
      * enabled, so the entry still gets a chance to be written.
      */
     private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
+        return captures() != null || accepts(current, level, sourceClass);
+    }
+
+    /**
+     * Asks the logger itself whether it takes an entry, with the same guard as {@link #isEnabled}.
+     */
+    private static boolean accepts(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
         try {
             return current.isEnabled(level, sourceClass);
         } catch (Throwable t) {
@@ -1681,6 +1702,9 @@ public class LOG {
      * Asks a logger whether a level may be enabled for any class, with the same guard as {@link #isEnabled}.
      */
     private static boolean mayBeEnabled(ILogger current, LogEntry.LogEntryLevel level) {
+        if (captures() != null) {
+            return true;
+        }
         try {
             return current.mayBeEnabled(level);
         } catch (Throwable t) {
@@ -1766,11 +1790,89 @@ public class LOG {
         if (first) {
             DefaultLoggerCreator.printDiagnostic(diagnostic);
         }
+        List<MemoryLogger> captures = captures();
+        if (captures != null) {
+            for (MemoryLogger capture : captures) {
+                capture.onDiagnostic(diagnostic);
+            }
+            if (!forwards(captures)) {
+                return;
+            }
+        }
         try {
             current.onDiagnostic(diagnostic);
         } catch (Throwable t) {
             reportLoggerFailure(current, t, "its diagnostics are printed to System.err only");
         }
+    }
+
+    // CAPTURES OF ONE THREAD
+
+    /**
+     * The number of captures open in all threads. Without one, a logging call reads this and nothing else of the
+     * captures, so they cost nothing until a test opens one.
+     */
+    private static final AtomicInteger CAPTURES = new AtomicInteger();
+
+    /**
+     * The open captures of each thread, outermost first. A list stays with its thread once created, empty when its
+     * captures are closed; it is copied on write, because another thread may close a capture.
+     */
+    private static final ThreadLocal<List<MemoryLogger>> CAPTURED = new ThreadLocal<>();
+
+    /**
+     * Opens a capture of the current thread; for {@link MemoryLogger#capture()}.
+     */
+    static void startCapture(MemoryLogger memory) {
+        List<MemoryLogger> captures = CAPTURED.get();
+        if (captures == null) {
+            captures = new CopyOnWriteArrayList<>();
+            CAPTURED.set(captures);
+        }
+        memory.capture = captures;
+        captures.add(memory);
+        CAPTURES.incrementAndGet();
+    }
+
+    /**
+     * Closes a capture, from any thread; closing it again changes nothing.
+     */
+    static void endCapture(MemoryLogger memory) {
+        if (memory.capture.remove(memory)) {
+            CAPTURES.decrementAndGet();
+        }
+    }
+
+    /**
+     * The number of captures open in all threads; zero keeps logging on its fast path. For tests.
+     */
+    static int openCaptures() {
+        return CAPTURES.get();
+    }
+
+    /**
+     * The open captures of the current thread.
+     *
+     * @return the captures; {@code null} if there are none
+     */
+    private static List<MemoryLogger> captures() {
+        if (CAPTURES.get() == 0) {
+            return null;
+        }
+        List<MemoryLogger> captures = CAPTURED.get();
+        return captures == null || captures.isEmpty() ? null : captures;
+    }
+
+    /**
+     * Whether the entries of the thread also reach the logger: not while one of its captures keeps them.
+     */
+    private static boolean forwards(List<MemoryLogger> captures) {
+        for (MemoryLogger capture : captures) {
+            if (!capture.forwarding) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String describeSource(LogEntry entry) {

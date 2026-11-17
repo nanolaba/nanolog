@@ -23,6 +23,16 @@ public class CapturingLogs {
     }
     // nrg:end:capture
 
+    // nrg:begin:parallel
+    void chargeIsRetriedInParallel() { // safe while JUnit runs other tests in parallel
+        try (MemoryLogger log = MemoryLogger.capture()) { // this thread only; the logger of LOG stays installed
+            new PaymentService().charge(42);
+
+            log.assertLogged(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying");
+        }
+    }
+    // nrg:end:parallel
+
     // nrg:begin:diagnostics
     void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
         try (MemoryLogger log = MemoryLogger.install()) {

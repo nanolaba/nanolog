@@ -37,6 +37,23 @@ Measured on 2026-11-17.
 | `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 13 711 | 8 523 | 2 432 | 2 603 | 2 821 |
 | `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` on elsewhere | 11.4 | 8.7 | 10.3 ± 19.5 | 7.3 | 10.6 |
 
+### After #51
+
+Captures of one thread (#51) added a check to every level check: one volatile read of the number of open captures.
+`DisabledCallBenchmark` measured again on 2026-11-17 on the same machine, no capture open, in nanoseconds per call,
+the table above → now. Every difference is within the error of the measurements, so the table and the README keep
+their numbers.
+
+| Call | JDK 8 | JDK 17 |
+|---|---:|---:|
+| empty benchmark method, for reference | 0.27 → 0.27 | 0.43 → 0.31 |
+| `LOG.debug("value {}", v)`, `DEBUG` off everywhere | 2.0 → 2.1 | 1.5 → 1.6 |
+| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` off everywhere | 11.6 → 11.0 | 7.5 → 7.4 |
+| `LOG.isDebugEnabled()`, `DEBUG` off everywhere | 3.2 → 2.9 | 1.3 → 1.3 |
+| `LOG.isDebugEnabled(Foo.class)`, `DEBUG` off everywhere | 11.7 → 11.3 | 7.8 → 6.4 |
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere | 13 711 → 12 784 | 2 432 → 2 346 |
+| `LOG.debug(Foo.class, "value {}", v)`, `DEBUG` on elsewhere | 11.4 → 10.9 | 10.3 ± 19.5 → 7.4 |
+
 ## Before and after #24
 
 The calls that walk the stack, before and after `StackWalker` replaced the `Throwable` walk on Java 9+, in

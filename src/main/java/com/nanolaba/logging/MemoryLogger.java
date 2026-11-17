@@ -9,15 +9,16 @@ import java.util.List;
 /**
  * Keeps log entries in memory, so a test can assert what the code under test logged without a mocking framework.
  * <pre>{@code
- * try (MemoryLogger log = MemoryLogger.install()) {
+ * try (MemoryLogger log = MemoryLogger.capture()) {
  *     service.charge(42);
  *     log.assertLogged(LogEntryLevel.WARN, "retrying");
  *     log.assertNoneAtOrAbove(LogEntryLevel.ERROR);
  * }
  * }</pre>
- * Every level is enabled, so the entries are captured whatever the production configuration says. The logger is
- * thread-safe; with a capacity it keeps only the newest entries. Nothing is printed: use {@link #installForwarding()}
- * to capture and keep the previous output.
+ * {@link #capture()} keeps the entries of the current thread, so tests that run in parallel in one JVM each see their
+ * own; {@link #install()} replaces the logger of the whole JVM. Every level is enabled, so the entries are captured
+ * whatever the production configuration says. The logger is thread-safe; with a capacity it keeps only the newest
+ * entries. Nothing is printed: {@link #captureForwarding()} and {@link #installForwarding()} keep the usual output.
  */
 public class MemoryLogger implements ILogger, AutoCloseable {
 
@@ -27,6 +28,16 @@ public class MemoryLogger implements ILogger, AutoCloseable {
 
     private ILogger previous;
     private boolean installed;
+
+    /**
+     * The captures of the thread this one captures, which {@link #close()} leaves from any thread; {@code null} for
+     * a logger that is not a capture.
+     */
+    List<MemoryLogger> capture;
+    /**
+     * Whether the entries of a capture still reach the logger of {@code LOG}.
+     */
+    boolean forwarding;
 
     /**
      * Creates a logger without a capacity limit.
@@ -69,6 +80,36 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     public static MemoryLogger installForwarding() {
         MemoryLogger memory = new MemoryLogger();
         memory.installInstead(new CompositeLogger(memory, LOG.getLogger()));
+        return memory;
+    }
+
+    /**
+     * Captures the entries the current thread logs until {@link #close()}, every level, for a test that may run in
+     * parallel with others: the logger of {@code LOG} stays installed for the other threads, and the entries of this
+     * thread do not reach it. Entries logged by other threads, a pool the code under test hands work to included,
+     * are not captured. Captures nest: the entries of an inner one reach the outer ones as well. The findings of
+     * strict mode and of {@code nanolog.dbg=fail} on this thread go to the capture too.
+     *
+     * @return the capture, to close in try-with-resources
+     */
+    public static MemoryLogger capture() {
+        return startCapture(false);
+    }
+
+    /**
+     * Like {@link #capture()}, but the entries still reach the logger of {@code LOG} as well, at the levels that logger
+     * has enabled, so the usual output stays visible while it is captured.
+     *
+     * @return the capture, to close in try-with-resources
+     */
+    public static MemoryLogger captureForwarding() {
+        return startCapture(true);
+    }
+
+    private static MemoryLogger startCapture(boolean forwarding) {
+        MemoryLogger memory = new MemoryLogger();
+        memory.forwarding = forwarding;
+        LOG.startCapture(memory);
         return memory;
     }
 
@@ -310,6 +351,9 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     public void close() {
         if (installed) {
             LOG.init(previous);
+        }
+        if (capture != null) {
+            LOG.endCapture(this);
         }
     }
 }

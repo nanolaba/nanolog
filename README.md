@@ -692,7 +692,23 @@ void chargeIsRetried() {
 - `getEntries()`, `getEntries(level)`, `getEntries(SomeClass.class)`, `getMessages()`, `contains(level, text)`, `clear()` — snapshots and short assertions; the logger is thread-safe.
 - `assertNoneAtOrAbove(WARN)`, `assertLogged(level, text)`, `assertTemplateLogged(level, "Retry {} of {}")` — assertions that throw `AssertionError` without JUnit or AssertJ. The message lists every captured entry with its call site and stack trace, so the failing test shows what was logged without a second run. `assertNoneAtOrAbove(WARN)` checks that the code logged no warning and no error; `assertTemplateLogged` matches the message before its arguments were substituted.
 - `new MemoryLogger(capacity)` keeps only the newest entries.
-- `LOG.init` is JVM-wide, so tests that install a logger must not run in parallel with each other.
+- `LOG.init` and `install()` are JVM-wide, so tests that install a logger must not run in parallel with each other. For parallel tests use `capture()`, below.
+
+Since 1.4, `capture()` keeps the entries of the current thread only, so tests that JUnit runs in parallel in one JVM each see their own, while the logger of `LOG` stays installed for the others:
+
+```java
+void chargeIsRetriedInParallel() { // safe while JUnit runs other tests in parallel
+    try (MemoryLogger log = MemoryLogger.capture()) { // this thread only; the logger of LOG stays installed
+        new PaymentService().charge(42);
+
+        log.assertLogged(LogEntry.LogEntryLevel.WARN, "Charge of 42 failed, retrying");
+    }
+}
+```
+
+- The capture takes every level, whatever the levels of the logger, and the entries of this thread do not reach that logger; `captureForwarding()` passes them on as well, at the levels the logger has enabled. The findings of strict mode and of `nanolog.dbg=fail` on this thread go to the capture too, for `assertNoDiagnostics()`.
+- Only the current thread is captured: entries that the code under test logs from a thread pool reach the logger of `LOG`. Captures nest, and `close()` may run on any thread.
+- Without an open capture logging reads one counter and nothing else of the captures.
 
 `CompositeLogger` sends every entry to several loggers. Each of them receives only the levels it has enabled, and a lazy message is built only if at least one of them wants it. A logger that throws is reported once with a `[NANOLOG]` line and skipped; the others still receive the entry:
 
@@ -915,6 +931,7 @@ dependencies {
 - Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 - Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, without dates and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; a level or a display setting that is set wins.
 - Run summary, `nanolog.summary=on|off|errors`, on by default in agent mode: the run ends with the counts by level, each kind of warning and error with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the run log, printed last so that it survives when an agent keeps only the tail of the output. In test runs `SummaryListener`, which the JUnit Platform loads by itself, prints it, and the list of `LOG.dbg` calls, when the tests have run: Surefire drops what a shutdown hook of its forked JVM prints, which hid that list in Maven test runs.
+- `MemoryLogger.capture()` and `captureForwarding()` capture the entries of the current thread only, every level, while the logger of `LOG` stays installed for the other threads, so tests that run in parallel in one JVM can assert on their own log. The findings of strict mode on that thread reach the capture as well.
 
 ### 1.3
 

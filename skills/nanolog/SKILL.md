@@ -118,6 +118,8 @@ void chargeIsRetried() {
 }
 ```
 
+*1.4+*: `MemoryLogger.capture()` captures the entries of the current thread only, every level, and keeps them from the installed logger; prefer it, it is safe when tests run in parallel. `captureForwarding()` also passes them on. Entries logged from other threads, a pool included, are not captured.
+
 `MemoryLogger.installForwarding()` captures and still prints. `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)` and `clear()` cover the usual assertions. *1.3+*: `assertNoneAtOrAbove(LogEntryLevel.WARN)`, `assertLogged(level, text)` and `assertTemplateLogged(level, "Retry {} of {}")` throw an `AssertionError` that lists every captured entry with its call site and stack trace, so a failing test shows the log without a rerun; `getEntries(SomeClass.class)` selects one source class.
 
 ## Links
