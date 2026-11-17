@@ -55,15 +55,16 @@ public class CompositeLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Passes the entry to every delegate that has its level enabled, in order. A delegate that throws is reported once
-     * per class and skipped; the others still receive the entry.
+     * Passes the entry to every delegate that has its level enabled, in order; in agent mode, an entry of
+     * {@code LOG.dbg} to every delegate. A delegate that throws is reported once per class and skipped; the others
+     * still receive the entry.
      *
      * @param entry the entry
      */
     @Override
     public void log(LogEntry entry) {
         for (ILogger logger : loggers) {
-            if (isEnabled(logger, entry.getLevel(), entry.getSourceClass())) {
+            if (entry.isDbg() && Dbg.ignoreLevels || isEnabled(logger, entry.getLevel(), entry.getSourceClass())) {
                 try {
                     logger.log(entry);
                 } catch (Throwable t) {

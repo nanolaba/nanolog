@@ -24,6 +24,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 ## Why Nanolog
 
 - **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
+- **Detects coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: the output of a failing test run shrank from 565 lines to 43; see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -38,6 +39,7 @@ The whole library:
 
 ```
 logging
+├── Agent.java
 ├── CallerDetection.java
 ├── CompositeLogger.java
 ├── ConsoleLogger.java
@@ -77,8 +79,9 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 3.1 [Objects without `toString()`](#objects-without-tostring)
 	- 3.2 [Leftover calls](#leftover-calls)
 - 4 [Agent-driven development](#agent-driven-development)
-	- 4.1 [Run log](#run-log)
-	- 4.2 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
+	- 4.1 [Agent mode: Nanolog detects coding agents](#agent-mode-nanolog-detects-coding-agents)
+	- 4.2 [Run log](#run-log)
+	- 4.3 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Choosing a logger](#choosing-a-logger)
 	- 5.1 [ConsoleLogger](#consolelogger)
 	- 5.2 [Levels and options without code](#levels-and-options-without-code)
@@ -135,7 +138,7 @@ Requirements: Java 8+. The jar declares `Automatic-Module-Name: com.nanolaba.nan
 
 ## Quick start
 
-No setup is needed: `ConsoleLogger` is active by default and prints every level, including `TRACE`.
+No setup is needed: `ConsoleLogger` is active by default and prints every level, including `TRACE`; when a coding agent runs the program, the console is shorter, see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
 
 ```java
 public static void main(String[] args) {
@@ -217,7 +220,7 @@ DBG 17.11.2026 10:15:02 [PrintDebugging.checkout(PrintDebugging.java:23)] reache
 - The text comes from the source file of the call site. The source directory is derived from where the class was loaded: `target/classes` leads to `src/main/java`, `target/test-classes` to `src/test/java`, Gradle's `build/classes/java/main` to `src/main/java`, and the same for Kotlin; for other layouts the usual directories of the working directory are tried. `nanolog.sources=dir1,dir2` names them explicitly. Each call site is read once, arguments spread over several lines included.
 - Without the text only the values are printed, never an error: when no source directory is found (a production jar), the source file is newer than its class, or the line holds two `dbg` calls, since Java reports the line of a call but not its column.
 - Strings and chars are quoted and escaped, so a value never breaks the line; collections, maps and arrays are printed item by item, objects without a `toString()` of their own field by field (see below); other values are followed by their type, unless their text starts with it, as `Invoice{id=17, ...}` does.
-- It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.
+- It is a `DEBUG` entry: `nanolog.level` and package rules apply, and a level that is off everywhere costs no stack walk. In [agent mode](#agent-mode-nanolog-detects-coding-agents) it prints whatever the levels. `ConsoleLogger` marks it `DBG` and prints the call site even without `showLocation`, `JsonLogger` adds `"dbg":true`, any logger tells it apart with `LogEntry.isDbg()`. `LOG.once().dbg(...)` and `LOG.atMostEvery(...).dbg(...)` limit it like any other statement.
 - `dbg` is meant to be temporary, for you and for a coding agent alike: a debug print that names its values replaces a series of `System.out.println` calls, and its distinct name lets **Nanolog** find the calls left behind, see [Leftover calls](#leftover-calls).
 
 Rust has had `dbg!` in its standard library since 1.32 (2019), Python has had `f"{x=}"` since 3.8 and the icecream package; the JDK has nothing comparable, and an IDE template such as IntelliJ's `soutv` types the name into the code, where it goes stale on a rename.
@@ -317,8 +320,10 @@ When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs t
 one short loop repeats many times: edit, run, read the output, edit again.
 **Nanolog** keeps every step of that loop cheap.
 
+**Nanolog detects coding agents.** When an agent runs the program, the console keeps what the agent needs: `WARN`, `ERROR` and `LOG.dbg`, without dates and with short stack traces, and every entry still goes to `target/nanolog/latest.log`. A test that logs 200 orders and then fails printed 565 lines and 39,320 characters through `mvn -q test`; in agent mode it printed 43 lines and 3,194 characters, the failure and its cause included. See [Agent mode](#agent-mode-nanolog-detects-coding-agents).
+
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
-- **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
+- **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included; in agent mode the console keeps `WARN` and above, and the run log every level. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
 - **Levels per run, without code.** `NANOLOG_LEVEL=INFO` cuts the noise once the first run is read, and `-Dnanolog.level.com.acme.payments=DEBUG` turns detail up for one package, even if the startup code switched `DEBUG` off. Agents in sandboxes and CI can always set an environment variable; a temporary code edit, by contrast, tends to get committed. A mistyped setting is reported with the key it was probably meant to be, so a wrong name does not pass for a working one. See [Levels and options without code](#levels-and-options-without-code).
 - **Lines that are easy to read back.** One entry is one line of the form `LEVEL date [SourceClass] message`, followed by the stack trace if there is one. The output is simple to `grep` and to match against the sources. With `setShowLocation(true)` every line also names the method and the line of the call, `[PaymentService.charge(PaymentService.java:87)]`, so the agent jumps from the output straight to the statement. Through SLF4J, the backend's own `%file:%line` reports the same call site.
 - **Output a script can parse.** `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` switches to one JSON object per line, with the timestamp, thread, call site and stack trace as fields, ready for `jq` or a script the agent writes on the fly. See [JsonLogger](#jsonlogger).
@@ -327,13 +332,43 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
 - **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
-- **The last run stays readable.** With `nanolog.run=on` the run also writes `target/nanolog/latest.log`, with warnings and errors in `latest.errors.log`, and prints the path. The agent reads the file instead of running a five-minute suite again for every `grep`, and follows a background server with `tail -f`. See [Run log](#run-log).
+- **The last run stays readable.** In agent mode, or with `nanolog.run=on`, the run also writes `target/nanolog/latest.log`, with warnings and errors in `latest.errors.log`, and prints the path. The agent reads the file instead of running a five-minute suite again for every `grep`, and follows a background server with `tail -f`. See [Run log](#run-log).
 - **Debug prints do not stay behind.** A forgotten `System.out.println` looks like any other output; a `LOG.dbg` call has a name of its own. The run lists the ones that printed, `nanolog.dbg=off` silences them in production, and `NanologChecks.assertNoDbgCalls` fails a test while one is left in the sources, with the file and line the agent has to fix. See [Leftover calls](#leftover-calls).
 - **The repository itself is ready for agents.** [AGENTS.md](AGENTS.md) describes the build, the invariants and the test requirements (JUnit plus 100% mutation coverage), so an agent can fix and extend **Nanolog**, not only use it.
 
+### Agent mode: Nanolog detects coding agents
+
+Coding agents read program output through a narrow window: a long output is cut down to its head and tail or summarised, and agents rarely ask for the rest. When the environment names a coding agent, **Nanolog** keeps its own console short and writes the full log to a file. Since 1.4.
+
+A test that logs 200 orders and fails on the last one prints this under Claude Code:
+
+```
+[NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /home/me/shop/target/nanolog/latest.log, WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
+WARN [OrderService] Order 150: stock of SKU A-7 below the threshold
+ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150
+	at com.acme.shop.OrderService.reserve(OrderService.java:28)
+	at com.acme.shop.OrderService.process(OrderService.java:18)
+	... 2 frames excluded
+	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)
+	... 71 frames excluded
+Caused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150
+	at com.acme.shop.OrderService.update(OrderService.java:34)
+	at com.acme.shop.OrderService.reserve(OrderService.java:26)
+	... 75 more
+```
+
+Without agent mode the same run printed 534 lines of **Nanolog** output: three lines per order with dates, then the stack trace with every frame of JUnit, Surefire and reflection. The whole `mvn -q test` output went from 565 lines and 39,320 characters to 43 lines and 3,194 characters (JDK 8, Maven 3.9, Surefire 3.2.5), and `latest.log` still holds all 534 entries.
+
+- **Detection.** Agent mode is on when one of these variables is set to anything but `0`, `false`, `no` or `off`: `AI_AGENT` and `AGENT`, the convention proposed in [agents.md #136](https://github.com/agentsmd/agents.md/issues/136), then `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT` and `CLINE_ACTIVE`. Claude Code, for one, sets `AI_AGENT` and `CLAUDECODE`. Environment variables are lost across `sudo`, `docker run` and `ssh`, so detection is a hint: `nanolog.agent=on` or `off` (`NANOLOG_AGENT`) decides instead.
+- **The console.** `WARN` and above, unless `nanolog.level` or a package rule says otherwise. No date, unless `nanolog.console.showDate` is set. Stack traces collapse runs of frames of the JDK, Kotlin, test runners, build tools and common frameworks and servers (Spring, Tomcat, Jetty, Netty, Hibernate), print at most 20 frames per throwable and keep every cause; `nanolog.exception.exclude` and `nanolog.exception.maxFrames` replace these defaults.
+- **`LOG.dbg` prints whatever the levels**: the agent put it there to see the value. `nanolog.dbg=off` still silences it.
+- **The run log is on** and keeps every level, the date, the thread, the call site and the whole stack trace, so the agent reads `latest.log` instead of running again with another level; `nanolog.run=off` turns it off. See [Run log](#run-log).
+- **One line says what happened**, once per JVM: what turned agent mode on, what the console shows and where the full log is.
+- **Only Nanolog's own output changes.** The defaults above apply to the default logger, `ConsoleLogger` or `JsonLogger`; a logger set with `LOG.init(logger)`, or another class named by `nanolog.logger`, keeps its settings, and nothing outside **Nanolog** is touched. A test that reads what the default logger prints to the console sees less under an agent: capture the entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM (`environmentVariables` of Surefire).
+
 ### Run log
 
-With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a file at a predictable place. A coding agent reads the output of the last run there instead of running it again to filter it once more, and follows a server that runs in the background. Off by default. Since 1.4.
+With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a file at a predictable place. A coding agent reads the output of the last run there instead of running it again to filter it once more, and follows a server that runs in the background. Off by default, on in [agent mode](#agent-mode-nanolog-detects-coding-agents). Since 1.4.
 
 ```
 [NANOLOG] Run log: /home/me/shop/target/nanolog/latest.log; WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log
@@ -411,7 +446,8 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
 | `nanolog.dbg` | `off` silences `LOG.dbg`, `fail` reports each call as a diagnostic, see [Leftover calls](#leftover-calls) | `on` |
-| `nanolog.run` | `on` also writes every entry of the run to `latest.log`, see [Run log](#run-log) | `off` |
+| `nanolog.agent` | `auto` detects a coding agent from its environment variables, `on` and `off` decide instead, see [Agent mode](#agent-mode-nanolog-detects-coding-agents) | `auto` |
+| `nanolog.run` | `on` also writes every entry of the run to `latest.log`, see [Run log](#run-log) | `off`, in agent mode `on` |
 | `nanolog.run.dir` | the directory of the run log, relative to the working directory | `target/nanolog`, `build/nanolog` or `.nanolog` |
 | `nanolog.run.format` | `text` or `json` | `text` |
 | `nanolog.run.keep` | how many runs the run log keeps, this one included | `10` |
@@ -842,6 +878,7 @@ dependencies {
 - Leftover `LOG.dbg` calls are easy to get rid of: when the JVM exits, one `[NANOLOG]` line lists the call sites that printed; `nanolog.dbg=off` silences the calls, `nanolog.dbg=fail` reports each one as a diagnostic that fails `MemoryLogger.assertNoDiagnostics()`; `NanologChecks.assertNoDbgCalls("src/main/java")` fails a test while the sources call `LOG.dbg`, with the file, line and code of each call. `MemoryLogger.assertNoDiagnostics()` now says `Nanolog reported` instead of `strict mode reported`.
 - Settings that Nanolog does not know are reported when `LOG` initialises instead of being ignored: a mistyped `nanolog.*` system property, `NANOLOG_*` environment variable or key of `nanolog.properties` prints `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`, a key of the file without the `nanolog.` prefix is reported as ignored, and `NANOLOG_LEVEL_COM_ACME` points to `NANOLOG_LEVELS`. Keys of a custom logger under a namespace of its own are left alone.
 - Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
+- Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, without dates and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; a level or a display setting that is set wins.
 
 ### 1.3
 

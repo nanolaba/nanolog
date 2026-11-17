@@ -404,7 +404,7 @@ class RunLogTest extends AbstractLoggerTest {
     public void testResetClosesTheRunLogOfTheJvm() throws IOException {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
-        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger())).getLoggers().get(1);
+        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
 
         RunLog.reset();
         runLog.log(entry(INFO, "after reset", null));
@@ -416,7 +416,7 @@ class RunLogTest extends AbstractLoggerTest {
     public void testOffByDefault() {
         ILogger console = new ConsoleLogger();
 
-        assertSame(console, RunLog.attach(console));
+        assertSame(console, RunLog.attach(console, false));
         assertFalse(Files.exists(root.resolve("latest.log")));
     }
 
@@ -427,7 +427,7 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         ILogger console = new ConsoleLogger();
-        ILogger first = RunLog.attach(console);
+        ILogger first = RunLog.attach(console, false);
 
         assertEquals("[NANOLOG] Run log: " + root.resolve("latest.log").toAbsolutePath() + "; WARN and ERROR also in " +
                      root.resolve("latest.errors.log").toAbsolutePath() + NL, getErrAndClear());
@@ -435,13 +435,13 @@ class RunLogTest extends AbstractLoggerTest {
         assertSame(console, loggers.get(0));
         RunLog runLog = (RunLog) loggers.get(1);
 
-        ILogger again = RunLog.attach(console);
+        ILogger again = RunLog.attach(console, false);
         assertSame(runLog, ((CompositeLogger) again).getLoggers().get(1), "LOG.init() keeps writing the same file");
         assertEquals("", getErrAndClear());
         assertEquals(2, runs().size());
 
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
-        assertSame(console, RunLog.attach(console));
+        assertSame(console, RunLog.attach(console, false));
     }
 
     @Test
@@ -469,7 +469,7 @@ class RunLogTest extends AbstractLoggerTest {
         Files.createDirectories(root.resolve("runs"));
         Files.createFile(root.resolve("runs/0-old.log"));
 
-        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger())).getLoggers().get(1);
+        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
         opened.add(runLog);
 
         assertEquals(2, runs().size(), "keep 1: only this run");
@@ -513,12 +513,12 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         ILogger console = new ConsoleLogger();
-        assertSame(console, RunLog.attach(console));
+        assertSame(console, RunLog.attach(console, false));
 
         String err = getErrAndClear();
         assertTrue(err.startsWith("[NANOLOG] Cannot open the run log in " + file.toAbsolutePath() + ": "), err);
         assertTrue(err.endsWith("; it is off" + NL), err);
-        assertSame(console, RunLog.attach(console), "not retried in the same JVM");
+        assertSame(console, RunLog.attach(console, false), "not retried in the same JVM");
         assertEquals("", getErrAndClear());
     }
 

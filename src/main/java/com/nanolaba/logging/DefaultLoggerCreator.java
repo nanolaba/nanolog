@@ -70,6 +70,13 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_RUN = PROPERTY_PREFIX + "run";
     /**
+     * Agent mode, for a program run by a coding agent: {@code auto}, the default, turns it on when the environment
+     * names an agent ({@code AI_AGENT}, {@code CLAUDECODE} and others); {@code on} and {@code off} decide instead. It
+     * keeps the console short ({@code WARN} and above, no date, short stack traces), prints every
+     * {@link LOG#dbg(Object)} whatever the levels, and switches {@value #PROPERTY_RUN} on.
+     */
+    public static final String PROPERTY_AGENT = PROPERTY_PREFIX + "agent";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
@@ -263,14 +270,23 @@ public class DefaultLoggerCreator {
     /**
      * Loads {@code nanolog.properties} and reports the settings Nanolog does not know, then creates the logger named by
      * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. With {@value #PROPERTY_RUN}{@code =on} the result is a
-     * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and falls back to
-     * {@code ConsoleLogger}.
+     * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM. In agent mode
+     * ({@value #PROPERTY_AGENT}) the console gets shorter defaults, the run log is on unless switched off, and one
+     * {@code [NANOLOG]} line per JVM says so. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and
+     * falls back to {@code ConsoleLogger}.
      *
      * @return the new logger
      */
     public static ILogger createDefaultLogger() {
         loadPropertiesFromFile();
-        return RunLog.attach(createConfiguredLogger());
+        String agent = Agent.detect();
+        ILogger logger = createConfiguredLogger();
+        String console = agent == null ? null : Agent.shorten(logger);
+        logger = RunLog.attach(logger, agent != null);
+        if (agent != null) {
+            Agent.announce(agent, console, RunLog.current());
+        }
+        return logger;
     }
 
     private static ILogger createConfiguredLogger() {

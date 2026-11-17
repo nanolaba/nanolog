@@ -8,8 +8,9 @@
     <artifactId>nanolog</artifactId>
     <name>Nanolog</name>
     <url>https://github.com/nanolaba/nanolog</url>
-    <description>Zero-dependency logging library for Java 8+: static LOG calls without logger fields, LOG.dbg print debugging that shows each expression with its value, automatic
-        caller detection, levels changed at run time, JSON lines, log capture in tests and a bridge to SLF4J.
+    <description>Zero-dependency logging library for Java 8+: static LOG calls without logger fields, LOG.dbg print debugging that shows each expression with its value, an
+        agent mode that keeps the console short when an AI coding agent runs the code, automatic caller detection, levels changed at run time, JSON lines, log capture in
+        tests and a bridge to SLF4J.
     </description>
 
     <version>1.4-SNAPSHOT</version>
@@ -120,6 +121,12 @@
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${maven-surefire-plugin.version}</version>
+                    <configuration>
+                        <!-- a run from a coding agent behaves like CI: the tests that need agent mode turn it on -->
+                        <environmentVariables>
+                            <NANOLOG_AGENT>off</NANOLOG_AGENT>
+                        </environmentVariables>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <artifactId>maven-jar-plugin</artifactId>
@@ -159,6 +166,9 @@
                 <configuration>
                     <verbose>true</verbose>
                     <mutationThreshold>100</mutationThreshold>
+                    <environmentVariables>
+                        <NANOLOG_AGENT>off</NANOLOG_AGENT>
+                    </environmentVariables>
                 </configuration>
                 <executions>
                     <execution>

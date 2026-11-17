@@ -201,14 +201,17 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
-     * Adds the run log to the default logger when {@code nanolog.run=on}. It is opened by the first call, which prints
-     * where it is, and reused by every later {@code LOG.init()} of the JVM, as is a failure to open it.
+     * Adds the run log to the default logger when {@code nanolog.run=on}, the default in agent mode. It is opened by
+     * the first call, which prints where it is unless agent mode says so in its own line, and reused by every later
+     * {@code LOG.init()} of the JVM, as is a failure to open it.
      *
      * @param logger the default logger
+     * @param agent  whether agent mode is on
      * @return {@code logger}, or a {@link CompositeLogger} of it and the run log
      */
-    static synchronized ILogger attach(ILogger logger) {
-        if ("off".equals(readChoice(PROPERTY_RUN, "off", "on"))) {
+    static synchronized ILogger attach(ILogger logger, boolean agent) {
+        String run = agent ? readChoice(PROPERTY_RUN, "on", "off") : readChoice(PROPERTY_RUN, "off", "on");
+        if ("off".equals(run)) {
             return logger;
         }
         if (!opened) {
@@ -218,13 +221,24 @@ final class RunLog extends ConsoleLogger {
                 current = open(directory, "json".equals(readChoice(PROPERTY_RUN_FORMAT, "text", "json")),
                                readPositive(PROPERTY_RUN_KEEP, 10), readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB,
                                id(System.currentTimeMillis(), pid()));
-                printDiagnostic("Run log: " + current.shownFile.toAbsolutePath() + "; WARN and ERROR also in " +
-                                current.shownErrorsFile.toAbsolutePath());
+                if (!agent) {
+                    printDiagnostic("Run log: " + current.shownFile.toAbsolutePath() + "; WARN and ERROR also in " +
+                                    current.shownErrorsFile.toAbsolutePath());
+                }
             } catch (IOException | RuntimeException e) {
                 printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
             }
         }
         return current == null ? logger : new CompositeLogger(logger, current);
+    }
+
+    /**
+     * The run log of this JVM.
+     *
+     * @return the run log; {@code null} if it is off or could not be opened
+     */
+    static synchronized RunLog current() {
+        return current;
     }
 
     /**

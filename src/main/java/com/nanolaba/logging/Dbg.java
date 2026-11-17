@@ -46,6 +46,12 @@ final class Dbg {
     static volatile Mode mode = Mode.ON;
 
     /**
+     * Set in agent mode, read by {@link LOG#init()}: a {@code dbg} call prints whatever the levels, because the agent
+     * put it there to see the value. {@code volatile} like {@link #mode}.
+     */
+    static volatile boolean ignoreLevels;
+
+    /**
      * Registers the hook that lists the call sites at exit. Tests replace it to run the hook themselves and must
      * restore it afterwards.
      */

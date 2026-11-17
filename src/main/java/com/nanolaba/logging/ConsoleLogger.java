@@ -18,6 +18,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVELS;
 import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
 import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
+import static com.nanolaba.logging.DefaultLoggerCreator.quietly;
 import static com.nanolaba.logging.DefaultLoggerCreator.readBoolean;
 
 /**
@@ -102,6 +103,11 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private List<String> exceptionExclude = Collections.emptyList();
     private int exceptionMaxFrames = 0;
 
+    /**
+     * The level the switches hold without {@code nanolog.level}: {@code TRACE}, or {@code WARN} in agent mode.
+     */
+    private int defaultThreshold = LogEntry.LogEntryLevel.TRACE.ordinal();
+
     // volatile: the levels may change at run time, and every logging thread must see the change on its next call
     private volatile boolean traceEnabled = true;
     private volatile boolean debugEnabled = true;
@@ -134,20 +140,46 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         applyStream();
-        applyExceptionSettings();
+        applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
     }
 
-    private void applyGlobalLevel() {
+    /**
+     * The defaults of agent mode, for the console of the default logger when a coding agent runs the program: the
+     * level {@code WARN} instead of {@code TRACE}, also for {@link #resetLevels()}, no date, and stack traces without
+     * the frames of {@link Agent#EXCLUDE}, at most {@link Agent#MAX_FRAMES} of each throwable. A setting that is given
+     * wins; an invalid one gives these defaults. The settings are read again quietly: the constructor has reported
+     * the invalid ones.
+     *
+     * @return {@code true} if {@code nanolog.level} keeps the level
+     */
+    synchronized boolean useAgentDefaults() {
+        defaultThreshold = LogEntry.LogEntryLevel.WARN.ordinal();
+        return quietly(() -> {
+            showDate = readBoolean(PROPERTY_SHOW_DATE, false);
+            applyExceptionSettings(Agent.EXCLUDE, Agent.MAX_FRAMES);
+            applyThreshold(defaultThreshold);
+            return applyGlobalLevel();
+        });
+    }
+
+    /**
+     * Applies {@code nanolog.level}.
+     *
+     * @return {@code true} if it is set to a valid level
+     */
+    private boolean applyGlobalLevel() {
         String value = getProperty(PROPERTY_LEVEL);
         if (value != null) {
             int threshold = parseThreshold(PROPERTY_LEVEL, value);
             if (threshold != NO_RULE) {
                 applyThreshold(threshold);
+                return true;
             }
         }
+        return false;
     }
 
     private void applyThreshold(int threshold) {
@@ -450,13 +482,14 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     /**
      * Restores the level switches and the package and class rules from the settings, as the constructor read them,
      * but with the current values of the system properties and environment variables. Undoes the level setters and
-     * every rule set at run time; the display options stay as they are.
+     * every rule set at run time; the display options stay as they are. Without {@code nanolog.level} every level is
+     * on again, or {@code WARN} and above for the console of agent mode.
      *
      * @return this logger, for chaining
      */
     @Override
     public synchronized ConsoleLogger resetLevels() {
-        applyThreshold(LogEntry.LogEntryLevel.TRACE.ordinal());
+        applyThreshold(defaultThreshold);
         applyGlobalLevel();
         rules = new Rules(readLevelRules());
         return this;
@@ -685,7 +718,9 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         return Collections.unmodifiableList(prefixes);
     }
 
-    private void applyExceptionSettings() {
+    private void applyExceptionSettings(List<String> defaultExclude, int defaultMaxFrames) {
+        exceptionExclude = defaultExclude;
+        exceptionMaxFrames = defaultMaxFrames;
         String exclude = getProperty(PROPERTY_EXCEPTION_EXCLUDE);
         if (exclude != null) {
             exceptionExclude = parsePrefixes(exclude.split(","));

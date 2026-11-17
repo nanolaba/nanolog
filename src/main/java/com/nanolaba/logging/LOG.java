@@ -86,7 +86,8 @@ public class LOG {
 
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
-     * {@code nanolog.strict}, {@code nanolog.dump} and {@code nanolog.dbg}. Called once when the class initialises.
+     * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg} and {@code nanolog.agent}. Called once when the
+     * class initialises.
      */
     public static void init() {
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
@@ -94,6 +95,8 @@ public class LOG {
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
         Dump.auto = DefaultLoggerCreator.readDumpAuto();
         Dbg.mode = DefaultLoggerCreator.readDbgMode();
+        // creating the logger has reported an invalid nanolog.agent
+        Dbg.ignoreLevels = DefaultLoggerCreator.quietly(Agent::detect) != null;
     }
 
     /**
@@ -1123,8 +1126,8 @@ public class LOG {
      * the source file is newer than its class, or the line holds two {@code dbg} calls. Strings and chars are quoted
      * and escaped; other values are followed by their type unless their text starts with it.
      * <p>
-     * The entry is logged at {@code DEBUG}, so {@code nanolog.level} and package rules apply to it, and
-     * {@link LogEntry#isDbg()} marks it: {@link ConsoleLogger} prints {@code DBG} and the call site, even without
+     * The entry is logged at {@code DEBUG}, so {@code nanolog.level} and package rules apply to it, except in agent
+     * mode ({@code nanolog.agent}), where it prints whatever the levels, and {@link LogEntry#isDbg()} marks it: {@link ConsoleLogger} prints {@code DBG} and the call site, even without
      * {@code showLocation}, and {@link JsonLogger} adds {@code "dbg":true}.
      * <p>
      * Meant for temporary debug output, so the calls are easy to get rid of: when the JVM exits, one {@code [NANOLOG]}
@@ -1173,17 +1176,24 @@ public class LOG {
 
     private static void writeDbg(ILogger current, Object[] values) {
         CallerDetection.Caller caller = findCaller();
-        if (isEnabled(current, DEBUG, caller.sourceClass)) {
+        if (printsDbg(current, caller.sourceClass)) {
             writeDbgEntry(current, Dbg.entry(caller, values, 0, LogEntry.LOG_BOUNDARY));
         }
     }
 
     /**
-     * Whether a {@code dbg} call may print: not with {@code nanolog.dbg=off}, and only if {@code DEBUG} may be enabled.
-     * Checked before anything is allocated or the stack is walked.
+     * Whether a {@code dbg} call may print: not with {@code nanolog.dbg=off}, and only if {@code DEBUG} may be enabled,
+     * except in agent mode, where it ignores the levels. Checked before anything is allocated or the stack is walked.
      */
     private static boolean mayPrintDbg(ILogger current) {
-        return Dbg.mode != Dbg.Mode.OFF && mayBeEnabled(current, DEBUG);
+        return Dbg.mode != Dbg.Mode.OFF && (Dbg.ignoreLevels || mayBeEnabled(current, DEBUG));
+    }
+
+    /**
+     * Whether a {@code dbg} call of a class prints: if {@code DEBUG} is enabled for it, or always in agent mode.
+     */
+    private static boolean printsDbg(ILogger current, Class sourceClass) {
+        return Dbg.ignoreLevels || isEnabled(current, DEBUG, sourceClass);
     }
 
     /**
@@ -1308,7 +1318,7 @@ public class LOG {
             ILogger current = logger;
             if (mayBeEnabled(current, level)) {
                 CallerDetection.Caller caller = findCaller();
-                long skipped = admit(current, level, caller);
+                long skipped = admit(isEnabled(current, level, caller.sourceClass), caller);
                 if (skipped >= 0) {
                     write(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
                                                    CALLER_BOUNDARY));
@@ -1319,11 +1329,12 @@ public class LOG {
         /**
          * Decides whether a call whose level may be enabled gets through.
          *
+         * @param enabled whether the logger takes the entry of the caller
          * @return the number of calls skipped since the previous entry of the statement, or {@code -1} if the level is
          * off for the caller or the call is skipped
          */
-        private long admit(ILogger current, LogEntry.LogEntryLevel level, CallerDetection.Caller caller) {
-            if (!isEnabled(current, level, caller.sourceClass)) {
+        private long admit(boolean enabled, CallerDetection.Caller caller) {
+            if (!enabled) {
                 return -1;
             }
             return caller.frame == null ? 0 : acquire(caller.frame, periodNanos);
@@ -1331,7 +1342,7 @@ public class LOG {
 
         private void writeDbg(ILogger current, Object[] values) {
             CallerDetection.Caller caller = findCaller();
-            long skipped = admit(current, DEBUG, caller);
+            long skipped = admit(printsDbg(current, caller.sourceClass), caller);
             if (skipped >= 0) {
                 writeDbgEntry(current, Dbg.entry(caller, values, skipped, CALLER_BOUNDARY));
             }
