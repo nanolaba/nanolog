@@ -141,10 +141,11 @@ final class CallerDetection {
         private String boundary;
 
         /**
-         * Whether a frame is skipped: it belongs to Nanolog or to a skipped class.
+         * Whether a frame is skipped: it belongs to Nanolog, to the method handles that call its stack walker, or to a
+         * skipped class.
          */
         boolean skips(Class frameClass, Class sourceClass) {
-            if (isNanolog(sourceClass)) {
+            if (isNanolog(sourceClass) || isMachinery(frameClass.getName())) {
                 boundary = null;
                 return true;
             }
@@ -211,6 +212,14 @@ final class CallerDetection {
     static boolean isNanolog(Class topLevel) {
         return topLevel.equals(LOG.class) || topLevel.equals(LogEntry.class) || topLevel.equals(CallerDetection.class) ||
                ILogger.class.isAssignableFrom(topLevel);
+    }
+
+    /**
+     * Whether a frame belongs to the method handles through which {@link StackWalk} calls the stack walker: hidden on
+     * a JVM, but shown in a native image of GraalVM, whose classes are in {@code com.oracle.svm}.
+     */
+    static boolean isMachinery(String className) {
+        return className.startsWith("java.lang.invoke.") || className.startsWith("com.oracle.svm.");
     }
 
     /**

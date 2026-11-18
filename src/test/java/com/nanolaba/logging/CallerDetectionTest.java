@@ -11,7 +11,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * How {@code LOG} finds the caller: a {@code StackWalker} on Java 9+, the stack trace of a {@code Throwable} on Java 8
@@ -162,6 +164,20 @@ class CallerDetectionTest {
         assertEquals(2, logger.entries.size());
         assertEquals(CallerDetectionTest.class, logger.entries.get(1).getSourceClass(),
                      "the entry the logger logged itself is attributed to the code that called LOG, not to the logger");
+    }
+
+    @Test
+    public void testTheFramesOfMethodHandlesAreNeverTheCaller() {
+        // a native image of GraalVM shows the frames of its method handles, which call the stack walker of Nanolog
+        assertTrue(CallerDetection.isMachinery("com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle"));
+        assertTrue(CallerDetection.isMachinery("java.lang.invoke.LambdaForm$DMH"));
+        assertFalse(CallerDetection.isMachinery("java.lang.Integer"));
+        assertFalse(CallerDetection.isMachinery("com.oracle.svmx.Caller"));
+        assertFalse(CallerDetection.isMachinery("com.acme.java.lang.invoke.Handler"));
+
+        CallerDetection.Walk walk = new CallerDetection.Walk();
+        assertTrue(walk.skips(java.lang.invoke.MethodHandle.class, java.lang.invoke.MethodHandle.class));
+        assertFalse(walk.skips(CallerDetectionTest.class, CallerDetectionTest.class));
     }
 
     private static void assertFrame(LogEntry entry, String className, String methodName) {
