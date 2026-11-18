@@ -53,6 +53,9 @@ ${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](http
 - **${en:'Pluggable.', ru:'Расширяемый.'}** ${en:'A custom backend is one lambda or one class implementing', ru:'Свой бэкенд — это одна лямбда или один класс, реализующий'} `ILogger`.
 - **${en:'Fits the agent loop.', ru:'Удобен агентам.'}** ${en:'One line per log call, output from the first run, an API that fits in one context window; see', ru:'Одна строка на вызов, вывод с первого запуска, API целиком помещается в контекстное окно; см.'} [${en:'Agent-driven development', ru:'Агентная разработка'}](#${en:'agent-driven-development', ru:'агентная-разработка'}).
 
+How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related projects](#related-projects).<!--en-->
+Как Nanolog выглядит рядом с tinylog, SLF4J, Log4j 2, Flogger и другими: [Похожие проекты](#похожие-проекты).<!--ru-->
+
 ${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
 
 ${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true", numbering-style = "dotted", max-depth = "3")}
@@ -1112,6 +1115,230 @@ dependencies {
 ```
 ${widget:endIf}
 
+## ${en:'Related projects', ru:'Похожие проекты'}
+
+Where Nanolog stands among the loggers you may already know. Compared on 2026-11-18 with the versions in the table headers, from their documentation, their sources and runs on Java 8. ✅ = out of the box, ➖ = partial, ❌ = not supported. The weak points of Nanolog are listed as plainly as the strong ones, and each feature that Nanolog has links to the section that describes it.<!--en-->
+Где Nanolog стоит среди логгеров, которые вы, возможно, уже знаете. Сравнение сделано 2026-11-18 для версий из заголовков таблиц, по их документации, исходникам и запускам на Java 8. ✅ — из коробки, ➖ — частично, ❌ — нет. Слабые места Nanolog перечислены так же прямо, как сильные, а каждая возможность, которая есть в Nanolog, ведёт на раздел с её описанием.<!--ru-->
+
+### ${en:'Static facades', ru:'Статические фасады'}
+
+The direct analogues: a static call without a logger field.<!--en-->
+Прямые аналоги: статический вызов без поля логгера.<!--ru-->
+
+| ${en:'Feature', ru:'Возможность'} | **Nanolog** | [tinylog][tinylog] 2.8.1 | [jcabi-log][jcabi-log] 0.24.3 | [minlog][minlog] 1.3.1 | [Timber][timber] 5.0.1 |
+|---|:-:|:-:|:-:|:-:|:-:|
+| [${en:'No logger field', ru:'Без поля логгера'}](#${en:'caller-detection', ru:'определение-вызывающего-класса'}) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [${en:'Source class found automatically', ru:'Класс-источник определяется сам'}](#${en:'caller-detection', ru:'определение-вызывающего-класса'}) | ✅ | ✅ | ❌¹ | ❌ | ✅² |
+| [${en:'Call site in the output', ru:'Место вызова в выводе'}](#consolelogger) | ✅ | ✅ | ❌ | ❌ | ➖³ |
+| [${en:'Runtime dependencies', ru:'Зависимости во время работы'}](#${en:'installation', ru:'установка'}) | ${en:'one jar', ru:'один jar'} | api + impl⁴ | ${en:'SLF4J + a backend', ru:'SLF4J + бэкенд'} | ${en:'one jar', ru:'один jar'} | ${en:'Android only', ru:'только Android'} |
+| ${en:'Java baseline', ru:'Минимальная Java'} | Java 8 | Java 6 | Java 8 | Java 6 | Android API 14 |
+| [${en:'Levels without a configuration file', ru:'Уровни без файла конфигурации'}](#${en:'levels-and-options-without-code', ru:'уровни-и-настройки-без-кода'}) | ✅ | ✅ | ➖⁵ | ❌ | ❌ |
+| [${en:'Levels changed at run time', ru:'Уровни меняются во время работы'}](#${en:'changing-levels-at-run-time', ru:'изменение-уровней-во-время-работы'}) | ✅ | ❌⁶ | ➖⁵ | ✅ | ➖⁷ |
+| [${en:'Placeholders', ru:'Плейсхолдеры'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `{}` | `{}`⁸ | `%s` | ${en:'none', ru:'нет'} | `%s` |
+| [${en:'A trailing exception keeps its stack trace', ru:'Исключение после аргументов сохраняет трассировку'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | ✅ | ❌⁹ | ❌¹⁰ | ➖¹¹ | ❌¹² |
+| [${en:'A throwing `toString()` does not break the call', ru:'Падающий `toString()` не ломает вызов'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | ✅ | ❌ | ❌ | ❌¹³ | ❌ |
+| [${en:'Lazy messages', ru:'Ленивые сообщения'}](#${en:'api-at-a-glance', ru:'api-одним-взглядом'}) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| [${en:'Rate limiting per call site', ru:'Ограничение частоты на месте вызова'}](#${en:'rate-limiting', ru:'ограничение-частоты'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [${en:'Shorter stack traces', ru:'Короткие трассировки стека'}](#${en:'shorter-stack-traces', ru:'короткие-трассировки-стека'}) | ✅ | ➖¹⁴ | ❌ | ❌ | ❌ |
+| [${en:'JSON lines built in', ru:'JSON lines из коробки'}](#jsonlogger) | ✅ | ✅¹⁵ | ➖⁵ | ❌ | ❌ |
+| [${en:'Context of a thread (MDC)', ru:'Контекст потока (MDC)'}](#${en:'context-tag-the-lines-of-one-request', ru:'контекст-метка-для-строк-одного-запроса'}) | ✅ | ✅ | ➖⁵ | ❌ | ❌ |
+| [${en:'Key-value fields of one call', ru:'Поля ключ-значение одного вызова'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [${en:'Capturing entries in tests', ru:'Захват записей в тестах'}](#${en:'memorylogger-and-compositelogger', ru:'memorylogger-и-compositelogger'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [${en:'Placeholders checked against the arguments', ru:'Проверка плейсхолдеров по аргументам'}](#${en:'checking-placeholders-in-tests', ru:'проверка-плейсхолдеров-в-тестах'}) | ✅¹⁶ | ❌ | ➖¹⁷ | ❌ | ✅¹⁸ |
+| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#${en:'run-log', ru:'журнал-запуска'}) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
+| ${en:'Asynchronous output', ru:'Асинхронный вывод'} | ❌ | ✅ | ➖⁵ | ❌ | ❌ |
+| ${en:'Markers or tags', ru:'Маркеры или теги'} | ❌ | ✅ | ❌ | ➖²⁰ | ✅ |
+| [${en:'Forwarding to SLF4J or another backend', ru:'Передача в SLF4J или другой бэкенд'}](#slf4jlogger) | ✅ | ➖²¹ | ✅ | ➖²² | ✅ |
+| [${en:'A cheap disabled call, no stack walk', ru:'Дешёвый выключенный вызов без обхода стека'}](#${en:'thread-safety-and-performance', ru:'потокобезопасность-и-производительность'}) | ➖²³ | ➖²⁴ | ✅ | ✅ | ❌²⁵ |
+| [${en:'Print debugging that names the expression', ru:'Отладочная печать с именем выражения'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [${en:'Output for coding agents', ru:'Вывод для кодовых агентов'}](#${en:'agent-mode-nanolog-detects-coding-agents', ru:'агентский-режим-nanolog-распознаёт-кодовых-агентов'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+¹ jcabi-log: the caller passes `this`, a class or a name as the source.<br><!--en-->
+¹ jcabi-log: источник передаёт вызывающий код: `this`, класс или имя.<br><!--ru-->
+² Timber: only `DebugTree` takes the tag from the calling class.<br><!--en-->
+² Timber: тег из вызывающего класса берёт только `DebugTree`.<br><!--ru-->
+³ Timber: a subclass of `DebugTree` can add the method and the line in `createStackElementTag`.<br><!--en-->
+³ Timber: подкласс `DebugTree` может добавить метод и строку в `createStackElementTag`.<br><!--ru-->
+⁴ tinylog: without `tinylog-impl`, or when ServiceLoader cannot find it (ProGuard, a fat jar), it prints `No logging framework implementation found` and logs nothing.<br><!--en-->
+⁴ tinylog: без `tinylog-impl` или когда ServiceLoader его не находит (ProGuard, fat jar), печатается `No logging framework implementation found`, и ничего не логируется.<br><!--ru-->
+⁵ jcabi-log writes nothing itself: this depends on the SLF4J backend under it.<br><!--en-->
+⁵ jcabi-log сам ничего не пишет: это зависит от бэкенда SLF4J под ним.<br><!--ru-->
+⁶ tinylog: the configuration is frozen once it is applied; `Configuration.set` then throws.<br><!--en-->
+⁶ tinylog: конфигурация замораживается после применения; `Configuration.set` после этого бросает исключение.<br><!--ru-->
+⁷ Timber: trees are planted and removed at any time, but there are no levels; a tree filters in `isLoggable`.<br><!--en-->
+⁷ Timber: деревья можно сажать и убирать в любой момент, но уровней нет; дерево фильтрует само в `isLoggable`.<br><!--ru-->
+⁸ tinylog: in a call with arguments, text in braces is a `DecimalFormat` or `ChoiceFormat` pattern, see the table below.<br><!--en-->
+⁸ tinylog: в вызове с аргументами текст в фигурных скобках считается шаблоном `DecimalFormat` или `ChoiceFormat`, см. таблицу ниже.<br><!--ru-->
+⁹ tinylog: the exception comes first, `Logger.error(e, ...)`; a trailing one is dropped.<br><!--en-->
+⁹ tinylog: исключение идёт первым, `Logger.error(e, ...)`; исключение в конце теряется.<br><!--ru-->
+¹⁰ jcabi-log: `error(this, "failed %s", id, e)` throws `IllegalArgumentException`; a stack trace goes into the text through `%[exception]s`.<br><!--en-->
+¹⁰ jcabi-log: `error(this, "failed %s", id, e)` бросает `IllegalArgumentException`; трассировка попадает в текст через `%[exception]s`.<br><!--ru-->
+¹¹ minlog: there are no arguments, only `error(message, e)`.<br><!--en-->
+¹¹ minlog: аргументов нет, есть только `error(message, e)`.<br><!--ru-->
+¹² Timber: the exception comes first; the bundled lint check `ThrowableNotAtBeginning` flags a trailing one.<br><!--en-->
+¹² Timber: исключение идёт первым; встроенная lint-проверка `ThrowableNotAtBeginning` отмечает исключение в конце.<br><!--ru-->
+¹³ minlog: the caller builds the message, so a throwing `toString()` throws before minlog is called, even at a disabled level.<br><!--en-->
+¹³ minlog: сообщение собирает вызывающий код, поэтому падающий `toString()` бросает исключение ещё до вызова minlog, даже на выключенном уровне.<br><!--ru-->
+¹⁴ tinylog: frames are dropped by package (`strip`, `keep`), with no limit on the depth.<br><!--en-->
+¹⁴ tinylog: кадры отбрасываются по пакетам (`strip`, `keep`), без ограничения глубины.<br><!--ru-->
+¹⁵ tinylog: the `json` writer, to a file.<br><!--en-->
+¹⁵ tinylog: писатель `json`, в файл.<br><!--ru-->
+¹⁶ Nanolog: at run time with `nanolog.strict` and in tests, not at build time.<br><!--en-->
+¹⁶ Nanolog: во время работы с `nanolog.strict` и в тестах, не при сборке.<br><!--ru-->
+¹⁷ jcabi-log: always on; a mismatch throws out of the logging call.<br><!--en-->
+¹⁷ jcabi-log: всегда включена; несовпадение бросает исключение из вызова логирования.<br><!--ru-->
+¹⁸ Timber: the bundled Android Lint checks, at build time.<br><!--en-->
+¹⁸ Timber: встроенные проверки Android Lint, при сборке.<br><!--ru-->
+¹⁹ Nanolog: only the run log of a development run, a file per run, the last 10 kept, 100 MB at most; no rolling of a production log.<br><!--en-->
+¹⁹ Nanolog: только журнал запуска при разработке, файл на запуск, хранятся последние 10, не больше 100 МБ; ротации продакшен-лога нет.<br><!--ru-->
+²⁰ minlog: a category string in each call.<br><!--en-->
+²⁰ minlog: строка категории в каждом вызове.<br><!--ru-->
+²¹ tinylog 2: to java.util.logging and JBoss Logging, and a writer to Logcat; not to SLF4J (`slf4j-tinylog` goes the other way).<br><!--en-->
+²¹ tinylog 2: в java.util.logging и JBoss Logging, плюс писатель в Logcat; в SLF4J нет (`slf4j-tinylog` работает в обратную сторону).<br><!--ru-->
+²² minlog: a subclass of `Log.Logger`, set with `Log.setLogger`.<br><!--en-->
+²² minlog: подкласс `Log.Logger`, заданный через `Log.setLogger`.<br><!--ru-->
+²³ Nanolog: a level that is off for every class costs about 2 ns; a level enabled for another package walks the stack, about 3 µs on JDK 17 and 5 µs on Java 8, unless the class is passed.<br><!--en-->
+²³ Nanolog: уровень, выключенный для всех классов, стоит около 2 нс; уровень, включённый для другого пакета, обходит стек, около 3 мкс на JDK 17 и 5 мкс на Java 8, если класс не передан.<br><!--ru-->
+²⁴ tinylog: with levels per package, a disabled call between the global level and the most verbose package level looks up the caller first.<br><!--en-->
+²⁴ tinylog: с уровнями по пакетам выключенный вызов между глобальным уровнем и самым подробным уровнем пакета сначала ищет вызывающий класс.<br><!--ru-->
+²⁵ Timber: `DebugTree` takes the tag from a new stack trace before `isLoggable`.<!--en-->
+²⁵ Timber: `DebugTree` берёт тег из нового стека ещё до `isLoggable`.<!--ru-->
+
+### ${en:'Mainstream loggers', ru:'Распространённые логгеры'}
+
+The loggers most Java code already uses, and Flogger, which limits the rate per call site.<!--en-->
+Логгеры, которыми уже пользуется большая часть Java-кода, и Flogger, который ограничивает частоту на месте вызова.<!--ru-->
+
+| ${en:'Feature', ru:'Возможность'} | **Nanolog** | [SLF4J][slf4j] 2.0.20 + [Logback][logback] 1.6.7²⁶ | [Log4j 2][log4j] 2.26.1 | [JUL][jul] / [System.Logger][system-logger] | [Flogger][flogger] 0.9 | [JBoss Logging][jboss-logging] 3.6.3 |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| [${en:'No logger field', ru:'Без поля логгера'}](#${en:'caller-detection', ru:'определение-вызывающего-класса'}) | ✅ | ❌²⁷ | ➖²⁸ | ➖²⁹ | ➖³⁰ | ❌²⁷ |
+| [${en:'Source class found automatically', ru:'Класс-источник определяется сам'}](#${en:'caller-detection', ru:'определение-вызывающего-класса'}) | ✅ | ❌²⁷ | ✅ | ➖³¹ | ✅ | ❌²⁷ |
+| [${en:'Call site in the output', ru:'Место вызова в выводе'}](#consolelogger) | ✅ | ✅ | ✅ | ➖³² | ➖³³ | ➖³⁴ |
+| [${en:'Runtime dependencies', ru:'Зависимости во время работы'}](#${en:'installation', ru:'установка'}) | ${en:'one jar', ru:'один jar'} | `slf4j-api` + Logback | api + core | JDK | ${en:'flogger + a backend', ru:'flogger + бэкенд'} | ${en:'one jar³⁵', ru:'один jar³⁵'} |
+| ${en:'Java baseline', ru:'Минимальная Java'} | Java 8 | Java 11³⁶ | Java 8 | Java 1.4 / 9 | Java 8 | Java 11 |
+| [${en:'Levels without a configuration file', ru:'Уровни без файла конфигурации'}](#${en:'levels-and-options-without-code', ru:'уровни-и-настройки-без-кода'}) | ✅ | ❌²⁶ | ➖³⁷ | ❌ | ❌ | ❌ |
+| [${en:'Levels changed at run time', ru:'Уровни меняются во время работы'}](#${en:'changing-levels-at-run-time', ru:'изменение-уровней-во-время-работы'}) | ✅ | ✅ | ✅ | ✅ | ✅ | ➖³⁸ |
+| [${en:'Placeholders', ru:'Плейсхолдеры'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | `{}` | `{}` | `{}` | `{0}` | `%s` | `%s`, `{0}` |
+| [${en:'A trailing exception keeps its stack trace', ru:'Исключение после аргументов сохраняет трассировку'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | ✅ | ✅ | ✅ | ❌ | ❌³⁹ | ❌⁴⁰ |
+| [${en:'A throwing `toString()` does not break the call', ru:'Падающий `toString()` не ломает вызов'}](#${en:'message-formatting', ru:'форматирование-сообщений'}) | ✅ | ✅ | ✅ | ✅ | ✅ | ➖⁴¹ |
+| [${en:'Lazy messages', ru:'Ленивые сообщения'}](#${en:'api-at-a-glance', ru:'api-одним-взглядом'}) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| [${en:'Rate limiting per call site', ru:'Ограничение частоты на месте вызова'}](#${en:'rate-limiting', ru:'ограничение-частоты'}) | ✅ | ➖⁴² | ➖⁴³ | ❌ | ✅ | ❌ |
+| [${en:'Shorter stack traces', ru:'Короткие трассировки стека'}](#${en:'shorter-stack-traces', ru:'короткие-трассировки-стека'}) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| [${en:'JSON lines built in', ru:'JSON lines из коробки'}](#jsonlogger) | ✅ | ✅ | ➖⁴⁴ | ❌ | ❌ | ➖⁴⁵ |
+| [${en:'Context of a thread (MDC)', ru:'Контекст потока (MDC)'}](#${en:'context-tag-the-lines-of-one-request', ru:'контекст-метка-для-строк-одного-запроса'}) | ✅ | ✅ | ✅ | ❌ | ➖⁴⁶ | ➖⁴⁷ |
+| [${en:'Key-value fields of one call', ru:'Поля ключ-значение одного вызова'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}) | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| [${en:'Capturing entries in tests', ru:'Захват записей в тестах'}](#${en:'memorylogger-and-compositelogger', ru:'memorylogger-и-compositelogger'}) | ✅ | ✅ | ➖⁴⁸ | ❌ | ❌ | ❌ |
+| [${en:'Placeholders checked against the arguments', ru:'Проверка плейсхолдеров по аргументам'}](#${en:'checking-placeholders-in-tests', ru:'проверка-плейсхолдеров-в-тестах'}) | ✅¹⁶ | ➖⁴⁹ | ➖⁵⁰ | ❌ | ✅ | ➖⁵¹ |
+| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#${en:'run-log', ru:'журнал-запуска'}) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
+| ${en:'Asynchronous output', ru:'Асинхронный вывод'} | ❌ | ✅ | ✅ | ❌ | ❌ | ➖⁴⁵ |
+| ${en:'Markers or tags', ru:'Маркеры или теги'} | ❌ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
+| [${en:'Forwarding to SLF4J or another backend', ru:'Передача в SLF4J или другой бэкенд'}](#slf4jlogger) | ✅ | ✅ | ✅ | ➖⁵⁴ | ✅ | ✅ |
+| [${en:'A cheap disabled call, no stack walk', ru:'Дешёвый выключенный вызов без обхода стека'}](#${en:'thread-safety-and-performance', ru:'потокобезопасность-и-производительность'}) | ➖²³ | ✅ | ✅⁵⁵ | ✅ | ✅⁵⁵ | ✅ |
+| [${en:'Print debugging that names the expression', ru:'Отладочная печать с именем выражения'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| [${en:'Output for coding agents', ru:'Вывод для кодовых агентов'}](#${en:'agent-mode-nanolog-detects-coding-agents', ru:'агентский-режим-nanolog-распознаёт-кодовых-агентов'}) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+²⁶ slf4j-simple instead of Logback runs on Java 8 and reads levels from system properties, but fixes them at start and has no call site, rolling, JSON or MDC.<br><!--en-->
+²⁶ slf4j-simple вместо Logback работает на Java 8 и читает уровни из системных свойств, но фиксирует их при запуске, и в нём нет места вызова, ротации, JSON и MDC.<br><!--ru-->
+²⁷ Lombok 1.18.48 `@Slf4j`, `@Log4j2`, `@Log`, `@Flogger` and `@JBossLog` write the field and the class for you, but the field stays, and each class needs the annotation.<br><!--en-->
+²⁷ Lombok 1.18.48 `@Slf4j`, `@Log4j2`, `@Log`, `@Flogger` и `@JBossLog` пишут поле и класс за вас, но поле остаётся, и аннотация нужна в каждом классе.<br><!--ru-->
+²⁸ Log4j 2: `LogManager.getLogger().info(...)` works inline, but walks the stack and looks up the logger at every call; the docs use a field.<br><!--en-->
+²⁸ Log4j 2: `LogManager.getLogger().info(...)` работает прямо в вызове, но каждый раз обходит стек и ищет логгер; документация использует поле.<br><!--ru-->
+²⁹ java.util.logging: `Logger.getGlobal()` works from any class, but it is one logger, without levels per class; `System.Logger` always needs a name.<br><!--en-->
+²⁹ java.util.logging: `Logger.getGlobal()` работает из любого класса, но это один логгер без уровней по классам; `System.Logger` всегда требует имя.<br><!--ru-->
+³⁰ Flogger: `FluentLogger.forEnclosingClass()` inline walks the stack and creates a logger at every call; the docs prescribe a field.<br><!--en-->
+³⁰ Flogger: `FluentLogger.forEnclosingClass()` прямо в вызове каждый раз обходит стек и создаёт логгер; документация предписывает поле.<br><!--ru-->
+³¹ java.util.logging: the logger name is passed; each record finds its source class and method.<br><!--en-->
+³¹ java.util.logging: имя логгера передаётся явно; класс и метод источника каждая запись находит сама.<br><!--ru-->
+³² java.util.logging: the class and the method, no line.<br><!--en-->
+³² java.util.logging: класс и метод, без строки.<br><!--ru-->
+³³ Flogger: the system backend prints the class and the method, not the line.<br><!--en-->
+³³ Flogger: системный бэкенд печатает класс и метод, но не строку.<br><!--ru-->
+³⁴ JBoss Logging: depends on the backend; the output through java.util.logging gives the class and the method.<br><!--en-->
+³⁴ JBoss Logging: зависит от бэкенда; вывод через java.util.logging даёт класс и метод.<br><!--ru-->
+³⁵ JBoss Logging: without a backend it writes through java.util.logging.<br><!--en-->
+³⁵ JBoss Logging: без бэкенда пишет через java.util.logging.<br><!--ru-->
+³⁶ Logback 1.6 needs Java 11; `slf4j-api` runs on Java 8, and Logback 1.3, the last line for Java 8, is no longer supported.<br><!--en-->
+³⁶ Logback 1.6 требует Java 11; `slf4j-api` работает на Java 8, а Logback 1.3, последняя линия для Java 8, больше не поддерживается.<br><!--ru-->
+³⁷ Log4j 2: `log4j2.level` (`LOG4J_LEVEL`) sets only the root level of the default configuration.<br><!--en-->
+³⁷ Log4j 2: `log4j2.level` (`LOG4J_LEVEL`) задаёт только корневой уровень конфигурации по умолчанию.<br><!--ru-->
+³⁸ JBoss Logging: through the API of the backend.<br><!--en-->
+³⁸ JBoss Logging: через API бэкенда.<br><!--ru-->
+³⁹ Flogger: `.withCause(e)`; a trailing exception is reported as an unused argument.<br><!--en-->
+³⁹ Flogger: `.withCause(e)`; исключение в конце выводится как неиспользованный аргумент.<br><!--ru-->
+⁴⁰ JBoss Logging: the exception comes first, `errorf(e, format, args)`.<br><!--en-->
+⁴⁰ JBoss Logging: исключение идёт первым, `errorf(e, format, args)`.<br><!--ru-->
+⁴¹ JBoss Logging: through java.util.logging the entry is dropped silently; with Logback the exception reaches the caller.<br><!--en-->
+⁴¹ JBoss Logging: при выводе через java.util.logging запись молча теряется; с Logback исключение доходит до вызывающего кода.<br><!--ru-->
+⁴² Logback: `DuplicateMessageFilter`, global, by the text of the message.<br><!--en-->
+⁴² Logback: `DuplicateMessageFilter`, глобальный, по тексту сообщения.<br><!--ru-->
+⁴³ Log4j 2: `BurstFilter`, global or per appender, by level.<br><!--en-->
+⁴³ Log4j 2: `BurstFilter`, глобальный или на аппендер, по уровню.<br><!--ru-->
+⁴⁴ Log4j 2: JSON Template Layout, a separate jar of the project.<br><!--en-->
+⁴⁴ Log4j 2: JSON Template Layout, отдельный jar проекта.<br><!--ru-->
+⁴⁵ JBoss Logging: with the jboss-logmanager backend; through java.util.logging there is no JSON and no asynchronous output, and files rotate by size only.<br><!--en-->
+⁴⁵ JBoss Logging: с бэкендом jboss-logmanager; через java.util.logging нет JSON и асинхронного вывода, а файлы ротируются только по размеру.<br><!--ru-->
+⁴⁶ Flogger: needs `flogger-grpc-context`; without it the context does nothing.<br><!--en-->
+⁴⁶ Flogger: нужен `flogger-grpc-context`; без него контекст ничего не делает.<br><!--ru-->
+⁴⁷ JBoss Logging: the MDC API exists, but the output through java.util.logging never prints it.<br><!--en-->
+⁴⁷ JBoss Logging: API MDC есть, но вывод через java.util.logging его не печатает.<br><!--ru-->
+⁴⁸ Log4j 2: `ListAppender` in the separate `log4j-core-test`.<br><!--en-->
+⁴⁸ Log4j 2: `ListAppender` в отдельном `log4j-core-test`.<br><!--ru-->
+⁴⁹ SLF4J: third-party checks at build time: findbugs-slf4j, Error Prone Support, an IntelliJ inspection.<br><!--en-->
+⁴⁹ SLF4J: сторонние проверки при сборке: findbugs-slf4j, Error Prone Support, инспекция IntelliJ.<br><!--ru-->
+⁵⁰ Log4j 2: a warning of the status logger, hidden by default, and an IntelliJ inspection.<br><!--en-->
+⁵⁰ Log4j 2: предупреждение status logger, скрытое по умолчанию, и инспекция IntelliJ.<br><!--ru-->
+⁵¹ JBoss Logging: for typed `@Message` loggers only, by `jboss-logging-processor` at build time.<br><!--en-->
+⁵¹ JBoss Logging: только для типизированных логгеров `@Message`, через `jboss-logging-processor` при сборке.<br><!--ru-->
+⁵² java.util.logging, and Flogger through it: `FileHandler` rotates by size and count, never by time.<br><!--en-->
+⁵² java.util.logging и Flogger через него: `FileHandler` ротирует по размеру и числу файлов, но не по времени.<br><!--ru-->
+⁵³ Flogger: tags in a scoped context, no markers.<br><!--en-->
+⁵³ Flogger: теги в scoped-контексте, маркеров нет.<br><!--ru-->
+⁵⁴ java.util.logging: the adapters come from SLF4J and Log4j (`jul-to-slf4j`, `log4j-jul`).<br><!--en-->
+⁵⁴ java.util.logging: адаптеры дают SLF4J и Log4j (`jul-to-slf4j`, `log4j-jul`).<br><!--ru-->
+⁵⁵ Log4j 2 and Flogger: with a logger field; the calls without one of notes 28 and 30 walk the stack every time.<!--en-->
+⁵⁵ Log4j 2 и Flogger: с полем логгера; вызовы без поля из сносок 28 и 30 каждый раз обходят стек.<!--ru-->
+
+### ${en:'Next to tinylog 2.8.1', ru:'Рядом с tinylog 2.8.1'}
+
+tinylog is the closest analogue. The same calls, run on Java 8 with the default configuration of both:<!--en-->
+tinylog — ближайший аналог. Одни и те же вызовы, запущенные на Java 8 с конфигурацией по умолчанию у обоих:<!--ru-->
+
+| ${en:'Call', ru:'Вызов'} | tinylog 2.8.1 | Nanolog |
+|---|---|---|
+| `error("failed {}", id, e)` | ${en:'the message only, the stack trace is dropped', ru:'только сообщение, трассировка стека теряется'} | ${en:'the message and the stack trace', ru:'сообщение и трассировка стека'} |
+| `info("{\"id\": {}}", 42)` | `"id": {}42` | `{"id": 42}` |
+| `info("{foo} and {}", "bar")` | ${en:'a warning, then `bar and {}`', ru:'предупреждение, затем `bar and {}`'} | `{foo} and bar` |
+| ${en:'an argument whose `toString()` throws', ru:'аргумент, чей `toString()` бросает исключение'} | ${en:'the exception reaches the caller', ru:'исключение доходит до вызывающего кода'} | `[FAILED toString()]` |
+| ${en:'changing the configuration after the first log call', ru:'изменение конфигурации после первого вызова лога'} | `UnsupportedOperationException` | ${en:'`LOG.init` and `LOG.setLevel` at any time', ru:'`LOG.init` и `LOG.setLevel` в любой момент'} |
+| ${en:'packaging', ru:'поставка'} | ${en:'api and impl jars, found by ServiceLoader', ru:'jar с api и jar с impl, которые находит ServiceLoader'} | ${en:'one jar', ru:'один jar'} |
+| ${en:'Java of the next major version', ru:'Java следующей мажорной версии'} | ${en:'tinylog 3, not released yet, drops Java 8', ru:'tinylog 3, ещё не выпущенный, отказывается от Java 8'} | Java 8 |
+
+When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https://github.com/tinylog-org/tinylog/issues/126), [#135](https://github.com/tinylog-org/tinylog/issues/135), [#140](https://github.com/tinylog-org/tinylog/issues/140). Java 8 in tinylog 3: [#398](https://github.com/tinylog-org/tinylog/issues/398).<!--en-->
+Когда ServiceLoader не находит `tinylog-impl`, ничего не логируется: [#126](https://github.com/tinylog-org/tinylog/issues/126), [#135](https://github.com/tinylog-org/tinylog/issues/135), [#140](https://github.com/tinylog-org/tinylog/issues/140). Java 8 в tinylog 3: [#398](https://github.com/tinylog-org/tinylog/issues/398).<!--ru-->
+
+### ${en:'When another logger fits better', ru:'Когда лучше подойдёт другой логгер'}
+
+- **Log files in production.** Rolling by size and time, compression and retention: Logback, Log4j 2, tinylog. Nanolog writes files only for the run log of a development run.<!--en-->
+- **Лог-файлы в продакшене.** Ротация по размеру и времени, сжатие и хранение: Logback, Log4j 2, tinylog. Nanolog пишет файлы только для журнала запуска при разработке.<!--ru-->
+- **Asynchronous output and high throughput.** The asynchronous appenders and loggers of Logback and Log4j 2, the writing thread of tinylog.<!--en-->
+- **Асинхронный вывод и высокая нагрузка.** Асинхронные аппендеры и логгеры Logback и Log4j 2, пишущий поток tinylog.<!--ru-->
+- **An ecosystem.** Appenders for syslog, databases, message queues and log services, markers and filters, the configuration of Spring Boot: SLF4J with Logback or Log4j 2. Nanolog can write through them with [`Slf4jLogger`](#slf4jlogger).<!--en-->
+- **Экосистема.** Аппендеры для syslog, баз данных, очередей сообщений и сервисов логов, маркеры и фильтры, конфигурация Spring Boot: SLF4J с Logback или Log4j 2. Nanolog может писать через них с помощью [`Slf4jLogger`](#slf4jlogger).<!--ru-->
+- **Android.** Timber writes to Logcat and checks its format strings with Android Lint. Nanolog is not tested on Android.<!--en-->
+- **Android.** Timber пишет в Logcat и проверяет строки формата через Android Lint. Nanolog на Android не тестируется.<!--ru-->
+
+[tinylog]: https://tinylog.org "tinylog"
+[jcabi-log]: https://log.jcabi.com "jcabi-log"
+[minlog]: https://github.com/EsotericSoftware/minlog "minlog"
+[timber]: https://github.com/JakeWharton/timber "Timber"
+[slf4j]: https://www.slf4j.org "SLF4J"
+[logback]: https://logback.qos.ch "Logback"
+[log4j]: https://logging.apache.org/log4j/2.x/ "Log4j 2"
+[jul]: https://docs.oracle.com/javase/8/docs/technotes/guides/logging/overview.html "java.util.logging"
+[system-logger]: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/System.Logger.html "System.Logger"
+[flogger]: https://google.github.io/flogger/ "Flogger"
+[jboss-logging]: https://github.com/jboss-logging/jboss-logging "JBoss Logging"
+
 ## Changelog
 
 ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
@@ -1127,6 +1354,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 - ${en:'`NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.', ru:'`NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.'}
 - ${en:'`nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.', ru:'`nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.'}
 - ${en:'Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.', ru:'Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.'}
+- ${en:'README: Related projects, a comparison with tinylog, jcabi-log, minlog, Timber, SLF4J with Logback, Log4j 2, java.util.logging, Flogger and JBoss Logging, with the calls that behave differently in tinylog.', ru:'README: Похожие проекты, сравнение с tinylog, jcabi-log, minlog, Timber, SLF4J с Logback, Log4j 2, java.util.logging, Flogger и JBoss Logging, вместе с вызовами, которые в tinylog ведут себя иначе.'}
 - ${en:'Faster caller detection on Java 8: `Reflection.getCallerClass` gives the class of each frame and only the frames up to the caller are built, so a call without a class at a level enabled for some class costs about 5 µs instead of 20 near the top of the stack and 19 µs instead of 270 at 500 frames; the stack trace of a `Throwable` stays the fallback.', ru:'Быстрее определение вызывающего класса на Java 8: `Reflection.getCallerClass` даёт класс каждого кадра, и строятся только кадры до вызывающего, поэтому вызов без класса для уровня, включённого хотя бы для одного класса, стоит около 5 мкс вместо 20 у вершины стека и 19 мкс вместо 270 на глубине 500 кадров; стек `Throwable` остаётся запасным путём.'}
 - ${en:'Secrets: `LOG.secret(token)` is written as `***` by every logger and keeps no value; fields and context values whose key names a secret, `password`, `token`, `apikey` and the others of `nanolog.redact`, are masked when the entry is created; a shown `LOG.content` masks keys of model providers, AWS keys, bearer tokens and JSON web tokens.', ru:'Секреты: `LOG.secret(token)` любой логгер пишет как `***`, и значение не хранится; поля и значения контекста, чей ключ называет секрет, `password`, `token`, `apikey` и остальные из `nanolog.redact`, маскируются при создании записи; показанное `LOG.content` маскирует ключи поставщиков моделей, ключи AWS, bearer-токены и JSON web tokens.'}
 - ${en:'`LOG.time("Load users")` and `LOG.timed("Count users", () -> ...)` time a block: `Load users took 123 ms` with the fields `timer` and `duration_ms`; a level that is off reads no clock, and the lambda form reports and rethrows an exception.', ru:'`LOG.time("Load users")` и `LOG.timed("Count users", () -> ...)` замеряют блок: `Load users took 123 ms` с полями `timer` и `duration_ms`; выключенный уровень не читает часы, а лямбда-форма сообщает об исключении и пробрасывает его.'}

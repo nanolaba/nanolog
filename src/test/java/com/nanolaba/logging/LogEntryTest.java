@@ -55,6 +55,16 @@ class LogEntryTest {
     }
 
     @Test
+    public void testTextInBracesAndApostrophesAreWrittenAsTheyAre() {
+        // only {} is a placeholder: JSON, other braces and apostrophes are plain text, as the README comparison says
+        assertEquals("{\"id\": 42}", getFormattedMessage("{\"id\": {}}", 42));
+        assertEquals("{foo} and bar", getFormattedMessage("{foo} and {}", "bar"));
+        assertEquals("{0.00} EUR 5", getFormattedMessage("{0.00} EUR {}", 5));
+        assertEquals("it's 5 o'clock", getFormattedMessage("it's {} o'clock", 5));
+        assertEquals("don't break: x", getFormattedMessage("don't break: {}", "x"));
+    }
+
+    @Test
     public void testBrokenToStringInsideObjectArray() {
         assertEquals("test [A, [FAILED toString()], [B, [FAILED toString()]], [1, 2]]",
                      getFormattedMessage("test {}", (Object) new Object[]{"A", new BrokenToString(), new Object[]{"B", new BrokenToString()}, new int[]{1, 2}}));

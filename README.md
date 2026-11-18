@@ -37,6 +37,8 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 - **Pluggable.** A custom backend is one lambda or one class implementing `ILogger`.
 - **Fits the agent loop.** One line per log call, output from the first run, an API that fits in one context window; see [Agent-driven development](#agent-driven-development).
 
+How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related projects](#related-projects).
+
 The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
@@ -78,14 +80,19 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 18 [Writing your own logger](#writing-your-own-logger)
 - 19 [Thread safety and performance](#thread-safety-and-performance)
 - 20 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 21 [Changelog](#changelog)
-	- 21.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 21.2 [1.3](#13)
-	- 21.3 [1.2](#12)
-	- 21.4 [1.1](#11)
-	- 21.5 [1.0](#10)
-- 22 [Contributing](#contributing)
-- 23 [License](#license)
+- 21 [Related projects](#related-projects)
+	- 21.1 [Static facades](#static-facades)
+	- 21.2 [Mainstream loggers](#mainstream-loggers)
+	- 21.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 21.4 [When another logger fits better](#when-another-logger-fits-better)
+- 22 [Changelog](#changelog)
+	- 22.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 22.2 [1.3](#13)
+	- 22.3 [1.2](#12)
+	- 22.4 [1.1](#11)
+	- 22.5 [1.0](#10)
+- 23 [Contributing](#contributing)
+- 24 [License](#license)
 
 
 ## Installation
@@ -1246,6 +1253,166 @@ dependencies {
 }
 ```
 
+## Related projects
+
+Where Nanolog stands among the loggers you may already know. Compared on 2026-11-18 with the versions in the table headers, from their documentation, their sources and runs on Java 8. ✅ = out of the box, ➖ = partial, ❌ = not supported. The weak points of Nanolog are listed as plainly as the strong ones, and each feature that Nanolog has links to the section that describes it.
+
+### Static facades
+
+The direct analogues: a static call without a logger field.
+
+| Feature | **Nanolog** | [tinylog][tinylog] 2.8.1 | [jcabi-log][jcabi-log] 0.24.3 | [minlog][minlog] 1.3.1 | [Timber][timber] 5.0.1 |
+|---|:-:|:-:|:-:|:-:|:-:|
+| [No logger field](#caller-detection) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [Source class found automatically](#caller-detection) | ✅ | ✅ | ❌¹ | ❌ | ✅² |
+| [Call site in the output](#consolelogger) | ✅ | ✅ | ❌ | ❌ | ➖³ |
+| [Runtime dependencies](#installation) | one jar | api + impl⁴ | SLF4J + a backend | one jar | Android only |
+| Java baseline | Java 8 | Java 6 | Java 8 | Java 6 | Android API 14 |
+| [Levels without a configuration file](#levels-and-options-without-code) | ✅ | ✅ | ➖⁵ | ❌ | ❌ |
+| [Levels changed at run time](#changing-levels-at-run-time) | ✅ | ❌⁶ | ➖⁵ | ✅ | ➖⁷ |
+| [Placeholders](#message-formatting) | `{}` | `{}`⁸ | `%s` | none | `%s` |
+| [A trailing exception keeps its stack trace](#message-formatting) | ✅ | ❌⁹ | ❌¹⁰ | ➖¹¹ | ❌¹² |
+| [A throwing `toString()` does not break the call](#message-formatting) | ✅ | ❌ | ❌ | ❌¹³ | ❌ |
+| [Lazy messages](#api-at-a-glance) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| [Rate limiting per call site](#rate-limiting) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [Shorter stack traces](#shorter-stack-traces) | ✅ | ➖¹⁴ | ❌ | ❌ | ❌ |
+| [JSON lines built in](#jsonlogger) | ✅ | ✅¹⁵ | ➖⁵ | ❌ | ❌ |
+| [Context of a thread (MDC)](#context-tag-the-lines-of-one-request) | ✅ | ✅ | ➖⁵ | ❌ | ❌ |
+| [Key-value fields of one call](#fields-named-arguments) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [Capturing entries in tests](#memorylogger-and-compositelogger) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ❌ | ➖¹⁷ | ❌ | ✅¹⁸ |
+| [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
+| Asynchronous output | ❌ | ✅ | ➖⁵ | ❌ | ❌ |
+| Markers or tags | ❌ | ✅ | ❌ | ➖²⁰ | ✅ |
+| [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ➖²¹ | ✅ | ➖²² | ✅ |
+| [A cheap disabled call, no stack walk](#thread-safety-and-performance) | ➖²³ | ➖²⁴ | ✅ | ✅ | ❌²⁵ |
+| [Print debugging that names the expression](#print-debugging-logdbg-prints-the-expression-and-its-value) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| [Output for coding agents](#agent-mode-nanolog-detects-coding-agents) | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+¹ jcabi-log: the caller passes `this`, a class or a name as the source.<br>
+² Timber: only `DebugTree` takes the tag from the calling class.<br>
+³ Timber: a subclass of `DebugTree` can add the method and the line in `createStackElementTag`.<br>
+⁴ tinylog: without `tinylog-impl`, or when ServiceLoader cannot find it (ProGuard, a fat jar), it prints `No logging framework implementation found` and logs nothing.<br>
+⁵ jcabi-log writes nothing itself: this depends on the SLF4J backend under it.<br>
+⁶ tinylog: the configuration is frozen once it is applied; `Configuration.set` then throws.<br>
+⁷ Timber: trees are planted and removed at any time, but there are no levels; a tree filters in `isLoggable`.<br>
+⁸ tinylog: in a call with arguments, text in braces is a `DecimalFormat` or `ChoiceFormat` pattern, see the table below.<br>
+⁹ tinylog: the exception comes first, `Logger.error(e, ...)`; a trailing one is dropped.<br>
+¹⁰ jcabi-log: `error(this, "failed %s", id, e)` throws `IllegalArgumentException`; a stack trace goes into the text through `%[exception]s`.<br>
+¹¹ minlog: there are no arguments, only `error(message, e)`.<br>
+¹² Timber: the exception comes first; the bundled lint check `ThrowableNotAtBeginning` flags a trailing one.<br>
+¹³ minlog: the caller builds the message, so a throwing `toString()` throws before minlog is called, even at a disabled level.<br>
+¹⁴ tinylog: frames are dropped by package (`strip`, `keep`), with no limit on the depth.<br>
+¹⁵ tinylog: the `json` writer, to a file.<br>
+¹⁶ Nanolog: at run time with `nanolog.strict` and in tests, not at build time.<br>
+¹⁷ jcabi-log: always on; a mismatch throws out of the logging call.<br>
+¹⁸ Timber: the bundled Android Lint checks, at build time.<br>
+¹⁹ Nanolog: only the run log of a development run, a file per run, the last 10 kept, 100 MB at most; no rolling of a production log.<br>
+²⁰ minlog: a category string in each call.<br>
+²¹ tinylog 2: to java.util.logging and JBoss Logging, and a writer to Logcat; not to SLF4J (`slf4j-tinylog` goes the other way).<br>
+²² minlog: a subclass of `Log.Logger`, set with `Log.setLogger`.<br>
+²³ Nanolog: a level that is off for every class costs about 2 ns; a level enabled for another package walks the stack, about 3 µs on JDK 17 and 5 µs on Java 8, unless the class is passed.<br>
+²⁴ tinylog: with levels per package, a disabled call between the global level and the most verbose package level looks up the caller first.<br>
+²⁵ Timber: `DebugTree` takes the tag from a new stack trace before `isLoggable`.
+
+### Mainstream loggers
+
+The loggers most Java code already uses, and Flogger, which limits the rate per call site.
+
+| Feature | **Nanolog** | [SLF4J][slf4j] 2.0.20 + [Logback][logback] 1.6.7²⁶ | [Log4j 2][log4j] 2.26.1 | [JUL][jul] / [System.Logger][system-logger] | [Flogger][flogger] 0.9 | [JBoss Logging][jboss-logging] 3.6.3 |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| [No logger field](#caller-detection) | ✅ | ❌²⁷ | ➖²⁸ | ➖²⁹ | ➖³⁰ | ❌²⁷ |
+| [Source class found automatically](#caller-detection) | ✅ | ❌²⁷ | ✅ | ➖³¹ | ✅ | ❌²⁷ |
+| [Call site in the output](#consolelogger) | ✅ | ✅ | ✅ | ➖³² | ➖³³ | ➖³⁴ |
+| [Runtime dependencies](#installation) | one jar | `slf4j-api` + Logback | api + core | JDK | flogger + a backend | one jar³⁵ |
+| Java baseline | Java 8 | Java 11³⁶ | Java 8 | Java 1.4 / 9 | Java 8 | Java 11 |
+| [Levels without a configuration file](#levels-and-options-without-code) | ✅ | ❌²⁶ | ➖³⁷ | ❌ | ❌ | ❌ |
+| [Levels changed at run time](#changing-levels-at-run-time) | ✅ | ✅ | ✅ | ✅ | ✅ | ➖³⁸ |
+| [Placeholders](#message-formatting) | `{}` | `{}` | `{}` | `{0}` | `%s` | `%s`, `{0}` |
+| [A trailing exception keeps its stack trace](#message-formatting) | ✅ | ✅ | ✅ | ❌ | ❌³⁹ | ❌⁴⁰ |
+| [A throwing `toString()` does not break the call](#message-formatting) | ✅ | ✅ | ✅ | ✅ | ✅ | ➖⁴¹ |
+| [Lazy messages](#api-at-a-glance) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| [Rate limiting per call site](#rate-limiting) | ✅ | ➖⁴² | ➖⁴³ | ❌ | ✅ | ❌ |
+| [Shorter stack traces](#shorter-stack-traces) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| [JSON lines built in](#jsonlogger) | ✅ | ✅ | ➖⁴⁴ | ❌ | ❌ | ➖⁴⁵ |
+| [Context of a thread (MDC)](#context-tag-the-lines-of-one-request) | ✅ | ✅ | ✅ | ❌ | ➖⁴⁶ | ➖⁴⁷ |
+| [Key-value fields of one call](#fields-named-arguments) | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| [Capturing entries in tests](#memorylogger-and-compositelogger) | ✅ | ✅ | ➖⁴⁸ | ❌ | ❌ | ❌ |
+| [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ➖⁴⁹ | ➖⁵⁰ | ❌ | ✅ | ➖⁵¹ |
+| [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
+| Asynchronous output | ❌ | ✅ | ✅ | ❌ | ❌ | ➖⁴⁵ |
+| Markers or tags | ❌ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
+| [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ✅ | ✅ | ➖⁵⁴ | ✅ | ✅ |
+| [A cheap disabled call, no stack walk](#thread-safety-and-performance) | ➖²³ | ✅ | ✅⁵⁵ | ✅ | ✅⁵⁵ | ✅ |
+| [Print debugging that names the expression](#print-debugging-logdbg-prints-the-expression-and-its-value) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| [Output for coding agents](#agent-mode-nanolog-detects-coding-agents) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+²⁶ slf4j-simple instead of Logback runs on Java 8 and reads levels from system properties, but fixes them at start and has no call site, rolling, JSON or MDC.<br>
+²⁷ Lombok 1.18.48 `@Slf4j`, `@Log4j2`, `@Log`, `@Flogger` and `@JBossLog` write the field and the class for you, but the field stays, and each class needs the annotation.<br>
+²⁸ Log4j 2: `LogManager.getLogger().info(...)` works inline, but walks the stack and looks up the logger at every call; the docs use a field.<br>
+²⁹ java.util.logging: `Logger.getGlobal()` works from any class, but it is one logger, without levels per class; `System.Logger` always needs a name.<br>
+³⁰ Flogger: `FluentLogger.forEnclosingClass()` inline walks the stack and creates a logger at every call; the docs prescribe a field.<br>
+³¹ java.util.logging: the logger name is passed; each record finds its source class and method.<br>
+³² java.util.logging: the class and the method, no line.<br>
+³³ Flogger: the system backend prints the class and the method, not the line.<br>
+³⁴ JBoss Logging: depends on the backend; the output through java.util.logging gives the class and the method.<br>
+³⁵ JBoss Logging: without a backend it writes through java.util.logging.<br>
+³⁶ Logback 1.6 needs Java 11; `slf4j-api` runs on Java 8, and Logback 1.3, the last line for Java 8, is no longer supported.<br>
+³⁷ Log4j 2: `log4j2.level` (`LOG4J_LEVEL`) sets only the root level of the default configuration.<br>
+³⁸ JBoss Logging: through the API of the backend.<br>
+³⁹ Flogger: `.withCause(e)`; a trailing exception is reported as an unused argument.<br>
+⁴⁰ JBoss Logging: the exception comes first, `errorf(e, format, args)`.<br>
+⁴¹ JBoss Logging: through java.util.logging the entry is dropped silently; with Logback the exception reaches the caller.<br>
+⁴² Logback: `DuplicateMessageFilter`, global, by the text of the message.<br>
+⁴³ Log4j 2: `BurstFilter`, global or per appender, by level.<br>
+⁴⁴ Log4j 2: JSON Template Layout, a separate jar of the project.<br>
+⁴⁵ JBoss Logging: with the jboss-logmanager backend; through java.util.logging there is no JSON and no asynchronous output, and files rotate by size only.<br>
+⁴⁶ Flogger: needs `flogger-grpc-context`; without it the context does nothing.<br>
+⁴⁷ JBoss Logging: the MDC API exists, but the output through java.util.logging never prints it.<br>
+⁴⁸ Log4j 2: `ListAppender` in the separate `log4j-core-test`.<br>
+⁴⁹ SLF4J: third-party checks at build time: findbugs-slf4j, Error Prone Support, an IntelliJ inspection.<br>
+⁵⁰ Log4j 2: a warning of the status logger, hidden by default, and an IntelliJ inspection.<br>
+⁵¹ JBoss Logging: for typed `@Message` loggers only, by `jboss-logging-processor` at build time.<br>
+⁵² java.util.logging, and Flogger through it: `FileHandler` rotates by size and count, never by time.<br>
+⁵³ Flogger: tags in a scoped context, no markers.<br>
+⁵⁴ java.util.logging: the adapters come from SLF4J and Log4j (`jul-to-slf4j`, `log4j-jul`).<br>
+⁵⁵ Log4j 2 and Flogger: with a logger field; the calls without one of notes 28 and 30 walk the stack every time.
+
+### Next to tinylog 2.8.1
+
+tinylog is the closest analogue. The same calls, run on Java 8 with the default configuration of both:
+
+| Call | tinylog 2.8.1 | Nanolog |
+|---|---|---|
+| `error("failed {}", id, e)` | the message only, the stack trace is dropped | the message and the stack trace |
+| `info("{\"id\": {}}", 42)` | `"id": {}42` | `{"id": 42}` |
+| `info("{foo} and {}", "bar")` | a warning, then `bar and {}` | `{foo} and bar` |
+| an argument whose `toString()` throws | the exception reaches the caller | `[FAILED toString()]` |
+| changing the configuration after the first log call | `UnsupportedOperationException` | `LOG.init` and `LOG.setLevel` at any time |
+| packaging | api and impl jars, found by ServiceLoader | one jar |
+| Java of the next major version | tinylog 3, not released yet, drops Java 8 | Java 8 |
+
+When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https://github.com/tinylog-org/tinylog/issues/126), [#135](https://github.com/tinylog-org/tinylog/issues/135), [#140](https://github.com/tinylog-org/tinylog/issues/140). Java 8 in tinylog 3: [#398](https://github.com/tinylog-org/tinylog/issues/398).
+
+### When another logger fits better
+
+- **Log files in production.** Rolling by size and time, compression and retention: Logback, Log4j 2, tinylog. Nanolog writes files only for the run log of a development run.
+- **Asynchronous output and high throughput.** The asynchronous appenders and loggers of Logback and Log4j 2, the writing thread of tinylog.
+- **An ecosystem.** Appenders for syslog, databases, message queues and log services, markers and filters, the configuration of Spring Boot: SLF4J with Logback or Log4j 2. Nanolog can write through them with [`Slf4jLogger`](#slf4jlogger).
+- **Android.** Timber writes to Logcat and checks its format strings with Android Lint. Nanolog is not tested on Android.
+
+[tinylog]: https://tinylog.org "tinylog"
+[jcabi-log]: https://log.jcabi.com "jcabi-log"
+[minlog]: https://github.com/EsotericSoftware/minlog "minlog"
+[timber]: https://github.com/JakeWharton/timber "Timber"
+[slf4j]: https://www.slf4j.org "SLF4J"
+[logback]: https://logback.qos.ch "Logback"
+[log4j]: https://logging.apache.org/log4j/2.x/ "Log4j 2"
+[jul]: https://docs.oracle.com/javase/8/docs/technotes/guides/logging/overview.html "java.util.logging"
+[system-logger]: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/System.Logger.html "System.Logger"
+[flogger]: https://google.github.io/flogger/ "Flogger"
+[jboss-logging]: https://github.com/jboss-logging/jboss-logging "JBoss Logging"
+
 ## Changelog
 
 ### 1.4-SNAPSHOT
@@ -1260,6 +1427,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- README: Related projects, a comparison with tinylog, jcabi-log, minlog, Timber, SLF4J with Logback, Log4j 2, java.util.logging, Flogger and JBoss Logging, with the calls that behave differently in tinylog.
 - Faster caller detection on Java 8: `Reflection.getCallerClass` gives the class of each frame and only the frames up to the caller are built, so a call without a class at a level enabled for some class costs about 5 µs instead of 20 near the top of the stack and 19 µs instead of 270 at 500 frames; the stack trace of a `Throwable` stays the fallback.
 - Secrets: `LOG.secret(token)` is written as `***` by every logger and keeps no value; fields and context values whose key names a secret, `password`, `token`, `apikey` and the others of `nanolog.redact`, are masked when the entry is created; a shown `LOG.content` masks keys of model providers, AWS keys, bearer tokens and JSON web tokens.
 - `LOG.time("Load users")` and `LOG.timed("Count users", () -> ...)` time a block: `Load users took 123 ms` with the fields `timer` and `duration_ms`; a level that is off reads no clock, and the lambda form reports and rethrows an exception.
