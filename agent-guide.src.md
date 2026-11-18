@@ -25,8 +25,8 @@ The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVer
 ## Rules
 
 1. Do not declare logger fields. `import com.nanolaba.logging.LOG;` and call `LOG.info(...)` directly.
-2. Placeholders are `{}`, as in SLF4J. A missing argument leaves `{}` in the text, an extra one is dropped. `\{}` is a literal `{}`, `\\{}` a literal backslash followed by a placeholder.
-3. Pass the exception first, `LOG.error(e, "Failed to load {}", id)`, or last, `LOG.error("Failed to load {}", id, e)` *1.2+*. Version 1.1 drops a trailing exception, so put it first there.
+2. Placeholders are `{}`, as in SLF4J. A missing argument leaves `{}` in the text, an extra one is dropped. `\{}` is a literal `{}`, `\\{}` a literal backslash followed by a placeholder. Keep the template a constant and pass values through `{}`: `LOG.info("User {} logged in from {}", id, ip)`, not `LOG.info("User " + id + " logged in from {}", ip)`, so the `template` of `JsonLogger` and `assertTemplateLogged` group the lines.
+3. Pass the exception first, `LOG.error(e, "Failed to load {}", id)`, or last, `LOG.error("Failed to load {}", id, e)` *1.2+*. Version 1.1 drops a trailing exception, so put it first there. Do not pass `e.getMessage()` as an argument next to `e`: the stack trace prints it already.
 4. Build expensive messages lazily: `LOG.debug(() -> "Report: " + buildReport())` runs the lambda only when `DEBUG` is enabled.
 5. In hot paths pass the class: `LOG.debug(MyClass.class, "...")`. Without it every call walks the stack, about 3 µs on JDK 17+ *1.3+* and 5 to 8 µs on Java 8 *1.4+* (20 to 60 µs or more before), `LOG.isDebugEnabled()` included; only a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, skips the walk *1.3+*.
 6. Call `LOG.init(...)` once at application startup and never from library code: it replaces the logger for the whole JVM.
@@ -127,7 +127,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `-Dnanolog.run=on` *1.4+*, the default in agent mode: every entry also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`; the absolute path is printed at startup), and each `WARN` and `ERROR` as one line to `latest.errors.log`. Read that file instead of running again to filter the output, and `tail -f` it for a server in the background. `runs/` keeps the last 10 runs; `-Dnanolog.run.format=json` writes `JsonLogger` lines for `jq`.
 - A mistyped key is reported when `LOG` initialises *1.4+*: `[NANOLOG] Unknown setting "nanolog.levle" (system property); did you mean "nanolog.level"?`. Read the `[NANOLOG]` lines on `System.err` before trusting the output. Per-package levels from the environment go into `NANOLOG_LEVELS`; `NANOLOG_LEVEL_COM_ACME` does nothing.
 - `[NANOLOG]` lines are Nanolog's own: notices (agent mode, the run log, the run summary) and diagnostics, which name what is wrong and where it was set, such as `Invalid value "LOUD" of "nanolog.level": ...; set as a system property`. Each diagnostic is printed once per JVM; `-Dnanolog.diagnostics=all` *1.4+* prints every one.
-- `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a template an earlier test met first.
+- `-Dnanolog.strict=true` in test runs: reports each call whose `{}` placeholders and arguments do not match, with its call site, on `System.err`; *1.4+* also an argument that repeats the message of the exception and a call site seen with two templates, a template built from data. *1.3+*: `MemoryLogger.assertNoDiagnostics()` fails the test on them, even on a finding an earlier test met first.
 
 ## Changing levels at run time *1.3+*
 

@@ -1909,8 +1909,8 @@ public class LOG {
                 CallerDetection.Caller caller = findCaller();
                 long skipped = admit(isEnabled(current, level, caller.sourceClass), caller);
                 if (skipped >= 0) {
-                    write(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
-                                                   CALLER_BOUNDARY));
+                    writeCall(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
+                                                       CALLER_BOUNDARY));
                 }
             }
         }
@@ -2216,18 +2216,25 @@ public class LOG {
 
     private static void doLog(ILogger current, LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
         if (isEnabled(current, level, loggedClass)) {
-            write(current, LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args, 0));
+            writeCall(current, LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args, 0));
         }
     }
 
     /**
-     * Hands an entry whose level is enabled to the logger: checks its placeholders in strict mode, and writes it to
-     * {@code System.err} if the logger throws.
+     * Hands the entry of a logging call to the logger after strict mode has checked it. The lines that Nanolog makes
+     * itself, of timers and units, skip the check: their templates are Nanolog's.
+     */
+    private static void writeCall(ILogger current, LogEntry entry) {
+        if (strict) {
+            checkCall(current, entry);
+        }
+        write(current, entry);
+    }
+
+    /**
+     * Hands an entry whose level is enabled to the logger, and writes it to {@code System.err} if the logger throws.
      */
     private static void write(ILogger current, LogEntry entry) {
-        if (strict) {
-            checkPlaceholders(current, entry);
-        }
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.count(entry);
         }
@@ -2398,11 +2405,12 @@ public class LOG {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Strict mode: prints one {@code [NANOLOG]} line when the {@code {}} placeholders of a parameterized message do
-     * not match its arguments. Only calls with arguments are checked, so a plain message that happens to contain
-     * {@code {}} is never reported. The entry itself is logged unchanged, and nothing is thrown.
+     * Strict mode: reports a call whose {@code {}} placeholders do not match its arguments, an argument that is the
+     * message of the exception of the entry, and a call site seen with two templates. Only calls with arguments are
+     * checked, so a plain message that happens to contain {@code {}}, or that is built anew each time, is never
+     * reported. The entry itself is logged unchanged, and nothing is thrown.
      */
-    private static void checkPlaceholders(ILogger current, LogEntry entry) {
+    private static void checkCall(ILogger current, LogEntry entry) {
         Object[] args = entry.getArgs();
         if (args == null || args.length == 0) {
             return;
@@ -2413,6 +2421,55 @@ public class LOG {
             String diagnostic = describeSource(entry) + ": " + count(placeholders, "placeholder") + ", " +
                                 count(args.length, "argument") + " in \"" + template + "\"";
             diagnose(current, diagnostic);
+        }
+        checkExceptionMessage(current, entry, args);
+        checkConstantTemplate(current, entry, template);
+    }
+
+    /**
+     * Reports each argument that is the message of the exception of the entry: the stack trace prints it already. An
+     * exception without a message, or whose {@code getMessage()} throws, is not checked.
+     */
+    private static void checkExceptionMessage(ILogger current, LogEntry entry, Object[] args) {
+        Throwable throwable = entry.getThrowable();
+        if (throwable == null) {
+            return;
+        }
+        String message;
+        try {
+            message = throwable.getMessage();
+        } catch (Throwable t) {
+            return;
+        }
+        if (message == null || message.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < args.length; i++) {
+            if (message.equals(args[i])) {
+                diagnose(current, describeSource(entry) + ": argument " + (i + 1) + " repeats the message of the exception");
+            }
+        }
+    }
+
+    /**
+     * The first template of each call site checked in strict mode. Call sites are bounded by the size of the code, as
+     * in {@link #LIMITS}.
+     */
+    private static final Map<StackTraceElement, String> TEMPLATES = new ConcurrentHashMap<>();
+
+    /**
+     * Reports a call whose template differs from the first one of its call site: a template built from data, which
+     * groups nothing. The text names the first template, so {@code System.err} reports a call site once. A call with
+     * an explicit class has no call site and is not checked.
+     */
+    private static void checkConstantTemplate(ILogger current, LogEntry entry, String template) {
+        StackTraceElement site = entry.getCaller();
+        if (site == null) {
+            return;
+        }
+        String first = TEMPLATES.putIfAbsent(site, template);
+        if (first != null && !first.equals(template)) {
+            diagnose(current, describeSource(entry) + ": the template is not a constant: \"" + first + "\"");
         }
     }
 

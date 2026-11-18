@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@code nanolog.strict}: diagnostics for calls whose {@code {}} placeholders and arguments do not match.
+ * {@code nanolog.strict}: diagnostics for calls whose {@code {}} placeholders and arguments do not match, whose arguments
+ * repeat the message of their exception, or whose template is not a constant.
  */
 class StrictModeTest extends AbstractLoggerTest {
 
@@ -53,8 +55,135 @@ class StrictModeTest extends AbstractLoggerTest {
 
         LOG.info("a {} b {}", 1);
         LOG.info("a {}", 1, 2);
+        IllegalStateException e = new IllegalStateException("boom");
+        LOG.error("Failed: {}", e.getMessage(), e);
+        for (int id = 1; id < 3; id++) {
+            LOG.info("User " + id + " from {}", "host");
+        }
 
         assertEquals("", getErrAndClear());
+    }
+
+    @Test
+    public void testAnArgumentRepeatingTheMessageOfTheExceptionIsReported() {
+        enableStrictMode("true");
+        IllegalStateException e = new IllegalStateException("boom");
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.error("Failed: {}", e.getMessage(), e);
+        assertEquals("[NANOLOG] com.nanolaba.logging.StrictModeTest.testAnArgumentRepeatingTheMessageOfTheExceptionIsReported(StrictModeTest.java:" +
+                     line + "): argument 1 repeats the message of the exception" + System.lineSeparator(), getErrAndClear());
+
+        LOG.warn(e, "Failed {} times: {}", 3, e.getMessage());
+        assertTrue(getErrAndClear().endsWith("): argument 2 repeats the message of the exception" + System.lineSeparator()));
+
+        LOG.error("{} / {}", e.getMessage(), e.getMessage(), e);
+        String both = getErrAndClear();
+        assertTrue(both.contains("): argument 1 repeats") && both.contains("): argument 2 repeats"), both);
+
+        LOG.once().error("Once: {}", e.getMessage(), e);
+        assertTrue(getErrAndClear().endsWith("): argument 1 repeats the message of the exception" + System.lineSeparator()));
+
+        assertEquals(5, memory.getDiagnostics().size());
+        // the entries themselves are logged exactly as without the check
+        assertEquals(Arrays.asList("Failed: boom", "Failed 3 times: boom", "boom / boom", "Once: boom"), memory.getMessages());
+    }
+
+    @Test
+    public void testArgumentsThatDoNotRepeatTheMessageAreNotReported() {
+        enableStrictMode("true");
+        IllegalStateException e = new IllegalStateException("boom");
+
+        LOG.error("Failed: {}", "other", e);
+        LOG.error("Failed: {}", "boom");
+        LOG.error("Failed: {}", null, new IllegalStateException());
+        LOG.error("Failed: {}", "", new IllegalStateException(""));
+        LOG.error("Code {}", 42, new IllegalStateException("42"));
+        LOG.error("Failed: {}", LOG.kv("reason", "boom"), e);
+        LOG.error("Failed: {}", "boom", new IllegalStateException("boom") {
+            @Override
+            public String getMessage() {
+                throw new UnsupportedOperationException("no message");
+            }
+        });
+
+        assertEquals("", getErrAndClear());
+        memory.assertNoDiagnostics();
+        assertEquals(7, memory.getEntries().size());
+    }
+
+    /**
+     * @return the line of the call
+     */
+    private int logUser(int id) {
+        LOG.info("User " + id + " logged in from {}", "10.0.0.1");
+        return new Throwable().getStackTrace()[0].getLineNumber() - 1;
+    }
+
+    @Test
+    public void testATemplateThatIsNotAConstantIsReported() {
+        enableStrictMode("true");
+
+        int line = 0;
+        for (int id = 17; id < 20; id++) {
+            line = logUser(id);
+        }
+
+        assertEquals("[NANOLOG] com.nanolaba.logging.StrictModeTest.logUser(StrictModeTest.java:" + line +
+                     "): the template is not a constant: \"User 17 logged in from {}\"" + System.lineSeparator(), getErrAndClear(),
+                     "standard error reports the call site once");
+        List<String> diagnostics = memory.getDiagnostics();
+        assertEquals(2, diagnostics.size(), "the logger gets every call with another template");
+        assertEquals(diagnostics.get(0), diagnostics.get(1));
+        assertEquals(Arrays.asList("User 17 logged in from 10.0.0.1", "User 18 logged in from 10.0.0.1", "User 19 logged in from 10.0.0.1"),
+                     memory.getMessages());
+
+        logUser(17);
+        assertEquals(2, memory.getDiagnostics().size(), "the first template again is not another one");
+    }
+
+    @Test
+    public void testALimitedStatementWithATemplateThatIsNotAConstantIsReported() {
+        enableStrictMode("true");
+
+        for (int i = 0; i < 2; i++) {
+            LOG.atMostEvery(0, TimeUnit.SECONDS).info("Step " + i + " of {}", 2);
+        }
+
+        assertTrue(getErrAndClear().endsWith("): the template is not a constant: \"Step 0 of {}\"" + System.lineSeparator()));
+        assertEquals(1, memory.getDiagnostics().size());
+    }
+
+    private void timedStep(boolean fail) {
+        try {
+            LOG.timed("step", () -> {
+                if (fail) {
+                    throw new IllegalStateException("step");
+                }
+            });
+        } catch (IllegalStateException ignored) {
+            // the timer has written its line
+        }
+    }
+
+    @Test
+    public void testConstantTemplatesAndCallsWithoutACallSiteAreNotReported() {
+        enableStrictMode("true");
+
+        for (int i = 0; i < 3; i++) {
+            LOG.info("Step {} of {}", i, 3);
+            LOG.info("Step " + i + " done");
+            LOG.info("Order " + i, LOG.kv("step", i));
+            LOG.info(InfoObject.class, "Explicit " + i + " {}", i);
+        }
+        LOG.info("One template {}", 1);
+        LOG.info("Another template {}", 2);
+        // a timer writes "took" and "failed after" at one call site, with its name as an argument
+        timedStep(false);
+        timedStep(true);
+
+        assertEquals("", getErrAndClear());
+        memory.assertNoDiagnostics();
     }
 
     @Test
