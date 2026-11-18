@@ -1,0 +1,31 @@
+name: Feature request
+description: Something Nanolog should do that it does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Russian, whichever is easier for you. To talk an idea over first, open it in [Discussions Ideas](https://github.com/nanolaba/nanolog/discussions/categories/ideas).
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What you are trying to do
+      description: The situation and the problem, before any solution. What do you log, where does it go, who reads it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: How it could look
+      description: The call or the setting you have in mind, if any.
+      placeholder: |
+        LOG.info(...);
+      render: java
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today
+      description: Workarounds, or how another logger does it.

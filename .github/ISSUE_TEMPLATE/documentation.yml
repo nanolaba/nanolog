@@ -1,0 +1,29 @@
+name: Documentation
+description: Something in the README, llms.txt or the Javadoc is wrong, unclear or missing.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Russian, whichever is easier for you.
+
+  - type: input
+    id: section
+    attributes:
+      label: Where
+      description: A link to the section, or its heading.
+      placeholder: "https://github.com/nanolaba/nanolog#caller-detection"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What it should say

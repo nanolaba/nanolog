@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question
+    url: https://github.com/nanolaba/nanolog/discussions/categories/q-a
+    about: Ask how to do something with Nanolog in Discussions Q&A; English or Russian.
+  - name: Security vulnerability
+    url: https://github.com/nanolaba/nanolog/security/advisories/new
+    about: Report a vulnerability privately, never in a public issue.

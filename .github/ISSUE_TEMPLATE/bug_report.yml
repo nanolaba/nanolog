@@ -1,0 +1,100 @@
+name: Bug report
+description: Nanolog printed something wrong, nothing, or failed.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. English or Russian, whichever is easier for you.
+
+        - A question rather than a bug? Ask in [Discussions Q&A](https://github.com/nanolaba/nanolog/discussions/categories/q-a).
+        - A security vulnerability? Report it [privately](https://github.com/nanolaba/nanolog/security/advisories/new), not here.
+        - Please look through the [open issues](https://github.com/nanolaba/nanolog/issues) first.
+
+  - type: input
+    id: version
+    attributes:
+      label: Nanolog version
+      description: The version in your pom.xml or build.gradle, a SNAPSHOT included.
+      placeholder: "1.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: The logging code
+      description: The smallest piece of code that shows the problem, with the settings it needs (-D flags, nanolog.properties).
+      placeholder: |
+        LOG.info("Loaded {} items", count);
+      render: java
+    validations:
+      required: true
+
+  - type: textarea
+    id: printed
+    attributes:
+      label: What was printed
+      description: The output as it is, or "nothing".
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: "[NANOLOG] lines"
+      description: Nanolog reports its own problems on System.err in lines that start with [NANOLOG]. Paste them, if there are any.
+      render: text
+
+  - type: input
+    id: jdk
+    attributes:
+      label: JDK
+      description: The output of `java -version`, in one line.
+      placeholder: "Temurin 17.0.10"
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build tool
+      options:
+        - Maven
+        - Gradle
+        - Other or none
+
+  - type: dropdown
+    id: logger
+    attributes:
+      label: Logger
+      description: Which logger writes the entries; for SLF4J, name the backend under "Anything else".
+      multiple: true
+      options:
+        - ConsoleLogger (the default)
+        - JsonLogger
+        - Slf4jLogger
+        - MemoryLogger
+        - A logger of my own (ILogger)
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent mode
+      description: Was the program run by a coding agent, with AI_AGENT, CLAUDECODE or a similar variable set? The first [NANOLOG] line says so.
+      options:
+        - "No"
+        - "Yes"
+        - I don't know
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: The SLF4J backend, the operating system, what you have tried.

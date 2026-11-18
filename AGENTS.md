@@ -257,6 +257,7 @@ Release checklist:
 ## Conventions
 
 - Commit messages: English, imperative subject line, body explains the why.
+- Issues and questions: `.github/ISSUE_TEMPLATE` has the forms for a bug, a feature and the documentation, and `config.yml` sends questions to Discussions Q&A (whose form is `.github/DISCUSSION_TEMPLATE/q-a.yml`) and vulnerabilities to private reporting; blank issues stay enabled. A question filed as an issue is answered there and labelled `question`, never closed as the wrong place. English and Russian are both fine everywhere. A new field of a bug report goes into `bug_report.yml`, not into a comment asking for it.
 - Keep the public API additive; this library is consumed from Maven Central.
 - Every production change ships with tests that kill the corresponding pitest mutants and, where user-visible, with a README change in `README.src.md`.
 - A killer feature (an issue labelled `killer-feature`) is not done until its SEO work is done too. Every such issue has an "SEO" section with the search phrases and a checklist; work through it. It covers a README section titled with the search phrase plus a "Why Nanolog" bullet (EN and RU), the GitHub description and topics (`gh repo edit`), `<description>` in `pom.xml`, the description in `agent-guide.src.md`, the first sentence of the Javadoc and the release notes. Claims stay honest: no keyword stuffing, comparisons with versions and dates. The baseline is issue #69.
