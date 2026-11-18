@@ -1,0 +1,27 @@
+# Updates of the pinned actions (their commit SHAs) and of the Maven build. Nanolog has no dependencies at run time:
+# what Maven updates are the plugins and the test and provided dependencies.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: [ "*" ]
+
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      maven:
+        update-types: [ minor, patch ]
+    ignore:
+      # Slf4jLogger is built against SLF4J 2.x and tested against 1.7 in the profile slf4j-1.7; a new major is a
+      # decision, not an update
+      - dependency-name: "org.slf4j:*"
+        update-types: [ "version-update:semver-major" ]
+      # JUnit 5 stays the API that NanologExtension and MemoryLogger are built for
+      - dependency-name: "org.junit*:*"
+        update-types: [ "version-update:semver-major" ]
