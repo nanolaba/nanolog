@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_CONTENT;
 import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
@@ -179,9 +180,33 @@ final class Contents {
         if (limit == HIDE) {
             return "[content " + chars(text.length()) + " #" + hash(text) + "]";
         }
-        boolean cut = text.length() > limit;
-        String shown = escape(cut ? text.substring(0, limit) : text);
-        return cut ? shown + "... [+" + chars(text.length() - limit) + "]" : shown;
+        String masked = masked(text);
+        boolean cut = masked.length() > limit;
+        String shown = escape(cut ? masked.substring(0, limit) : masked);
+        return cut ? shown + "... [+" + chars(masked.length() - limit) + "]" : shown;
+    }
+
+    /**
+     * Secrets that a shown payload may carry, with what they become: keys of model providers ({@code sk-...}), AWS
+     * access keys, bearer tokens and JSON web tokens. Only payloads are scanned, never the text of messages.
+     */
+    private static final Pattern[] PATTERNS = {
+            Pattern.compile("\\bsk-[A-Za-z0-9_-]{16,}"),
+            Pattern.compile("\\bAKIA[0-9A-Z]{16}\\b"),
+            Pattern.compile("(?i)\\b(Bearer)\\s+[A-Za-z0-9._~+/=-]{8,}"),
+            Pattern.compile("\\beyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*"),
+    };
+    private static final String[] REPLACEMENTS = {"sk-***", "AKIA***", "$1 ***", "eyJ***"};
+
+    /**
+     * A shown payload with its known secrets masked, before it is cut.
+     */
+    static String masked(String text) {
+        String result = text;
+        for (int i = 0; i < PATTERNS.length; i++) {
+            result = PATTERNS[i].matcher(result).replaceAll(REPLACEMENTS[i]);
+        }
+        return result;
     }
 
     /**

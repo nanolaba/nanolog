@@ -120,6 +120,13 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_CONTENT = PROPERTY_PREFIX + "content";
     /**
+     * The words that name a secret, comma-separated: a field of {@code LOG.kv(...)} or a context value whose key, or a
+     * word of it, is one of them is written as {@code ***}. Without it {@code password}, {@code passwd},
+     * {@code secret}, {@code token}, {@code apikey}, {@code credential} and {@code authorization}; empty turns masking
+     * off.
+     */
+    public static final String PROPERTY_REDACT = PROPERTY_PREFIX + "redact";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */

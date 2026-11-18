@@ -67,24 +67,25 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 10.1 [Fields: named arguments](#fields-named-arguments)
 	- 10.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
 - 11 [Logging payloads safely](#logging-payloads-safely)
-- 12 [Logging LLM calls](#logging-llm-calls)
-	- 12.1 [LangChain4j](#langchain4j)
-	- 12.2 [Spring AI](#spring-ai)
-- 13 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
-- 14 [Rate limiting](#rate-limiting)
-- 15 [Catching exceptions](#catching-exceptions)
-- 16 [Caller detection](#caller-detection)
-- 17 [Writing your own logger](#writing-your-own-logger)
-- 18 [Thread safety and performance](#thread-safety-and-performance)
-- 19 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 20 [Changelog](#changelog)
-	- 20.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 20.2 [1.3](#13)
-	- 20.3 [1.2](#12)
-	- 20.4 [1.1](#11)
-	- 20.5 [1.0](#10)
-- 21 [Contributing](#contributing)
-- 22 [License](#license)
+- 12 [Masking secrets](#masking-secrets)
+- 13 [Logging LLM calls](#logging-llm-calls)
+	- 13.1 [LangChain4j](#langchain4j)
+	- 13.2 [Spring AI](#spring-ai)
+- 14 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+- 15 [Rate limiting](#rate-limiting)
+- 16 [Catching exceptions](#catching-exceptions)
+- 17 [Caller detection](#caller-detection)
+- 18 [Writing your own logger](#writing-your-own-logger)
+- 19 [Thread safety and performance](#thread-safety-and-performance)
+- 20 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 21 [Changelog](#changelog)
+	- 21.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 21.2 [1.3](#13)
+	- 21.3 [1.2](#12)
+	- 21.4 [1.1](#11)
+	- 21.5 [1.0](#10)
+- 22 [Contributing](#contributing)
+- 23 [License](#license)
 
 
 ## Installation
@@ -171,6 +172,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.info(throwable, "... {} ...", args)` | exception plus a parameterized message |
 | `LOG.info("... {} ...", args, throwable)` | the SLF4J order: a trailing exception that no `{}` consumes becomes the exception of the entry |
 | `LOG.info("Payment accepted", LOG.kv("orderId", id))` | a named argument: `orderId=A-17` after the message, a field in JSON; in a `{}` it prints its value, see [Fields](#fields-named-arguments) |
+| `LOG.info("Login with {}", LOG.secret(token))` | a secret written as `***` by every logger; fields and context named like secrets are masked too, see [Masking secrets](#masking-secrets) |
 | `LOG.debug("Prompt: {}", LOG.content(prompt))` | a payload written as its length and hash unless `nanolog.content` shows it, see [Logging payloads safely](#logging-payloads-safely) |
 | `LOG.info(SomeClass.class, ...)` | any form above with an explicit source class |
 | `LOG.isInfoEnabled()` | level check, with or without an explicit class |
@@ -537,6 +539,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.unit.slowMs` | the duration in milliseconds from which a unit is slow and always written | not set |
 | `nanolog.buffer` | `TRACE`, `DEBUG`, `INFO` or `WARN`: entries at that level and below are held back and written only before an `ERROR`, see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails) | `off` |
 | `nanolog.buffer.size` | how many entries the buffer keeps per thread or unit, the newest | `200` |
+| `nanolog.redact` | the words that name a secret, comma-separated: fields and context values whose key, or a word of it, is one of them are written as `***`; empty turns masking off, see [Masking secrets](#masking-secrets) | `password,passwd,secret,token,apikey,credential,authorization` |
 | `nanolog.content` | how much of a payload of `LOG.content(...)` is written: `hide`, `truncate:<characters>` or `show`, see [Logging payloads safely](#logging-payloads-safely) | `hide` |
 | `nanolog.content.<package or class>` | the same for one package or class; the most specific rule wins | — |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
@@ -926,7 +929,23 @@ LOG.info("Answer received", LOG.kv("answer", LOG.content(answer)), LOG.kv("token
 - **Escaped.** Whatever is written of the text has its line breaks and control characters escaped, `\n` and `\u001b`, so a pasted payload cannot forge a log line; a tab stays.
 - **Taken once.** The text is taken when the entry is created, with the guarded `toString()` of a `{}` argument, so a payload that changes later or breaks its `toString()` changes nothing. A payload in a `LOG.context(...)` is taken for each entry and follows the rule of its class.
 - **JSON.** In `"fields"` and `"context"` a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`; `message` and `args` hold the text as the console writes it.
-- **Not a secret filter.** A shown payload is written as it is, keys and passwords inside it included.
+- **Known keys are masked.** A shown or truncated payload has keys of model providers (`sk-...`), AWS access keys (`AKIA...`), bearer tokens and JSON web tokens replaced by `sk-***`, `AKIA***`, `Bearer ***` and `eyJ***`. Other secrets inside it, such as a password in plain words, are written as they are; only payloads are scanned, never the text of messages.
+
+## Masking secrets
+
+Tokens and passwords reach the log through `{}` arguments, fields and the context, and the logs a coding agent reads are sent to its model provider. `LOG.secret(value)` marks a secret, and fields and context named like secrets are masked without it:
+
+```java
+LOG.info("Login of {} with {}", user, LOG.secret(token));
+// INFO 16.11.2026 10:15:02 [AuthService] Login of alice with ***
+
+LOG.info("Connected", LOG.kv("url", url), LOG.kv("password", password));
+// INFO 16.11.2026 10:15:02 [Database] Connected url=jdbc:postgresql://db/shop password=***
+```
+
+- `LOG.secret` keeps no value and never formats it, so its `toString()` is not called; every logger writes `***`, in the message, in `args` and `fields` of `JsonLogger`, in the MDC of `Slf4jLogger` and in the assertion messages of `MemoryLogger`.
+- A field of `LOG.kv(...)` or a value of `LOG.context(...)` is masked when its key, or a word of it, is in `nanolog.redact` (`NANOLOG_REDACT`): by default `password`, `passwd`, `secret`, `token`, `apikey`, `credential` and `authorization`. Words are split at separators and at camel case, so `password` covers `db.password` and `userPassword`, and `token` covers `X-Auth-Token` but not `input_tokens`. The value is masked when the entry is created, so a `{}` that takes the field shows `***` too. A list replaces the default one; an empty value turns masking off.
+- The text of messages is not scanned: scanning every message is slow and gives a false sense of safety. Payloads of [`LOG.content`](#logging-payloads-safely) have the known key formats masked when they are shown.
 
 ## Logging LLM calls
 
@@ -1241,6 +1260,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Secrets: `LOG.secret(token)` is written as `***` by every logger and keeps no value; fields and context values whose key names a secret, `password`, `token`, `apikey` and the others of `nanolog.redact`, are masked when the entry is created; a shown `LOG.content` masks keys of model providers, AWS keys, bearer tokens and JSON web tokens.
 - `LOG.time("Load users")` and `LOG.timed("Count users", () -> ...)` time a block: `Load users took 123 ms` with the fields `timer` and `duration_ms`; a level that is off reads no clock, and the lambda form reports and rethrows an exception.
 - `nanolog.console.repeats=collapse` (`setRepeats`), the default in agent mode: consecutive repeats of an entry become one line with a count, `(repeated 41 more times in 20.3 s)`, written when another entry comes, the logger is replaced or the run ends, and every ten seconds while the repeats go on; the run log, `JsonLogger` and `MemoryLogger` keep every entry.
 - `nanolog.diagnostics=once|all|off`: each distinct `[NANOLOG]` diagnostic is printed once per JVM by default, configuration mistakes and the findings of strict mode at each call site included, so a `ConsoleLogger` created again does not repeat them; `all` prints every one, `off` none. A diagnostic about an invalid value says where it was set: a system property, an environment variable or the file. The run summary and the other notices are not affected.

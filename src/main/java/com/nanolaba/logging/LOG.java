@@ -79,7 +79,7 @@ public class LOG {
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
      * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
-     * {@code nanolog.unit.*}, {@code nanolog.buffer.*} and {@code nanolog.content.*}. Called once when the
+     * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*} and {@code nanolog.redact}. Called once when the
      * class initialises.
      */
     public static void init() {
@@ -96,6 +96,7 @@ public class LOG {
         Units.configure();
         Breadcrumbs.configure();
         Contents.configure();
+        Redaction.configure();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -1754,6 +1755,46 @@ public class LOG {
         if (isEnabled(current, level, sourceClass)) {
             write(current, LogEntry.create(level, sourceClass, frame, error, template, args, 0, Timers.Timing.class.getName()));
         }
+    }
+
+    // SECRETS
+
+    /**
+     * A secret in a logging call, made by {@link LOG#secret(Object)}: it is written as {@code ***} by every logger, in
+     * the message, the arguments, the fields and the context.
+     */
+    public static final class Secret {
+
+        private Secret() {
+        }
+
+        /**
+         * Returns {@code ***}.
+         *
+         * @return {@code ***}
+         */
+        @Override
+        public String toString() {
+            return "***";
+        }
+    }
+
+    /**
+     * The only {@link Secret}: it keeps no value.
+     */
+    static final Secret SECRET = new Secret();
+
+    /**
+     * Marks a secret, such as a token or a password, so that no logger writes it:
+     * {@code LOG.info("Login of {} with {}", user, LOG.secret(token))} writes {@code Login of alice with ***}. The
+     * value is not kept and never formatted, so its {@code toString()} is not called. A field or a context value whose
+     * key names a secret ({@code nanolog.redact}) is masked the same way without it.
+     *
+     * @param value the secret; it is thrown away
+     * @return the argument to pass to a logging method
+     */
+    public static Secret secret(Object value) {
+        return SECRET;
     }
 
     // RATE LIMITING

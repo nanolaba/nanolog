@@ -85,7 +85,8 @@ public class LogEntry {
                      long skippedCount, String callerBoundary, boolean dbg, boolean unitLine) {
         // payloads take their text and the limit of the class now
         message = Contents.bind(message, sourceClass);
-        args = Contents.bind(args, sourceClass);
+        // and fields named like secrets are masked before anything formats them
+        args = Redaction.apply(Contents.bind(args, sourceClass));
         this.level = level;
         this.sourceClass = sourceClass;
         this.caller = caller;
@@ -94,7 +95,7 @@ public class LogEntry {
         this.threadName = Thread.currentThread().getName();
         // one read of the thread local for the context and the unit
         Contexts.State state = Contexts.CURRENT.get();
-        this.context = Contents.bind(Contexts.pairs(state), sourceClass);
+        this.context = Redaction.apply(Contents.bind(Contexts.pairs(state), sourceClass));
         this.unit = unitLine ? null : Contexts.unit(state);
         this.unitLine = unitLine;
         this.breadcrumb = false;
