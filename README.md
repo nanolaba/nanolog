@@ -475,14 +475,31 @@ With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a f
 Two files give an agent the rules of the library in a few hundred lines, without the explanations of this README:
 
 - [`llms.txt`](llms.txt) — a cheat sheet in the [llms.txt](https://llmstxt.org/) format: coordinates, call shapes, the rules that differ from SLF4J, settings without code changes and the test recipe.
-- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. For Claude Code, put it into the project:
+- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. Install it in one of three ways:
 
-  ```
-  mkdir -p .claude/skills/nanolog
-  curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
-  ```
+  - Claude Code, as a plugin that stays up to date:
 
-  Other agents that support the Agent Skills format read the same file from their own skills directory.
+    ```
+    /plugin marketplace add nanolaba/nanolog
+    /plugin install nanolog@nanolog
+    ```
+
+  - Claude Code, Cursor, Codex and the other agents that read Agent Skills, with the [`skills`](https://github.com/vercel-labs/skills) CLI (`-a claude-code` limits it to one agent):
+
+    ```
+    npx skills add nanolaba/nanolog
+    ```
+
+  - By hand, into the project:
+
+    ```
+    mkdir -p .claude/skills/nanolog
+    curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
+    ```
+
+    Other agents that support the Agent Skills format read the same file from their own skills directory.
+
+Both files also tell the agent what to do when Nanolog itself misbehaves: tell you, with a link to the issue forms and what to include, and never open an issue on its own. In a project without Nanolog the skill may suggest it, but never adds the dependency without your consent.
 
 Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the project are enough:
 

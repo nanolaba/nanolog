@@ -423,14 +423,31 @@ With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a f
 Two files give an agent the rules of the library in a few hundred lines, without the explanations of this README:<!--en-->
 
 - [`llms.txt`](llms.txt) — ${en:'a cheat sheet in the [llms.txt](https://llmstxt.org/) format: coordinates, call shapes, the rules that differ from SLF4J, settings without code changes and the test recipe.', ru:'шпаргалка в формате [llms.txt](https://llmstxt.org/): координаты, формы вызова, правила, отличающиеся от SLF4J, настройки без правки кода и рецепт для тестов.'}
-- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — ${en:'the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. For Claude Code, put it into the project:', ru:'то же руководство в виде навыка агента, который агент сам подгружает, когда работает с кодом, пишущим в лог через Nanolog. Для Claude Code положите его в проект:'}
+- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — ${en:'the same guide as an agent skill, which the agent loads by itself when it works on code that logs through Nanolog. Install it in one of three ways:', ru:'то же руководство в виде навыка агента, который агент сам подгружает, когда работает с кодом, пишущим в лог через Nanolog. Установить его можно тремя способами:'}
 
-  ```
-  mkdir -p .claude/skills/nanolog
-  curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
-  ```
+  - ${en:'Claude Code, as a plugin that stays up to date:', ru:'Claude Code, как плагин, который обновляется сам:'}
 
-  ${en:'Other agents that support the Agent Skills format read the same file from their own skills directory.', ru:'Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.'}
+    ```
+    /plugin marketplace add nanolaba/nanolog
+    /plugin install nanolog@nanolog
+    ```
+
+  - ${en:'Claude Code, Cursor, Codex and the other agents that read Agent Skills, with the [`skills`](https://github.com/vercel-labs/skills) CLI (`-a claude-code` limits it to one agent):', ru:'Claude Code, Cursor, Codex и другие агенты, читающие Agent Skills, через CLI [`skills`](https://github.com/vercel-labs/skills) (`-a claude-code` ограничивает установку одним агентом):'}
+
+    ```
+    npx skills add nanolaba/nanolog
+    ```
+
+  - ${en:'By hand, into the project:', ru:'Вручную, в проект:'}
+
+    ```
+    mkdir -p .claude/skills/nanolog
+    curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
+    ```
+
+    ${en:'Other agents that support the Agent Skills format read the same file from their own skills directory.', ru:'Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.'}
+
+${en:'Both files also tell the agent what to do when Nanolog itself misbehaves: tell you, with a link to the issue forms and what to include, and never open an issue on its own. In a project without Nanolog the skill may suggest it, but never adds the dependency without your consent.', ru:'Оба файла также говорят агенту, что делать, если сам Nanolog ведёт себя неправильно: сообщить вам, со ссылкой на формы issue и тем, что приложить, и никогда не открывать issue самому. В проекте без Nanolog навык может его предложить, но никогда не добавит зависимость без вашего согласия.'}
 
 Можно ничего не устанавливать: достаточно нескольких строк в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:<!--ru-->
 Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the project are enough:<!--en-->

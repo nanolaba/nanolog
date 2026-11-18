@@ -1,0 +1,12 @@
+{
+  "name": "nanolog",
+  "description": "Nanolog for coding agents: the skill for the Java logging library com.nanolaba:nanolog, with its call shapes, LOG.dbg print debugging and agent mode, which cuts the tokens an agent reads from a failing test run from 13,577 to 1,022 (o200k_base).",
+  "author": {
+    "name": "Nanolaba",
+    "url": "https://github.com/nanolaba"
+  },
+  "homepage": "https://github.com/nanolaba/nanolog#using-nanolog-from-a-coding-agent",
+  "repository": "https://github.com/nanolaba/nanolog",
+  "license": "Apache-2.0",
+  "keywords": ["java", "logging", "tokens", "ai-agents", "print-debugging", "nanolog"]
+}

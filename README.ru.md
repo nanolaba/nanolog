@@ -475,14 +475,31 @@ ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Canno
 Два файла дают агенту правила работы с библиотекой в нескольких сотнях строк, без пояснений этого README:
 
 - [`llms.txt`](llms.txt) — шпаргалка в формате [llms.txt](https://llmstxt.org/): координаты, формы вызова, правила, отличающиеся от SLF4J, настройки без правки кода и рецепт для тестов.
-- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — то же руководство в виде навыка агента, который агент сам подгружает, когда работает с кодом, пишущим в лог через Nanolog. Для Claude Code положите его в проект:
+- [`skills/nanolog/SKILL.md`](skills/nanolog/SKILL.md) — то же руководство в виде навыка агента, который агент сам подгружает, когда работает с кодом, пишущим в лог через Nanolog. Установить его можно тремя способами:
 
-  ```
-  mkdir -p .claude/skills/nanolog
-  curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
-  ```
+  - Claude Code, как плагин, который обновляется сам:
 
-  Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.
+    ```
+    /plugin marketplace add nanolaba/nanolog
+    /plugin install nanolog@nanolog
+    ```
+
+  - Claude Code, Cursor, Codex и другие агенты, читающие Agent Skills, через CLI [`skills`](https://github.com/vercel-labs/skills) (`-a claude-code` ограничивает установку одним агентом):
+
+    ```
+    npx skills add nanolaba/nanolog
+    ```
+
+  - Вручную, в проект:
+
+    ```
+    mkdir -p .claude/skills/nanolog
+    curl -fsSL https://raw.githubusercontent.com/nanolaba/nanolog/main/skills/nanolog/SKILL.md -o .claude/skills/nanolog/SKILL.md
+    ```
+
+    Другие агенты, поддерживающие формат Agent Skills, читают тот же файл из своего каталога навыков.
+
+Оба файла также говорят агенту, что делать, если сам Nanolog ведёт себя неправильно: сообщить вам, со ссылкой на формы issue и тем, что приложить, и никогда не открывать issue самому. В проекте без Nanolog навык может его предложить, но никогда не добавит зависимость без вашего согласия.
 
 Можно ничего не устанавливать: достаточно нескольких строк в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:
 

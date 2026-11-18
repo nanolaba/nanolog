@@ -1,0 +1,16 @@
+{
+  "name": "nanolog",
+  "description": "Nanolog, a zero-dependency Java logging library, for coding agents",
+  "owner": {
+    "name": "Nanolaba",
+    "url": "https://github.com/nanolaba"
+  },
+  "plugins": [
+    {
+      "name": "nanolog",
+      "source": "./",
+      "description": "The Nanolog skill: Java logging without logger fields, LOG.dbg print debugging, and agent mode, which cuts the tokens an agent reads from Maven and Gradle output.",
+      "keywords": ["java", "logging", "tokens", "ai-agents"]
+    }
+  ]
+}

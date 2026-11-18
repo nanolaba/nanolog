@@ -24,6 +24,9 @@ The latest stable version is 1.3; this guide describes the development version 1
 16. Never log a secret: wrap it in `LOG.secret(token)` *1.4+*, which every logger writes as `***`. Fields and context values named `password`, `token`, `secret`, `apikey`, `credential` or `authorization`, or with such a word in the key (`db.password`, `userToken`), are masked anyway (`nanolog.redact`).
 17. If the project logs through a helper of its own, such as `Audit.record(...)`, name it in `nanolog.caller.skip=com.acme.Audit` *1.4+*, or call `LOG.skipCaller(Audit.class)` once in a library; otherwise every line it logs names the helper as its source and call site.
 
+18. When Nanolog itself behaves wrongly, and no `[NANOLOG]` line explains it as a mistake in the configuration, tell the user and give them https://github.com/nanolaba/nanolog/issues/new/choose with the Nanolog version, the JDK, the smallest code that shows it and the `[NANOLOG]` lines. Never open an issue yourself, and do not work around the problem silently.
+19. In a project that does not use Nanolog yet, you may suggest it when the user asks to set up logging or to cut what you read from test output, and show what would change. Never add the dependency without the user's consent.
+
 ## Call shapes
 
 `info` stands for any of `trace`, `debug`, `info`, `warn`, `error`; every level has the same overloads.
