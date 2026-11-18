@@ -124,6 +124,9 @@ public class LOG {
             Summary.registerHook();
         }
         LOG.locked = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_LOGGER_LOCK, false);
+        if (DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_CAPTURE_SYSTEM_STREAMS, false)) {
+            SystemStreams.capture();
+        }
     }
 
     /**
@@ -167,6 +170,43 @@ public class LOG {
      */
     static void unlock() {
         locked = false;
+    }
+
+    // SYSTEM STREAMS
+
+    /**
+     * Turns every line printed to {@code System.out} into an {@code INFO} entry and every line printed to
+     * {@code System.err} into an {@code ERROR} entry, for libraries and old code that print instead of logging, and
+     * for {@code e.printStackTrace()}: their lines get the format of the logger, reach {@link JsonLogger} and
+     * {@link MemoryLogger}, and follow the levels. The source class and the call site are those of the code that
+     * printed. A line ends at a line break, {@code \n} or {@code \r\n}, or when the stream is flushed; empty lines are
+     * dropped, and each line of a stack trace is an entry of its own.
+     * <p>
+     * Nanolog itself writes to the streams it finds here, so nothing comes back in, and what a logger prints to
+     * {@code System.out} while it writes an entry passes straight through. Capturing again changes nothing; also set
+     * by {@code nanolog.captureSystemStreams=true}.
+     */
+    public static void captureSystemStreams() {
+        SystemStreams.capture();
+    }
+
+    /**
+     * Puts back the streams that {@link #captureSystemStreams()} found, each only if no one replaced the capturing
+     * stream since. Restoring again changes nothing.
+     */
+    public static void restoreSystemStreams() {
+        SystemStreams.restore();
+    }
+
+    /**
+     * Writes a line captured from {@code System.out} or {@code System.err}, if its level is enabled; the line is the
+     * message as it is, with no placeholders.
+     */
+    static void writeLine(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, String line) {
+        ILogger current = logger;
+        if (isEnabled(current, level, sourceClass)) {
+            write(current, LogEntry.create(level, sourceClass, frame, null, line, NO_ARGS, 0));
+        }
     }
 
     // THE INSTALLED LOGGER
@@ -2794,11 +2834,17 @@ public class LOG {
      * Hands an entry to the logger, and to {@code System.err} if the logger throws.
      */
     private static void deliver(ILogger current, LogEntry entry) {
+        // while System.out is captured, what the logger prints passes through instead of coming back as an entry
+        boolean marked = SystemStreams.enterLogging();
         try {
             current.log(entry);
         } catch (Throwable t) {
             reportLoggerFailure(current, t, FALLBACK_NOTE);
             Fallback.LOGGER.log(entry);
+        } finally {
+            if (marked) {
+                SystemStreams.leaveLogging();
+            }
         }
     }
 
@@ -2899,7 +2945,7 @@ public class LOG {
         static final ConsoleLogger LOGGER = new ConsoleLogger() {
             @Override
             protected PrintStream getOutputStream(LogEntry entry) {
-                return System.err;
+                return SystemStreams.err();
             }
         };
     }

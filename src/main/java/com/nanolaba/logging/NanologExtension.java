@@ -98,7 +98,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
         List<LogEntry> entries = buffer.getEntries();
         if ("failed".equals(output()) && !entries.isEmpty()) {
             String name = name(context);
-            System.out.println("--- log of " + name + " ---");
+            SystemStreams.out().println("--- log of " + name + " ---");
             for (LogEntry entry : entries) {
                 try {
                     buffer.keptFrom.log(entry);
@@ -107,7 +107,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
                     break;
                 }
             }
-            System.out.println("--- end of the log of " + name + " ---");
+            SystemStreams.out().println("--- end of the log of " + name + " ---");
         } else {
             RunLog.replay(buffer.keptFrom, entries);
         }

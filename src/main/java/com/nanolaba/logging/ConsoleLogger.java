@@ -906,7 +906,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     protected PrintStream getOutputStream(LogEntry entry) {
         LogEntry.LogEntryLevel level = entry.getLevel();
-        return level != null && level.ordinal() >= errThreshold ? System.err : System.out;
+        // the streams of the JVM, read on every call, or those kept by LOG.captureSystemStreams()
+        return level != null && level.ordinal() >= errThreshold ? SystemStreams.err() : SystemStreams.out();
     }
 
     /**

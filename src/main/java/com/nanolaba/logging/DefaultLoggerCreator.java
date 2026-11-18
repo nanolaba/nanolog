@@ -145,6 +145,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_TAGS = PROPERTY_PREFIX + "tags";
     /**
+     * {@code true} turns the lines printed to {@code System.out} and {@code System.err} into entries, as
+     * {@code LOG.captureSystemStreams()} does.
+     */
+    public static final String PROPERTY_CAPTURE_SYSTEM_STREAMS = PROPERTY_PREFIX + "captureSystemStreams";
+    /**
      * Context providers, comma-separated class names: each class implements {@code Supplier<Map<String, ?>>}, has a
      * public no-argument constructor, and adds its keys to every entry, see {@link LOG#addContextProvider}.
      */
@@ -361,7 +366,7 @@ public class DefaultLoggerCreator {
      */
     static boolean printDiagnostic(String message) {
         if (QUIET.get() == null && isPrinted(message)) {
-            System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+            SystemStreams.err().println("[NANOLOG] " + escapeControlCharacters(message));
             return true;
         }
         return false;
@@ -386,7 +391,7 @@ public class DefaultLoggerCreator {
      * mode, the run log. {@value #PROPERTY_DIAGNOSTICS} does not apply; those features have switches of their own.
      */
     static void printNotice(String message) {
-        System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+        SystemStreams.err().println("[NANOLOG] " + escapeControlCharacters(message));
     }
 
     /**
@@ -471,7 +476,7 @@ public class DefaultLoggerCreator {
             } catch (Throwable e) {
                 if (printDiagnostic("Property \"" + PROPERTY_LOGGER_CLASS + "\" has been defined, but an object of class \"" + logger +
                                     "\" cannot be created: " + e + "; " + origin(PROPERTY_LOGGER_CLASS))) {
-                    e.printStackTrace(System.err);
+                    e.printStackTrace(SystemStreams.err());
                 }
             }
         }

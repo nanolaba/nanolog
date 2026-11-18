@@ -78,24 +78,25 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 15 [Rate limiting](#rate-limiting)
 - 16 [Tags](#tags)
 - 17 [Catching exceptions](#catching-exceptions)
-- 18 [Caller detection](#caller-detection)
-	- 18.1 [Logging helpers](#logging-helpers)
-- 19 [Writing your own logger](#writing-your-own-logger)
-- 20 [Thread safety and performance](#thread-safety-and-performance)
-- 21 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 22 [Related projects](#related-projects)
-	- 22.1 [Static facades](#static-facades)
-	- 22.2 [Mainstream loggers](#mainstream-loggers)
-	- 22.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 22.4 [When another logger fits better](#when-another-logger-fits-better)
-- 23 [Changelog](#changelog)
-	- 23.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 23.2 [1.3](#13)
-	- 23.3 [1.2](#12)
-	- 23.4 [1.1](#11)
-	- 23.5 [1.0](#10)
-- 24 [Contributing](#contributing)
-- 25 [License](#license)
+- 18 [System.out and System.err](#systemout-and-systemerr)
+- 19 [Caller detection](#caller-detection)
+	- 19.1 [Logging helpers](#logging-helpers)
+- 20 [Writing your own logger](#writing-your-own-logger)
+- 21 [Thread safety and performance](#thread-safety-and-performance)
+- 22 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 23 [Related projects](#related-projects)
+	- 23.1 [Static facades](#static-facades)
+	- 23.2 [Mainstream loggers](#mainstream-loggers)
+	- 23.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 23.4 [When another logger fits better](#when-another-logger-fits-better)
+- 24 [Changelog](#changelog)
+	- 24.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 24.2 [1.3](#13)
+	- 24.3 [1.2](#12)
+	- 24.4 [1.1](#11)
+	- 24.5 [1.0](#10)
+- 25 [Contributing](#contributing)
+- 26 [License](#license)
 
 
 ## Installation
@@ -202,6 +203,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.tag("audit").info(...)` | an entry of a concern rather than of a class, with levels per tag in `nanolog.tags`, see [Tags](#tags) |
 | `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
 | `LOG.catching(() -> connection.close())` | run an action, log an exception at `ERROR` and carry on; `LOG.catching(() -> parse(s), -1)` returns a default, see [Catching exceptions](#catching-exceptions) |
+| `LOG.captureSystemStreams()` | turns the lines printed to `System.out` and `System.err` into entries, see [System.out and System.err](#systemout-and-systemerr) |
 | `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
@@ -586,6 +588,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.diagnostics` | how often a `[NANOLOG]` diagnostic is printed: `once` per JVM, `all` every time or `off`; `ILogger.onDiagnostic` still gets the findings of strict mode | `once` |
 | `nanolog.caller.skip` | classes and packages, comma-separated, whose frames caller detection skips like those of `LOG`, see [Logging helpers](#logging-helpers) | — |
 | `nanolog.context.provider` | classes of context providers, comma-separated, see [Context providers](#context-providers) | — |
+| `nanolog.captureSystemStreams` | `true` turns the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries, see [System.out and System.err](#systemout-and-systemerr) | `false` |
 | `nanolog.tags` | levels per tag of `LOG.tag(...)`, comma-separated: `audit=WARN,sql=DEBUG`; a rule decides over the levels of the class, see [Tags](#tags) | — |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, whose argument repeats the message of the exception or whose template is built from data, see [Message formatting](#message-formatting) | `false` |
 
@@ -1234,6 +1237,20 @@ int retries = LOG.catching(() -> Integer.parseInt(text), 3); // a default value 
 - **Threads.** `LOG.installUncaughtExceptionHandler()` installs a default handler that logs `Uncaught exception in thread worker-1` with the stack trace, then passes the exception to the handler installed before, so test frameworks and existing handlers still see it; without one, the JVM no longer prints it itself. Installing again changes nothing.
 - The entry of an uncaught exception has the class and call site of the first frame of its stack trace outside the JDK, the code that failed, not the dispatch code of the JVM. The dying thread first writes its [breadcrumbs](#breadcrumbs-debug-only-when-something-fails), then the exception, then its units still open, as `interrupted`.
 
+## System.out and System.err
+
+Libraries and old code print with `System.out.println` and `e.printStackTrace()`. Their lines have no level and no source, miss `JsonLogger` and are not captured by `MemoryLogger`. `LOG.captureSystemStreams()`, or `nanolog.captureSystemStreams=true`, makes each such line an entry:
+
+```
+INFO 18.11.2026 10:30:00 [LegacyImporter] Imported 120 rows
+ERROR 18.11.2026 10:30:01 [LegacyImporter] java.io.IOException: disk full
+```
+
+- A line of `System.out` becomes an `INFO` entry, a line of `System.err` an `ERROR` entry; the levels apply, so a line at a disabled level is dropped. The source class and the call site are those of the code that printed; the frames of `PrintStream`, `printf` and `printStackTrace` are skipped.
+- A line ends at `\n` or `\r\n`, or when the stream is flushed; a partial line waits, per thread, so the lines of two threads do not mix. Empty lines are dropped, and each line of a stack trace is an entry of its own. The text is kept whole whatever the charset of the platform.
+- No loop: Nanolog writes its own output, the console included, to the streams it found when the capture started, and what a logger prints to `System.out` while it writes an entry passes straight through.
+- `LOG.restoreSystemStreams()` puts the streams back, unless something replaced them since; capturing or restoring twice changes nothing.
+
 ## Caller detection
 
 When no class is passed explicitly, `LOG` walks the stack and takes the first frame
@@ -1538,6 +1555,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `LOG.captureSystemStreams()` and `nanolog.captureSystemStreams=true` turn the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries with the source and call site of the code that printed, `e.printStackTrace()` included, without a loop through the console.
 - Calls from Kotlin are checked: CI compiles the calls of `LOG` in every shape from Kotlin, so an overload that is ambiguous for Kotlin, as in tinylog, fails the build.
 - `Slf4jLogger` is tested against SLF4J 1.7 as well as 2.x: CI runs the tests once more with slf4j-api and slf4j-simple 1.7.36.
 - A library that replaces the logger of the application is reported: when code of another organization (the first two segments of the package) replaces a logger installed with `LOG.init(logger)`, a `[NANOLOG]` line names both call sites. `LOG.lock()` and `nanolog.logger.lock=true` keep the installed logger and turn later `LOG.init` calls into no-ops with such a line; `MemoryLogger.install()` still works under the lock.
