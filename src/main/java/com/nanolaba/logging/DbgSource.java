@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 
 /**
  * Finds the text of the arguments of a {@code dbg(...)} call in the source file of its call site, the way Python's
@@ -38,10 +39,20 @@ final class DbgSource {
     static final String CALL = "dbg";
 
     /**
+     * The most characters of a source line written by {@code nanolog.console.showSourceLine}.
+     */
+    static final int MAX_LINE = 200;
+
+    /**
      * The text of each call site, empty when it could not be found. Call sites are lines of code, so the map stays
      * as small as the code.
      */
     private static final Map<StackTraceElement, Optional<String>> CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * The source line of each frame, for {@code nanolog.console.showSourceLine}; empty when it could not be found.
+     */
+    private static final Map<StackTraceElement, Optional<String>> LINES = new ConcurrentHashMap<>();
 
     /**
      * Build layouts: a class output directory, relative to its module, followed by the source directories of the
@@ -72,19 +83,49 @@ final class DbgSource {
      * @return the text, or {@code null} if it cannot be found
      */
     static String argumentsText(StackTraceElement frame, Class sourceClass) {
-        return CACHE.computeIfAbsent(frame, f -> Optional.ofNullable(find(f, sourceClass))).orElse(null);
+        return CACHE.computeIfAbsent(frame, f -> Optional.ofNullable(find(f, sourceClass, DbgSource::argumentsOnLine))).orElse(null);
     }
 
     /**
-     * Forgets the texts found so far; for tests.
+     * The source line of a frame, trimmed and cut at {@link #MAX_LINE} characters, for
+     * {@code nanolog.console.showSourceLine}: from the same sources, with the same fallbacks, as the text of a
+     * {@code dbg} call. Never throws.
+     *
+     * @param frame       the frame
+     * @param sourceClass the class of the frame, whose location leads to the sources
+     * @return the line, or {@code null} if it cannot be found or is blank
+     */
+    static String lineText(StackTraceElement frame, Class sourceClass) {
+        return LINES.computeIfAbsent(frame, f -> Optional.ofNullable(find(f, sourceClass, DbgSource::lineOf))).orElse(null);
+    }
+
+    /**
+     * The trimmed line, cut at {@link #MAX_LINE} characters.
+     *
+     * @return {@code null} if there is no such line or it is blank
+     */
+    static String lineOf(List<String> lines, int line) {
+        if (line < 1 || line > lines.size()) {
+            return null;
+        }
+        String text = lines.get(line - 1).trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        return text.length() > MAX_LINE ? text.substring(0, MAX_LINE) + "..." : text;
+    }
+
+    /**
+     * Forgets the texts and lines found so far; for tests.
      */
     static void clearCache() {
         CACHE.clear();
+        LINES.clear();
     }
 
-    private static String find(StackTraceElement frame, Class sourceClass) {
+    private static String find(StackTraceElement frame, Class sourceClass, BiFunction<List<String>, Integer, String> extract) {
         try {
-            return read(frame, sourceRoots(sourceClass), location(sourceClass));
+            return read(frame, sourceRoots(sourceClass), location(sourceClass), extract);
         } catch (RuntimeException e) {
             // an invalid path in nanolog.sources or user.dir
             return null;
@@ -98,13 +139,21 @@ final class DbgSource {
      *                if unknown
      */
     static String read(StackTraceElement frame, List<Path> roots, Path classes) {
+        return read(frame, roots, classes, DbgSource::argumentsOnLine);
+    }
+
+    /**
+     * Reads what {@code extract} takes from the lines of the source file of a frame, from the first source root
+     * holding it.
+     */
+    private static String read(StackTraceElement frame, List<Path> roots, Path classes, BiFunction<List<String>, Integer, String> extract) {
         try {
             String className = frame.getClassName();
             String relative = className.substring(0, className.lastIndexOf('.') + 1).replace('.', '/') + fileName(frame);
             for (Path root : roots) {
                 Path source = root.resolve(relative);
                 if (Files.isRegularFile(source)) {
-                    return isStale(source, classes, className) ? null : argumentsOnLine(readLines(source), frame.getLineNumber());
+                    return isStale(source, classes, className) ? null : extract.apply(readLines(source), frame.getLineNumber());
                 }
             }
             return null;

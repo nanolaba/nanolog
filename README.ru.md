@@ -566,6 +566,7 @@ LOG.init(new ConsoleLogger()
 - `showDate` + `dateFormat` — временная метка и её `SimpleDateFormat`; форматирование синхронизировано, общий экземпляр безопасен.
 - `showSource` / `showSourceFullName` — короткое или полное имя класса-источника. У анонимного или локального класса, переданного явно, такого имени нет, и он показывается по двоичному имени: `Foo$1` или `com.acme.Foo$1`.
 - `showLocation` — место вызова после имени класса в том же виде, что и в трассировках стека, поэтому IDE и терминалы превращают его в ссылку: `[PaymentService.charge(PaymentService.java:87)]`. По умолчанию выключено. У вызова с явным классом-источником места вызова нет, и остаётся обычный `[PaymentService]`.
+- `showSourceLine` — строка исходника с вызовом на отдельной строке под записью и под первыми тремя кадрами трассировки вне JDK, чтобы читателю или агенту не открывать файл: `    > LOG.warn("Charge of {} failed", amount);`. Нужны исходники, поэтому это работает при разработке: они ищутся так же, как `LOG.dbg` ищет текст своих аргументов, и ничего не пишется, если их нет или они новее классов. `JsonLogger` добавляет `"source"` в свой `"caller"`. По умолчанию выключено; начиная с 1.4.
 - `showThread` — имя потока, который записал строку, в квадратных скобках после даты: `[main]`, `[pool-1-thread-3]`. По умолчанию выключено; при пуле потоков помогает различать перемешанные строки разных задач. `JsonLogger` пишет поток всегда.
 - `showContext` — пары `LOG.context(...)` после сообщения, `requestId=r-17`. По умолчанию включено; начиная с 1.4. См. [Контекст](#контекст-метка-для-строк-одного-запроса).
 - `stream` — какие уровни идут в `System.err`: `err@ERROR` (по умолчанию) отправляет туда только ошибки, `err@WARN` — предупреждения и ошибки, `err` — всё, `out` — ничего. Один поток сохраняет ошибки в конвейере и порядок строк, когда стандартный вывод и поток ошибок перехватываются раздельно.
@@ -576,7 +577,7 @@ LOG.init(new ConsoleLogger()
 
 Для своего формата (другие цвета, другая раскладка) унаследуйтесь от `ConsoleLogger`
 и переопределите `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`,
-`writeMessage`, `writeFields`, `writeContext`, `writeThrowable` или `addDelimiter`.
+`writeMessage`, `writeFields`, `writeContext`, `writeSourceLine`, `writeThrowable` или `addDelimiter`.
 
 ### Уровни и настройки без кода
 
@@ -593,6 +594,7 @@ LOG.init(new ConsoleLogger()
 | `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | то же |
 | `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | то же |
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | то же |
+| `nanolog.console.showSourceLine` | `NANOLOG_CONSOLE_SHOWSOURCELINE` | то же |
 | `nanolog.console.showContext` | `NANOLOG_CONSOLE_SHOWCONTEXT` | то же |
 | `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` или `err@LEVEL` (по умолчанию `err@ERROR`), как одноимённый сеттер |
 | `nanolog.console.multiline` | `NANOLOG_CONSOLE_MULTILINE` | `keep` (по умолчанию), `indent` или `escape`, как одноимённый сеттер |
@@ -1215,6 +1217,7 @@ dependencies {
 - `NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.
 - `nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.
 - Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.
+- `nanolog.console.showSourceLine` (`setShowSourceLine`): строка исходника с вызовом под каждой записью, `    > LOG.warn("Charge of {} failed", amount);`, и под первыми тремя кадрами трассировки вне JDK; исходник ищется так же, как его ищет `LOG.dbg`, и строки нет, если исходник отсутствует или устарел; `JsonLogger` добавляет `"source"` в `"caller"`. Часть строки `ConsoleLogger` после перевода строки больше не начинается с пробела.
 - `LOG.catching(() -> cleanup())` записывает исключение в `ERROR` со стеком и продолжает работу, а `LOG.catching(() -> parse(s), -1)` вместо этого возвращает значение по умолчанию; проверяемые исключения разрешены, `Error` не перехватывается, прерывание сохраняется. `LOG.installUncaughtExceptionHandler()` записывает исключения, которые убивают потоки, с первого кадра вне JDK и передаёт их прежнему обработчику; умирающий поток пишет и свои breadcrumbs, и открытые единицы работы.
 - README: *Логирование вызовов LLM* — слушатель для LangChain4j и advisor для Spring AI, которые логируют одну строку на вызов модели с именами полей OpenTelemetry `gen_ai.*`, промптом и ответом через `LOG.content` и стенограммой на уровне `DEBUG`.
 - Содержимое: `LOG.content(prompt)` пишет промпт, ответ или тело запроса как `[content 1834 chars #3f2a9c1b]`, длину и хеш с ключом JVM, если `nanolog.content=truncate:<символы>` или `show` не говорит иного, для всех классов или, через `nanolog.content.<пакет или класс>`, для некоторых. Текст берётся при создании записи и всегда экранируется против подделки строк; в полях JSON скрытое содержимое — это `{"content_len":1834,"content_hash":"3f2a9c1b"}`.

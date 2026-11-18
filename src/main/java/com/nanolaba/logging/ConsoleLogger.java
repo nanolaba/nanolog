@@ -8,9 +8,11 @@ import java.util.Date;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -94,6 +96,20 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * Property for {@link #setShowContext(boolean)}: {@code true} or {@code false}.
      */
     public static final String PROPERTY_SHOW_CONTEXT = "nanolog.console.showContext";
+    /**
+     * Property for {@link #setShowSourceLine(boolean)}: {@code true} or {@code false}.
+     */
+    public static final String PROPERTY_SHOW_SOURCE_LINE = "nanolog.console.showSourceLine";
+
+    /**
+     * What starts a source line under an entry or a stack frame.
+     */
+    private static final String SOURCE_LINE = "    > ";
+
+    /**
+     * The most frames of an exception, its causes included, that get their source line.
+     */
+    static final int MAX_SOURCE_FRAMES = 3;
 
     private static final String LEVEL_RULE_PREFIX = PROPERTY_LEVEL + ".";
     private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
@@ -108,6 +124,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private boolean showLocation = false;
     private boolean showThread = false;
     private boolean showContext = true;
+    private boolean showSourceLine = false;
 
     /**
      * The ordinal of the lowest level written to {@code System.err}; {@code Integer.MAX_VALUE} writes everything to
@@ -169,6 +186,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         showLocation = readBoolean(PROPERTY_SHOW_LOCATION, showLocation);
         showThread = readBoolean(PROPERTY_SHOW_THREAD, showThread);
         showContext = readBoolean(PROPERTY_SHOW_CONTEXT, showContext);
+        showSourceLine = readBoolean(PROPERTY_SHOW_SOURCE_LINE, showSourceLine);
         applyStream();
         multiline = readChoice(PROPERTY_MULTILINE, MULTILINE_MODES);
         applyColor(readChoice(PROPERTY_COLOR, COLOR_MODES));
@@ -665,7 +683,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     /**
      * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
-     * message, skipped count, fields, context, stack trace.
+     * message, skipped count, fields, context, source line, stack trace.
      *
      * @param entry the entry to write
      * @return the text without the final line break
@@ -681,9 +699,36 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSkipped(out, entry);
         writeFields(out, entry);
         writeContext(out, entry);
+        writeSourceLine(out, entry);
         writeThrowable(out, entry);
 
         return applyMultiline(out.toString());
+    }
+
+    /**
+     * Writes the source line of the call site on a line of its own when {@code showSourceLine} is on and the source is
+     * found: {@code     > LOG.warn("Charge of {} failed", amount);}. Entries of {@code LOG.dbg(...)}, which print their
+     * expression, and entries without a call site get none.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeSourceLine(StringWriter out, LogEntry entry) {
+        String line = sourceLineOf(entry);
+        if (line != null) {
+            out.append(System.lineSeparator()).append(SOURCE_LINE).append(line);
+            if (entry.getThrowable() != null) {
+                out.append(System.lineSeparator());
+            }
+        }
+    }
+
+    /**
+     * The source line of the call site of an entry, if {@code showSourceLine} is on and it is found.
+     */
+    String sourceLineOf(LogEntry entry) {
+        return isShowSourceLine() && entry.getCaller() != null && !entry.isDbg() ? DbgSource.lineText(entry.getCaller(), entry.getSourceClass())
+                                                                                 : null;
     }
 
     /**
@@ -705,6 +750,19 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * shortening falls back to {@code printStackTrace}.
      */
     String stackTraceOf(Throwable throwable) {
+        String trace = printedOrShortened(throwable);
+        if (!isShowSourceLine()) {
+            return trace;
+        }
+        try {
+            return withSourceLines(trace, throwable);
+        } catch (Throwable t) {
+            // a throwable whose frames or causes cannot be read keeps the trace as printed
+            return trace;
+        }
+    }
+
+    private String printedOrShortened(Throwable throwable) {
         if (exceptionExclude.isEmpty() && exceptionMaxFrames == 0) {
             return printedStackTrace(throwable);
         }
@@ -713,6 +771,48 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         } catch (Throwable t) {
             return printedStackTrace(throwable);
         }
+    }
+
+    /**
+     * A stack trace with the source line under each of the first {@link #MAX_SOURCE_FRAMES} frames outside the JDK
+     * whose source is found, in the order of the throwable and its causes; a frame printed twice gets it once.
+     */
+    private static String withSourceLines(String trace, Throwable throwable) {
+        Map<String, String> sources = new HashMap<>();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable current = throwable; current != null && seen.add(current); current = current.getCause()) {
+            for (StackTraceElement frame : current.getStackTrace()) {
+                if (sources.size() < MAX_SOURCE_FRAMES) {
+                    String source = sourceOf(frame);
+                    if (source != null) {
+                        sources.put(frame.toString(), source);
+                    }
+                }
+            }
+        }
+        StringBuilder result = new StringBuilder(trace.length() + 256);
+        int start = 0;
+        while (start < trace.length()) {
+            int end = trace.indexOf('\n', start);
+            int next = end == -1 ? trace.length() : end + 1;
+            String line = trace.substring(start, next);
+            result.append(line);
+            String text = line.trim();
+            String source = text.startsWith("at ") ? sources.remove(text.substring(3)) : null;
+            if (source != null) {
+                result.append(line, 0, line.indexOf("at ")).append(SOURCE_LINE).append(source).append(System.lineSeparator());
+            }
+            start = next;
+        }
+        return result.toString();
+    }
+
+    private static String sourceOf(StackTraceElement frame) {
+        if (Uncaught.isJdk(frame.getClassName())) {
+            return null;
+        }
+        Class type = CallerDetection.ThrowableWalk.resolveClass(frame.getClassName());
+        return type == null ? null : DbgSource.lineText(frame, type);
     }
 
     /**
@@ -1016,12 +1116,13 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Writes the space between two parts, unless nothing has been written yet.
+     * Writes the space between two parts, unless nothing has been written yet or the text ends with a line break.
      *
      * @param out the text being built
      */
     protected void addDelimiter(StringWriter out) {
-        if (out.getBuffer().length() != 0) {
+        StringBuffer text = out.getBuffer();
+        if (text.length() != 0 && text.charAt(text.length() - 1) != '\n') {
             out.append(' ');
         }
     }
@@ -1307,6 +1408,32 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         } else {
             errThreshold = threshold;
         }
+        return this;
+    }
+
+    /**
+     * Returns whether the source line of the call site is written under each entry.
+     *
+     * @return whether the source line is written; {@code false} by default
+     */
+    public boolean isShowSourceLine() {
+        return showSourceLine;
+    }
+
+    /**
+     * Writes the source line of the call site under each entry, {@code     > LOG.warn("Charge of {} failed", amount);},
+     * and under the first {@value #MAX_SOURCE_FRAMES} frames of a stack trace outside the JDK, so a reader does not
+     * have to open the file. It needs the sources, so it works in development: the lines are found as
+     * {@code LOG.dbg} finds the text of its arguments ({@code nanolog.sources}, or the source directories of the
+     * module of the class), and nothing is written when the sources are missing or newer than the classes. Off by
+     * default; also set by {@code nanolog.console.showSourceLine}. Applies to {@link JsonLogger} too, which adds a
+     * {@code "source"} field to its {@code "caller"}.
+     *
+     * @param showSourceLine whether to write the source lines
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setShowSourceLine(boolean showSourceLine) {
+        this.showSourceLine = showSourceLine;
         return this;
     }
 

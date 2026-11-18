@@ -58,7 +58,10 @@ final class Uncaught implements Thread.UncaughtExceptionHandler {
         return new CallerDetection.Caller(frameClass == null ? null : CallerDetection.topLevel(frameClass), frame);
     }
 
-    private static boolean isJdk(String className) {
+    /**
+     * Whether a class belongs to the JDK.
+     */
+    static boolean isJdk(String className) {
         for (String prefix : JDK) {
             if (className.startsWith(prefix)) {
                 return true;

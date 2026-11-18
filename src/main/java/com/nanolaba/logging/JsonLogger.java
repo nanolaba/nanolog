@@ -23,7 +23,8 @@ import java.util.Map;
  * entries of {@code LOG.dbg(...)}, {@code breadcrumb} (always {@code true}) only for entries held back by
  * {@code nanolog.buffer}, {@code fields} only with arguments of {@link LOG#kv(String, Object)},
  * {@code context} only within {@link LOG#context(String, Object)}, {@code caller} only when the source class was
- * detected, {@code exception} only with a throwable. {@code args} leaves out the fields that no placeholder takes,
+ * detected, with a {@code source} line when {@link #setShowSourceLine(boolean)} is on, {@code exception} only with a
+ * throwable. {@code args} leaves out the fields that no placeholder takes,
  * and {@code fields} has them all. The values of {@code fields} and {@code context} keep their type: integers, {@code BigDecimal} and finite floating-point numbers are JSON numbers, booleans are
  * booleans, {@code null} is {@code null}, and everything else is a string, written like a {@code {}} argument. Line breaks and control characters are escaped, so one
  * entry is always exactly one line.
@@ -99,7 +100,7 @@ public class JsonLogger extends ConsoleLogger {
             out.append(",\"skipped\":").append(entry.getSkippedCount());
         }
         if (entry.getCaller() != null) {
-            appendCaller(out, entry.getCaller());
+            appendCaller(out, entry.getCaller(), sourceLineOf(entry));
         }
         if (entry.getThrowable() != null) {
             appendException(out, entry.getThrowable());
@@ -154,7 +155,7 @@ public class JsonLogger extends ConsoleLogger {
         return NUMBERS.contains(value.getClass());
     }
 
-    private static void appendCaller(StringBuilder out, StackTraceElement caller) {
+    private static void appendCaller(StringBuilder out, StackTraceElement caller, String source) {
         out.append(",\"caller\":{\"class\":");
         appendString(out, caller.getClassName());
         appendField(out, "method", caller.getMethodName());
@@ -163,6 +164,9 @@ public class JsonLogger extends ConsoleLogger {
         }
         if (caller.getLineNumber() >= 0) {
             out.append(",\"line\":").append(caller.getLineNumber());
+        }
+        if (source != null) {
+            appendField(out, "source", source);
         }
         out.append('}');
     }

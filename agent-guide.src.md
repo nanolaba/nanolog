@@ -113,6 +113,7 @@ Prefer these over editing code for one run: a temporary edit tends to get commit
 - `NANOLOG_LEVEL=INFO` or `-Dnanolog.level=INFO`: the lowest level printed (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `OFF`).
 - `-Dnanolog.level.com.acme.payments=DEBUG` or `NANOLOG_LEVELS=com.acme.payments=DEBUG,com.acme.db=TRACE`: the level of one package or class. It beats the global level, even one set in code.
 - `-Dnanolog.console.showLocation=true`: adds the call site, `[PaymentService.charge(PaymentService.java:87)]`, to every line.
+- `-Dnanolog.console.showSourceLine=true` *1.4+*: under each entry the source line of the call, `    > LOG.warn("Charge of {} failed", amount);`, and under the first three frames of a stack trace outside the JDK, so you see the code without opening the file. It needs the sources, so it works in development and stays silent when they are missing or stale.
 - `-Dnanolog.console.showThread=true` *1.3+*: adds the thread name, `[main]`, after the date, to tell the lines of a thread pool apart.
 - `-Dnanolog.exception.exclude=org.junit,sun.reflect,jdk.internal.reflect,java.lang.reflect` *1.3+*: collapses runner and reflection frames of stack traces into `... N frames excluded`; `-Dnanolog.exception.maxFrames=40` caps the frames of each throwable. Both keep the trace of a failing test short.
 - `-Dnanolog.dump=auto` *1.4+*: `{}` arguments whose class has no `toString()` of its own print field by field, as in `LOG.dbg`, instead of `Order@2f92e0f4`; values with a `toString()` print as before.

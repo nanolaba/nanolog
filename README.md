@@ -566,6 +566,7 @@ LOG.init(new ConsoleLogger()
 - `showDate` + `dateFormat` — the timestamp and its `SimpleDateFormat`; formatting is synchronized, so one shared format is safe.
 - `showSource` / `showSourceFullName` — the simple or the fully qualified source class name. An anonymous or local class passed explicitly has no such name and is shown by its binary name, `Foo$1` or `com.acme.Foo$1`.
 - `showLocation` — the call site after the class name, in the form stack traces use, so IDEs and terminals turn it into a link: `[PaymentService.charge(PaymentService.java:87)]`. Off by default. A call with an explicit source class has no call site and keeps the plain `[PaymentService]`.
+- `showSourceLine` — the source line of the call on a line of its own under the entry, and under the first three frames of a stack trace outside the JDK, so a reader or an agent need not open the file: `    > LOG.warn("Charge of {} failed", amount);`. It needs the sources, so it works in development: they are found as `LOG.dbg` finds the text of its arguments, and nothing is written when they are missing or newer than the classes. `JsonLogger` adds `"source"` to its `"caller"`. Off by default; since 1.4.
 - `showThread` — the name of the thread that logged, in square brackets after the date: `[main]`, `[pool-1-thread-3]`. Off by default; with a thread pool it tells the interleaved lines of different tasks apart. `JsonLogger` always writes the thread.
 - `showContext` — the pairs of `LOG.context(...)` after the message, `requestId=r-17`. On by default; since 1.4. See [Context](#context-tag-the-lines-of-one-request).
 - `stream` — which levels go to `System.err`: `err@ERROR` (the default) sends only errors there, `err@WARN` warnings and errors, `err` everything, `out` nothing. One stream keeps errors in a pipe and keeps the order of the lines when standard output and standard error are captured apart.
@@ -576,7 +577,7 @@ LOG.init(new ConsoleLogger()
 
 For a custom layout (other colours, a different order) extend `ConsoleLogger` and
 override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
-`writeFields`, `writeContext`, `writeThrowable` or `addDelimiter`.
+`writeFields`, `writeContext`, `writeSourceLine`, `writeThrowable` or `addDelimiter`.
 
 ### Levels and options without code
 
@@ -593,6 +594,7 @@ The constructor of `ConsoleLogger` reads these settings from system properties, 
 | `nanolog.console.showSourceFullName` | `NANOLOG_CONSOLE_SHOWSOURCEFULLNAME` | the same |
 | `nanolog.console.showLocation` | `NANOLOG_CONSOLE_SHOWLOCATION` | the same |
 | `nanolog.console.showThread` | `NANOLOG_CONSOLE_SHOWTHREAD` | the same |
+| `nanolog.console.showSourceLine` | `NANOLOG_CONSOLE_SHOWSOURCELINE` | the same |
 | `nanolog.console.showContext` | `NANOLOG_CONSOLE_SHOWCONTEXT` | the same |
 | `nanolog.console.stream` | `NANOLOG_CONSOLE_STREAM` | `out`, `err` or `err@LEVEL` (default `err@ERROR`), like the setter |
 | `nanolog.console.multiline` | `NANOLOG_CONSOLE_MULTILINE` | `keep` (default), `indent` or `escape`, like the setter |
@@ -677,7 +679,7 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 - `dbg`, `breadcrumb` — `true` for an entry of `LOG.dbg` and for one held back by `nanolog.buffer`, see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails).
 - `fields` — the arguments of `LOG.kv(...)` as a nested object, when there are any; `args` leaves out those that no `{}` takes. Select on them with `jq 'select(.fields.orderId=="A-17")'`; see [Fields](#fields-named-arguments).
 - `context` — the pairs of `LOG.context(...)` as a nested object, when there are any. Numbers and booleans keep their JSON type, so `jq` compares them as numbers: `jq 'select(.context.attempt > 1)'`.
-- `caller` — the call site, when the source class was detected; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
+- `caller` — the call site, when the source class was detected, with its `source` line under `showSourceLine`; `exception` — `class`, `message` and `stackTrace`, when there is a throwable. Fields without a value are left out.
 - Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
 - `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err` by default). The display options do not apply.
 - In a pipe only standard output reaches the next program, so `java -jar app.jar | jq` would lose every `ERROR` entry. `-Dnanolog.console.stream=out` writes them to standard output with the rest, in the order they were logged.
@@ -1215,6 +1217,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `nanolog.console.showSourceLine` (`setShowSourceLine`): the source line of the call under each entry, `    > LOG.warn("Charge of {} failed", amount);`, and under the first three frames of a stack trace outside the JDK, found as `LOG.dbg` finds its source and left out when the source is missing or stale; `JsonLogger` adds `"source"` to `"caller"`. A part of a `ConsoleLogger` line that follows a line break no longer starts with a space.
 - `LOG.catching(() -> cleanup())` logs an exception at `ERROR` with its stack trace and carries on, `LOG.catching(() -> parse(s), -1)` returns a default instead; checked exceptions are allowed, an `Error` is not caught, an interruption is kept. `LOG.installUncaughtExceptionHandler()` logs the exceptions that kill threads, from the first frame outside the JDK, then passes them to the previous handler; the dying thread writes its breadcrumbs and its open units too.
 - README: *Logging LLM calls*, a LangChain4j listener and a Spring AI advisor that log one line per model call with the OpenTelemetry `gen_ai.*` field names, the prompt and the completion as `LOG.content`, and a transcript at `DEBUG`.
 - Payloads: `LOG.content(prompt)` writes a prompt, a response or a request body as `[content 1834 chars #3f2a9c1b]`, its length and a hash keyed per JVM, unless `nanolog.content=truncate:<characters>` or `show` says otherwise, for all classes or, through `nanolog.content.<package or class>`, for some. The text is taken when the entry is created and always escaped against forged lines; in JSON fields a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`.
