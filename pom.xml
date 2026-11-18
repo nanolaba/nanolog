@@ -6,7 +6,8 @@
 
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <name>Nanolog</name>
+    <!-- mvnrepository and the IDEs show the name as the title: it says what the library is, unlike NanoLog for C++ -->
+    <name>Nanolog Java logging</name>
     <url>https://github.com/nanolaba/nanolog</url>
     <description>Zero-dependency logging library for Java 8+: static LOG calls without logger fields, LOG.dbg print debugging that shows each expression with its value, an
         agent mode that cuts the tokens an AI coding agent reads from the console and ends the run with a summary, wide events with one
@@ -72,6 +73,16 @@
         <connection>scm:git:git://github.com/nanolaba/nanolog.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/nanolaba/nanolog.git</developerConnection>
     </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/nanolaba/nanolog/issues</url>
+    </issueManagement>
+
+    <ciManagement>
+        <system>GitHub Actions</system>
+        <url>https://github.com/nanolaba/nanolog/actions</url>
+    </ciManagement>
 
     <dependencies>
         <dependency>
