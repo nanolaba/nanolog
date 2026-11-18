@@ -233,6 +233,41 @@ class SourceLineTest extends AbstractLoggerTest {
         assertNull(DbgSource.lineText(third, SourceLineTest.class), "an empty nanolog.sources turns the reading off");
     }
 
+    @Test
+    public void testAFrameCannotLeadOutOfTheSources(@org.junit.jupiter.api.io.TempDir Path root) throws IOException {
+        Path sources = root.resolve("src");
+        Files.createDirectories(sources.resolve("com/nanolaba/logging"));
+        Path secret = root.resolve("secret.txt");
+        Files.write(secret, Arrays.asList("TOP SECRET"), StandardCharsets.UTF_8);
+        Files.setLastModifiedTime(secret, FileTime.fromMillis(0));
+        Files.write(sources.resolve("secret.txt"), Arrays.asList("INSIDE"), StandardCharsets.UTF_8);
+        Files.setLastModifiedTime(sources.resolve("secret.txt"), FileTime.fromMillis(0));
+        System.setProperty(DefaultLoggerCreator.PROPERTY_SOURCES, sources.toString());
+        for (String file : new String[]{"../../../../secret.txt", "..\\..\\..\\..\\secret.txt", "../../../secret.txt", "/secret.txt"}) {
+            StackTraceElement forged = new StackTraceElement(SourceLineTest.class.getName(), "x", file, 1);
+            assertNull(DbgSource.lineText(forged, SourceLineTest.class), file);
+            assertNull(DbgSource.read(forged, Arrays.asList(sources), null), file);
+        }
+        StackTraceElement forgedClass = new StackTraceElement("com.nanolaba.logging.....secret", "x", "Secret.java", 1);
+        assertNull(DbgSource.read(forgedClass, Arrays.asList(sources), null));
+    }
+
+    @Test
+    public void testTheCacheOfLinesIsBounded() {
+        int max = DbgSource.maxCachedLines;
+        try {
+            DbgSource.maxCachedLines = 1;
+            StackTraceElement one = new StackTraceElement("com.nowhere.One", "x", "One.java", 1);
+            StackTraceElement two = new StackTraceElement("com.nowhere.Two", "x", "Two.java", 1);
+            assertNull(DbgSource.lineText(one, SourceLineTest.class));
+            assertNull(DbgSource.lineText(two, SourceLineTest.class));
+            assertNull(DbgSource.lineText(two, SourceLineTest.class));
+            assertEquals(1, DbgSource.cachedLines(), "past the limit lines are read, not kept");
+        } finally {
+            DbgSource.maxCachedLines = max;
+        }
+    }
+
     // JSON
 
     @Test

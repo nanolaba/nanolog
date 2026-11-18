@@ -44,6 +44,12 @@ final class DbgSource {
     static final int MAX_LINE = 200;
 
     /**
+     * The most source lines kept in their cache: the frames of real stacks are bounded by the code, but an exception
+     * may carry made-up frames. Past it, lines are read each time. Tests lower it.
+     */
+    static int maxCachedLines = 10_000;
+
+    /**
      * The text of each call site, empty when it could not be found. Call sites are lines of code, so the map stays
      * as small as the code.
      */
@@ -96,7 +102,22 @@ final class DbgSource {
      * @return the line, or {@code null} if it cannot be found or is blank
      */
     static String lineText(StackTraceElement frame, Class sourceClass) {
-        return LINES.computeIfAbsent(frame, f -> Optional.ofNullable(find(f, sourceClass, DbgSource::lineOf))).orElse(null);
+        Optional<String> cached = LINES.get(frame);
+        if (cached != null) {
+            return cached.orElse(null);
+        }
+        String line = find(frame, sourceClass, DbgSource::lineOf);
+        if (LINES.size() < maxCachedLines) {
+            LINES.put(frame, Optional.ofNullable(line));
+        }
+        return line;
+    }
+
+    /**
+     * The number of source lines in their cache; for tests.
+     */
+    static int cachedLines() {
+        return LINES.size();
     }
 
     /**
@@ -144,15 +165,21 @@ final class DbgSource {
 
     /**
      * Reads what {@code extract} takes from the lines of the source file of a frame, from the first source root
-     * holding it.
+     * holding it. The frame may come from an exception made up elsewhere, so its file must be a plain name and the
+     * file must lie inside the root: a frame cannot lead to a file outside the sources.
      */
     private static String read(StackTraceElement frame, List<Path> roots, Path classes, BiFunction<List<String>, Integer, String> extract) {
         try {
+            String file = fileName(frame);
+            if (file.indexOf('/') != -1 || file.indexOf('\\') != -1) {
+                return null;
+            }
             String className = frame.getClassName();
-            String relative = className.substring(0, className.lastIndexOf('.') + 1).replace('.', '/') + fileName(frame);
+            String relative = className.substring(0, className.lastIndexOf('.') + 1).replace('.', '/') + file;
             for (Path root : roots) {
-                Path source = root.resolve(relative);
-                if (Files.isRegularFile(source)) {
+                Path base = root.normalize();
+                Path source = base.resolve(relative).normalize();
+                if (source.startsWith(base) && Files.isRegularFile(source)) {
                     return isStale(source, classes, className) ? null : extract.apply(readLines(source), frame.getLineNumber());
                 }
             }
