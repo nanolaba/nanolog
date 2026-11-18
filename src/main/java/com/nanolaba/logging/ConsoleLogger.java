@@ -94,6 +94,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public static final String PROPERTY_TIME_ZONE = "nanolog.console.timeZone";
     /**
+     * Property for {@link #setSourceLength(int)}: a number of characters, {@code 0} for the full name.
+     */
+    public static final String PROPERTY_SOURCE_LENGTH = "nanolog.console.sourceLength";
+    /**
      * Property for {@link #setMultiline(String)}: {@code keep}, {@code indent} or {@code escape}.
      */
     public static final String PROPERTY_MULTILINE = "nanolog.console.multiline";
@@ -149,6 +153,12 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * JVM for the formats Nanolog creates.
      */
     private TimeZone timeZone;
+
+    /**
+     * The full source names of one {@code sourceLength}, found once per class; replaced, never cleared, when the length
+     * changes.
+     */
+    private volatile Abbreviations abbreviations = new Abbreviations(0);
 
     private boolean showLevel = true;
     private boolean showDate = true;
@@ -238,6 +248,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
         applyTimeZone();
+        applySourceLength();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
     }
@@ -332,6 +343,23 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 dateFormat = new SimpleDateFormat("iso".equalsIgnoreCase(pattern.trim()) ? ISO_DATE_FORMAT : pattern);
             } catch (IllegalArgumentException e) {
                 DefaultLoggerCreator.printInvalid(PROPERTY_DATE_FORMAT, pattern, e.getMessage());
+            }
+        }
+    }
+
+    private void applySourceLength() {
+        String value = getProperty(PROPERTY_SOURCE_LENGTH);
+        if (value != null) {
+            int length = -1;
+            try {
+                length = Integer.parseInt(value.trim());
+            } catch (NumberFormatException e) {
+                // reported below, like a negative number
+            }
+            if (length < 0) {
+                DefaultLoggerCreator.printInvalid(PROPERTY_SOURCE_LENGTH, value, "expected a number of characters, 0 for the full name");
+            } else {
+                setSourceLength(length);
             }
         }
     }
@@ -1217,7 +1245,64 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * @return the name
      */
     protected String getSourceName(Class sourceClass) {
-        return isShowSourceFullName() ? LogEntry.fullName(sourceClass) : LogEntry.simpleName(sourceClass);
+        if (!isShowSourceFullName()) {
+            return LogEntry.simpleName(sourceClass);
+        }
+        Abbreviations current = abbreviations;
+        return current.length == 0 ? LogEntry.fullName(sourceClass) : current.of(sourceClass);
+    }
+
+    /**
+     * The abbreviated full names of one length, by class.
+     */
+    private static final class Abbreviations {
+
+        final int length;
+        private final Map<Class, String> names = new ConcurrentHashMap<>();
+
+        Abbreviations(int length) {
+            this.length = length;
+        }
+
+        String of(Class sourceClass) {
+            return names.computeIfAbsent(sourceClass, this::abbreviate);
+        }
+
+        private String abbreviate(Class sourceClass) {
+            String binaryName = sourceClass.getName();
+            int packageEnd = binaryName.lastIndexOf('.');
+            // -1 without a package, which gives an empty one
+            String packageName = binaryName.substring(0, Math.max(0, packageEnd));
+            return ConsoleLogger.abbreviate(packageName, LogEntry.fullName(sourceClass).substring(packageEnd + 1), length);
+        }
+    }
+
+    /**
+     * The algorithm of {@code %logger{length}} in Logback: while the name is longer than the length, the segments of
+     * the package, from the left, are cut to their first letter; the name of the class, its enclosing classes
+     * included, is never cut. {@code mainPackage.sub.sample.Bar} becomes {@code m.s.sample.Bar} at 15 characters.
+     *
+     * @param packageName the package, empty for none
+     * @param className   the name of the class after the package
+     * @param length      the length to fit in
+     * @return the abbreviated name
+     */
+    static String abbreviate(String packageName, String className, int length) {
+        if (packageName.isEmpty()) {
+            return className;
+        }
+        int toTrim = packageName.length() + 1 + className.length() - length;
+        StringBuilder result = new StringBuilder();
+        for (String segment : packageName.split("\\.")) {
+            if (toTrim > 0) {
+                result.append(segment.charAt(0));
+                toTrim -= segment.length() - 1;
+            } else {
+                result.append(segment);
+            }
+            result.append('.');
+        }
+        return result.append(className).toString();
     }
 
     /**
@@ -1427,6 +1512,31 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public ConsoleLogger setShowSourceFullName(boolean showSourceFullName) {
         this.showSourceFullName = showSourceFullName;
+        return this;
+    }
+
+    /**
+     * Returns the length the fully qualified source name is abbreviated to; {@code 0} for the full name.
+     *
+     * @return the length in characters, or {@code 0}
+     */
+    public int getSourceLength() {
+        return abbreviations.length;
+    }
+
+    /**
+     * Abbreviates the fully qualified source name like {@code %logger{length}} of Logback: while it is longer than the
+     * length, the segments of its package, from the left, are cut to their first letter, so
+     * {@code com.acme.billing.payments.PaymentService} becomes {@code c.a.b.payments.PaymentService} at 30 characters
+     * and {@code c.a.b.p.PaymentService} at 20. The name of the class is never cut. Applies only with
+     * {@link #setShowSourceFullName(boolean) showSourceFullName}; each class is abbreviated once. Also set by
+     * {@code nanolog.console.sourceLength}.
+     *
+     * @param sourceLength the length in characters; zero or less for the full name, the default
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setSourceLength(int sourceLength) {
+        this.abbreviations = new Abbreviations(Math.max(0, sourceLength));
         return this;
     }
 
