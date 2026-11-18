@@ -132,6 +132,23 @@ class SeveralConfigFilesTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTheTestFileReplacesTheMainOneWhole() throws IOException {
+        // src/test/resources comes first on the test classpath; its file is read alone, not merged with the main one
+        Path test = Files.createDirectories(temp.resolve("test-classes"));
+        Files.write(test.resolve(FILE), (KEY + "=true").getBytes(StandardCharsets.ISO_8859_1));
+        Path main = Files.createDirectories(temp.resolve("classes"));
+        Files.write(main.resolve(FILE), (KEY + "=false\n" + ConsoleLogger.PROPERTY_SHOW_LOCATION + "=true").getBytes(StandardCharsets.ISO_8859_1));
+
+        try {
+            assertEquals("", init(new URLClassLoader(new URL[]{test.toUri().toURL(), main.toUri().toURL()}, null)));
+            assertEquals("true", System.getProperty(KEY));
+            assertEquals(null, System.getProperty(ConsoleLogger.PROPERTY_SHOW_LOCATION), "a key of the main file only is not read");
+        } finally {
+            System.clearProperty(ConsoleLogger.PROPERTY_SHOW_LOCATION);
+        }
+    }
+
+    @Test
     public void testOneFileFromAJarIsNotReported() throws IOException {
         assertEquals("", init(new URLClassLoader(new URL[]{jar("only", "true")}, null)));
         assertEquals("true", System.getProperty(KEY));
