@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,9 +84,15 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     public static final String PROPERTY_EXCEPTION_MAX_FRAMES = "nanolog.exception.maxFrames";
     /**
-     * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern.
+     * Property for {@link #setDateFormat(SimpleDateFormat)}: a {@code SimpleDateFormat} pattern, or {@code iso} for
+     * {@code yyyy-MM-dd'T'HH:mm:ss.SSSXXX}.
      */
     public static final String PROPERTY_DATE_FORMAT = "nanolog.console.dateFormat";
+    /**
+     * Property for {@link #setTimeZone(TimeZone)}: a time zone ID such as {@code UTC}, {@code Europe/Berlin} or
+     * {@code GMT+03:00}.
+     */
+    public static final String PROPERTY_TIME_ZONE = "nanolog.console.timeZone";
     /**
      * Property for {@link #setMultiline(String)}: {@code keep}, {@code indent} or {@code escape}.
      */
@@ -130,7 +137,18 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private static final String[] THRESHOLDS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"};
     private static final int NO_RULE = -1;
 
+    /**
+     * The pattern of {@code nanolog.console.dateFormat=iso}: ISO 8601 with milliseconds and the offset of the zone.
+     */
+    static final String ISO_DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
+
     private SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+
+    /**
+     * The zone of the timestamps, set on every format; {@code null} leaves each format its own zone, the zone of the
+     * JVM for the formats Nanolog creates.
+     */
+    private TimeZone timeZone;
 
     private boolean showLevel = true;
     private boolean showDate = true;
@@ -219,6 +237,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         repeats = readChoice(PROPERTY_REPEATS, REPEATS_MODES);
         applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
+        applyTimeZone();
         rules = new Rules(readLevelRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
     }
@@ -309,9 +328,26 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         String pattern = getProperty(PROPERTY_DATE_FORMAT);
         if (pattern != null) {
             try {
-                dateFormat = new SimpleDateFormat(pattern);
+                // "iso" is no pattern: the letter i is illegal in one
+                dateFormat = new SimpleDateFormat("iso".equalsIgnoreCase(pattern.trim()) ? ISO_DATE_FORMAT : pattern);
             } catch (IllegalArgumentException e) {
                 DefaultLoggerCreator.printInvalid(PROPERTY_DATE_FORMAT, pattern, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Reads {@code nanolog.console.timeZone}. {@code TimeZone.getTimeZone} takes an ID it does not know for GMT
+     * without a word, so such an ID is reported and the zone of the JVM stays.
+     */
+    private void applyTimeZone() {
+        String id = getProperty(PROPERTY_TIME_ZONE);
+        if (id != null) {
+            TimeZone zone = TimeZone.getTimeZone(id.trim());
+            if (zone.getID().equals("GMT") && !id.trim().equals("GMT")) {
+                DefaultLoggerCreator.printInvalid(PROPERTY_TIME_ZONE, id, "expected a time zone ID such as UTC, Europe/Berlin or GMT+03:00");
+            } else {
+                setTimeZone(zone);
             }
         }
     }
@@ -1267,13 +1303,49 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
+     * Returns the zone of the timestamps; {@code null} when the format keeps its own, the zone of the JVM by default.
+     *
+     * @return the zone of the timestamps, or {@code null}
+     */
+    public TimeZone getTimeZone() {
+        return timeZone;
+    }
+
+    /**
+     * Sets the zone of the timestamps, on the current format and on any format set later; also set by
+     * {@code nanolog.console.timeZone}. The zone is set on the format itself, inside its monitor. {@link JsonLogger}
+     * writes UTC whatever the zone.
+     *
+     * @param timeZone the zone; {@code null} gives the current format the zone of the JVM, and later formats keep
+     *                 their own
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setTimeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
+        setZoneOf(dateFormat, timeZone == null ? TimeZone.getDefault() : timeZone);
+        return this;
+    }
+
+    private static void setZoneOf(SimpleDateFormat format, TimeZone zone) {
+        if (format != null) {
+            synchronized (format) {
+                format.setTimeZone(zone);
+            }
+        }
+    }
+
+    /**
      * Sets the format of the timestamp, {@code dd.MM.yyyy HH:mm:ss} by default; also set by
-     * {@code nanolog.console.dateFormat}. Formatting holds the format's monitor, so one instance may be shared.
+     * {@code nanolog.console.dateFormat}. Formatting holds the format's monitor, so one instance may be shared. After
+     * {@link #setTimeZone(TimeZone)} the format gets that zone.
      *
      * @param dateFormat the new format; {@code null} prints no timestamp
      * @return this logger, for chaining
      */
     public ConsoleLogger setDateFormat(SimpleDateFormat dateFormat) {
+        if (timeZone != null) {
+            setZoneOf(dateFormat, timeZone);
+        }
         this.dateFormat = dateFormat;
         return this;
     }
