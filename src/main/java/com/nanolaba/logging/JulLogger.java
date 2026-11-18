@@ -29,6 +29,13 @@ public class JulLogger implements ILogger {
     private final Map<String, Logger> loggers = new ConcurrentHashMap<>();
 
     /**
+     * Creates a logger that writes to {@code java.util.logging}; {@code nanolog.logger} calls it.
+     */
+    public JulLogger() {
+        // the JUL loggers are looked up when the first entry of each source class comes
+    }
+
+    /**
      * Writes the entry to the JUL logger of its source class, if JUL logs its level there.
      *
      * @param entry the entry
