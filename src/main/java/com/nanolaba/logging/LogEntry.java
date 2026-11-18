@@ -59,6 +59,7 @@ public class LogEntry {
      */
     private final Units.Scope unit;
     private final boolean unitLine;
+    private final String tag;
     private final boolean breadcrumb;
     private final Map<String, Object> fields;
     private final Map<String, Object> trailingFields;
@@ -78,11 +79,11 @@ public class LogEntry {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public LogEntry(LogEntryLevel level, Class sourceClass, Throwable throwable, Object message, Object... args) {
-        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY, false, false);
+        this(level, sourceClass, null, throwable, message, args, 0, LOG_BOUNDARY, false, false, null);
     }
 
     private LogEntry(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
-                     long skippedCount, String callerBoundary, boolean dbg, boolean unitLine) {
+                     long skippedCount, String callerBoundary, boolean dbg, boolean unitLine, String tag) {
         // payloads take their text and the limit of the class now
         message = Contents.bind(message, sourceClass);
         // and fields named like secrets are masked before anything formats them
@@ -98,6 +99,7 @@ public class LogEntry {
         this.context = Redaction.apply(Contents.bind(Contexts.withProviders(Contexts.pairs(state)), sourceClass));
         this.unit = unitLine ? null : Contexts.unit(state);
         this.unitLine = unitLine;
+        this.tag = tag;
         this.breadcrumb = false;
         this.skippedCount = skippedCount;
         this.callerBoundary = callerBoundary;
@@ -229,7 +231,18 @@ public class LogEntry {
      */
     static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
                            long skippedCount, String callerBoundary) {
-        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, false, false);
+        return create(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, null);
+    }
+
+    /**
+     * Like {@link #create(LogEntryLevel, Class, StackTraceElement, Throwable, Object, Object[], long, String)}, for an
+     * entry of {@link LOG#tag(String)}.
+     *
+     * @param tag the tag; {@code null} for none
+     */
+    static LogEntry create(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object message, Object[] args,
+                           long skippedCount, String callerBoundary, String tag) {
+        return new LogEntry(level, sourceClass, caller, throwable, message, args, skippedCount, callerBoundary, false, false, tag);
     }
 
     /**
@@ -237,7 +250,7 @@ public class LogEntry {
      * no unit. A location-aware SLF4J backend looks past the frames of the unit for the call site.
      */
     static LogEntry createUnitLine(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object[] args) {
-        return new LogEntry(level, sourceClass, caller, throwable, Units.TEMPLATE, args, 0, Units.Scope.class.getName(), false, true);
+        return new LogEntry(level, sourceClass, caller, throwable, Units.TEMPLATE, args, 0, Units.Scope.class.getName(), false, true, null);
     }
 
     /**
@@ -245,7 +258,7 @@ public class LogEntry {
      * arguments to format.
      */
     static LogEntry createDbg(Class sourceClass, StackTraceElement caller, String message, long skippedCount, String callerBoundary) {
-        return new LogEntry(LogEntryLevel.DEBUG, sourceClass, caller, null, message, NO_ARGS, skippedCount, callerBoundary, true, false);
+        return new LogEntry(LogEntryLevel.DEBUG, sourceClass, caller, null, message, NO_ARGS, skippedCount, callerBoundary, true, false, null);
     }
 
     static final String LOG_BOUNDARY = LOG.class.getName();
@@ -309,6 +322,22 @@ public class LogEntry {
     }
 
     /**
+     * The tags of the entry, from {@link LOG#tag(String)}.
+     *
+     * @return an unmodifiable list, empty for an entry without a tag
+     */
+    public List<String> getTags() {
+        return tag == null ? Collections.<String>emptyList() : Collections.singletonList(tag);
+    }
+
+    /**
+     * The tag of the entry; {@code null} for none.
+     */
+    String getTag() {
+        return tag;
+    }
+
+    /**
      * The context of the thread that created the entry: the pairs of the {@link LOG#context(String, Object)} scopes
      * open at that moment, the oldest key first.
      *
@@ -354,6 +383,7 @@ public class LogEntry {
         this.context = snapshotAll(source.context);
         this.unit = source.unit;
         this.unitLine = source.unitLine;
+        this.tag = source.tag;
         this.breadcrumb = true;
         this.fields = snapshotAll(source.fields);
         this.trailingFields = snapshotAll(source.trailingFields);
@@ -440,7 +470,7 @@ public class LogEntry {
      * A representation for debugging; never throws, even if the message or an argument has a broken
      * {@code toString()}.
      *
-     * @return the level, source class, throwable, message, arguments, fields and context
+     * @return the level, source class, throwable, message, arguments, fields, context and tags
      */
     @Override
     public String toString() {
@@ -452,6 +482,7 @@ public class LogEntry {
                ", args=" + arrayToString(getArgs()) +
                pairsToString(", fields=", getFields()) +
                pairsToString(", context=", getContext()) +
+               (tag == null ? "" : ", tags=" + getTags()) +
                (getSkippedCount() > 0 ? ", skipped=" + getSkippedCount() : "") +
                (isDbg() ? ", dbg=true" : "") +
                '}';

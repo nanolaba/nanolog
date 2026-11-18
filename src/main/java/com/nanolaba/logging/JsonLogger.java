@@ -85,6 +85,11 @@ public class JsonLogger extends ConsoleLogger {
             appendField(out, "logger", entry.getSourceClass().getName());
         }
         appendField(out, "thread", entry.getThreadName());
+        if (entry.getTag() != null) {
+            out.append(",\"tags\":[");
+            appendString(out, entry.getTag());
+            out.append(']');
+        }
         if (entry.getMessage() != null) {
             appendField(out, "message", entry.getFormattedMessage());
         }

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVELS;
+import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_TAGS;
 import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
 import static com.nanolaba.logging.DefaultLoggerCreator.printDiagnostic;
 import static com.nanolaba.logging.DefaultLoggerCreator.quietly;
@@ -160,6 +161,11 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     private volatile Abbreviations abbreviations = new Abbreviations(0);
 
+    /**
+     * The rules of {@code nanolog.tags}; only their thresholds and lowest one are used, no class is looked up.
+     */
+    private volatile Rules tagRules;
+
     private boolean showLevel = true;
     private boolean showDate = true;
     private boolean showSource = true;
@@ -250,6 +256,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         applyTimeZone();
         applySourceLength();
         rules = new Rules(readLevelRules());
+        tagRules = new Rules(readTagRules());
         isEnabledOverridden = LoggerIntrospection.overridesIsEnabled(this, ConsoleLogger.class);
     }
 
@@ -381,8 +388,31 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     private static Map<String, Integer> readLevelRules() {
-        Map<String, Integer> levelRules = new HashMap<>();
-        String list = getProperty(PROPERTY_LEVELS);
+        Map<String, Integer> levelRules = readRuleList(PROPERTY_LEVELS, "<package or class>=<level>");
+        // single properties come last, so they override an entry of the list for the same name
+        for (String key : System.getProperties().stringPropertyNames()) {
+            if (key.startsWith(LEVEL_RULE_PREFIX)) {
+                addLevelRule(levelRules, key.substring(LEVEL_RULE_PREFIX.length()), key, System.getProperty(key));
+            }
+        }
+        return levelRules;
+    }
+
+    /**
+     * The rules of {@code nanolog.tags}: thresholds by tag.
+     */
+    private static Map<String, Integer> readTagRules() {
+        return readRuleList(PROPERTY_TAGS, "<tag>=<level>");
+    }
+
+    /**
+     * Reads a list of rules, {@code name=LEVEL} separated by commas; an invalid item is reported and left out.
+     *
+     * @param expected the form of an item, for the diagnostic
+     */
+    private static Map<String, Integer> readRuleList(String property, String expected) {
+        Map<String, Integer> rules = new HashMap<>();
+        String list = getProperty(property);
         if (list != null) {
             for (String item : list.split(",")) {
                 String rule = item.trim();
@@ -391,20 +421,14 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 }
                 int separator = rule.indexOf('=');
                 if (separator <= 0) {
-                    printDiagnostic("Invalid item \"" + rule + "\" of \"" + PROPERTY_LEVELS + "\": expected <package or class>=<level>; " +
-                                    DefaultLoggerCreator.origin(PROPERTY_LEVELS));
+                    printDiagnostic("Invalid item \"" + rule + "\" of \"" + property + "\": expected " + expected + "; " +
+                                    DefaultLoggerCreator.origin(property));
                     continue;
                 }
-                addLevelRule(levelRules, rule.substring(0, separator).trim(), PROPERTY_LEVELS, rule.substring(separator + 1));
+                addLevelRule(rules, rule.substring(0, separator).trim(), property, rule.substring(separator + 1));
             }
         }
-        // single properties come last, so they override an entry of the list for the same name
-        for (String key : System.getProperties().stringPropertyNames()) {
-            if (key.startsWith(LEVEL_RULE_PREFIX)) {
-                addLevelRule(levelRules, key.substring(LEVEL_RULE_PREFIX.length()), key, System.getProperty(key));
-            }
-        }
-        return levelRules;
+        return rules;
     }
 
     private static void addLevelRule(Map<String, Integer> levelRules, String name, String property, String value) {
@@ -644,7 +668,22 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     @Override
     public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
-        return isEnabledOverridden || isAtLeast(level, rules.lowest) || isSwitchedOn(level);
+        return isEnabledOverridden || isAtLeast(level, rules.lowest) || isAtLeast(level, tagRules.lowest) || isSwitchedOn(level);
+    }
+
+    /**
+     * A rule of {@code nanolog.tags} for the tag decides first, whatever the class; without one,
+     * {@link #isEnabled(LogEntry.LogEntryLevel, Class)} does.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; may be {@code null}
+     * @param tag         the tag; {@code null} for an entry without one
+     * @return {@code true} if the entry is logged
+     */
+    @Override
+    public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+        Integer threshold = tagRules.thresholds.get(tag);
+        return threshold != null ? isAtLeast(level, threshold) : isEnabled(level, sourceClass);
     }
 
     private boolean isSwitchedOn(LogEntry.LogEntryLevel level) {
@@ -749,6 +788,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         applyThreshold(defaultThreshold);
         applyGlobalLevel();
         rules = new Rules(readLevelRules());
+        tagRules = new Rules(readTagRules());
         return this;
     }
 
@@ -870,7 +910,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source,
+     * Builds the text of an entry from the {@code write*} methods, in this order: level, date, thread, source, tags,
      * message, skipped count, fields, context, source line, stack trace.
      *
      * @param entry the entry to write
@@ -894,6 +934,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeDate(out, entry);
         writeThread(out, entry);
         writeSource(out, entry);
+        writeTags(out, entry);
         writeMessage(out, entry);
         writeSkipped(out, entry);
         writeFields(out, entry);
@@ -1234,6 +1275,19 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 out.append(getLocation(caller));
             }
             out.append("]");
+        }
+    }
+
+    /**
+     * Writes the tags of an entry of {@code LOG.tag(...)}, each in square brackets: {@code [audit]}.
+     *
+     * @param out   the text being built
+     * @param entry the entry to write
+     */
+    protected void writeTags(StringWriter out, LogEntry entry) {
+        for (String tag : entry.getTags()) {
+            addDelimiter(out);
+            out.append('[').append(tag).append(']');
         }
     }
 

@@ -132,6 +132,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_CALLER_SKIP = PROPERTY_PREFIX + "caller.skip";
     /**
+     * Levels per tag of {@code LOG.tag(...)}, comma-separated: {@code audit=WARN,sql=DEBUG}. A rule for the tag of an
+     * entry decides over the levels of its class in {@link ConsoleLogger}.
+     */
+    public static final String PROPERTY_TAGS = PROPERTY_PREFIX + "tags";
+    /**
      * Context providers, comma-separated class names: each class implements {@code Supplier<Map<String, ?>>}, has a
      * public no-argument constructor, and adds its keys to every entry, see {@link LOG#addContextProvider}.
      */

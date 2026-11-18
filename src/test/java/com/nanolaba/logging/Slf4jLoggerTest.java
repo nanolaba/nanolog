@@ -4,6 +4,7 @@ import com.nanolaba.logging.util.InfoObject;
 import com.nanolaba.logging.wrap.Audit;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
+import org.slf4j.Marker;
 import org.slf4j.spi.LocationAwareLogger;
 
 import java.lang.reflect.InvocationHandler;
@@ -124,6 +125,64 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
             System.clearProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP);
             LOG.init();
         }
+    }
+
+    @Test
+    public void testATagIsAMarkerForALocationAwareBackend() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.tag("audit").warn("role changed");
+
+        LocationAwareRecorder.Call call = recorder.calls.get(0);
+        assertEquals("audit", ((Marker) call.marker).getName());
+        assertEquals(LOG.Tagged.class.getName(), call.fqcn);
+        assertEquals("testATagIsAMarkerForALocationAwareBackend", call.location.getMethodName());
+        assertEquals(line, call.location.getLineNumber());
+    }
+
+    /**
+     * A plain SLF4J logger, not location-aware: records the calls of its level methods.
+     */
+    private static final class PlainRecorder implements InvocationHandler {
+
+        final List<String> calls = new ArrayList<>();
+
+        Logger loggerFor(String name) {
+            return (Logger) Proxy.newProxyInstance(Logger.class.getClassLoader(), new Class[]{Logger.class}, this);
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) {
+            if (method.getName().startsWith("is")) {
+                return true;
+            }
+            if (args[0] instanceof Marker) {
+                calls.add(method.getName() + " " + ((Marker) args[0]).getName() + " " + args[1] + " " + args[2]);
+            } else {
+                calls.add(method.getName() + " " + args[0] + " " + args[1]);
+            }
+            return null;
+        }
+    }
+
+    @Test
+    public void testATagIsAMarkerForAPlainBackend() {
+        PlainRecorder recorder = new PlainRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+        IllegalStateException e = new IllegalStateException("boom");
+
+        LOG.Tagged audit = LOG.tag("audit");
+        audit.trace("t");
+        audit.debug("d");
+        audit.info("i");
+        audit.warn("w");
+        audit.error(e, "e");
+        LOG.info("plain");
+
+        assertEquals(Arrays.asList("trace audit t null", "debug audit d null", "info audit i null", "warn audit w null",
+                                   "error audit e java.lang.IllegalStateException: boom", "info plain null"), recorder.calls);
     }
 
     @Test

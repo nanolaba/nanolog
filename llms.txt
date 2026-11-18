@@ -39,6 +39,7 @@ LOG.info("Failed to load {}", id, e);                // exception last (1.2+)
 LOG.info(MyClass.class, "...");                      // any form above with an explicit source class
 LOG.isInfoEnabled();                                 // level check, with or without a class
 LOG.once().warn("Option {} is deprecated", key);     // only the first time this line runs (1.3+)
+LOG.tag("sql").debug("{} rows", rows);               // an entry of a concern, levels per tag in nanolog.tags (1.4+)
 LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period, then "[skipped N]" (1.3+)
 LOG.catching(() -> connection.close());              // ERROR with the stack trace, then carry on (1.4+)
 int n = LOG.catching(() -> Integer.parseInt(s), -1); // a default value when it fails (1.4+)

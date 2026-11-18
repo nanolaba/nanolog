@@ -33,6 +33,21 @@ public interface ILogger {
     }
 
     /**
+     * Like {@link #isEnabled(LogEntry.LogEntryLevel, Class)}, for an entry of {@link LOG#tag(String)}. {@code LOG}
+     * asks this method for every entry, with a {@code null} tag for one without a tag. {@link ConsoleLogger} lets a
+     * rule of {@code nanolog.tags} decide first, and {@link CompositeLogger} asks its delegates; the default ignores
+     * the tag.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; may be {@code null}
+     * @param tag         the tag; {@code null} for an entry without one
+     * @return {@code true} to log the entry; the default asks {@link #isEnabled(LogEntry.LogEntryLevel, Class)}
+     */
+    default boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+        return isEnabled(level, sourceClass);
+    }
+
+    /**
      * Tells whether {@link #isEnabled} can return {@code true} for the level and some source class, {@code null}
      * included. {@code LOG} asks it before caller detection walks the stack, so returning {@code false} makes a call
      * without an explicit source class cost no more than this check. Calls with an explicit class go straight to

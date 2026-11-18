@@ -76,25 +76,26 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 14 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
 	- 14.1 [Context providers](#context-providers)
 - 15 [Rate limiting](#rate-limiting)
-- 16 [Catching exceptions](#catching-exceptions)
-- 17 [Caller detection](#caller-detection)
-	- 17.1 [Logging helpers](#logging-helpers)
-- 18 [Writing your own logger](#writing-your-own-logger)
-- 19 [Thread safety and performance](#thread-safety-and-performance)
-- 20 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 21 [Related projects](#related-projects)
-	- 21.1 [Static facades](#static-facades)
-	- 21.2 [Mainstream loggers](#mainstream-loggers)
-	- 21.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 21.4 [When another logger fits better](#when-another-logger-fits-better)
-- 22 [Changelog](#changelog)
-	- 22.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 22.2 [1.3](#13)
-	- 22.3 [1.2](#12)
-	- 22.4 [1.1](#11)
-	- 22.5 [1.0](#10)
-- 23 [Contributing](#contributing)
-- 24 [License](#license)
+- 16 [Tags](#tags)
+- 17 [Catching exceptions](#catching-exceptions)
+- 18 [Caller detection](#caller-detection)
+	- 18.1 [Logging helpers](#logging-helpers)
+- 19 [Writing your own logger](#writing-your-own-logger)
+- 20 [Thread safety and performance](#thread-safety-and-performance)
+- 21 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 22 [Related projects](#related-projects)
+	- 22.1 [Static facades](#static-facades)
+	- 22.2 [Mainstream loggers](#mainstream-loggers)
+	- 22.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 22.4 [When another logger fits better](#when-another-logger-fits-better)
+- 23 [Changelog](#changelog)
+	- 23.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 23.2 [1.3](#13)
+	- 23.3 [1.2](#12)
+	- 23.4 [1.1](#11)
+	- 23.5 [1.0](#10)
+- 24 [Contributing](#contributing)
+- 25 [License](#license)
 
 
 ## Installation
@@ -196,6 +197,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.unit("import", () -> importer.run())` | the same for a lambda: a thrown exception fails the unit and is thrown on |
 | `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
 | `LOG.addContextProvider(() -> ids)` | adds the keys of a context of its own, such as the trace ID of OpenTelemetry, to every entry, see [Context providers](#context-providers) |
+| `LOG.tag("audit").info(...)` | an entry of a concern rather than of a class, with levels per tag in `nanolog.tags`, see [Tags](#tags) |
 | `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
 | `LOG.catching(() -> connection.close())` | run an action, log an exception at `ERROR` and carry on; `LOG.catching(() -> parse(s), -1)` returns a default, see [Catching exceptions](#catching-exceptions) |
 | `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
@@ -557,6 +559,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.diagnostics` | how often a `[NANOLOG]` diagnostic is printed: `once` per JVM, `all` every time or `off`; `ILogger.onDiagnostic` still gets the findings of strict mode | `once` |
 | `nanolog.caller.skip` | classes and packages, comma-separated, whose frames caller detection skips like those of `LOG`, see [Logging helpers](#logging-helpers) | — |
 | `nanolog.context.provider` | classes of context providers, comma-separated, see [Context providers](#context-providers) | — |
+| `nanolog.tags` | levels per tag of `LOG.tag(...)`, comma-separated: `audit=WARN,sql=DEBUG`; a rule decides over the levels of the class, see [Tags](#tags) | — |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, whose argument repeats the message of the exception or whose template is built from data, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
@@ -616,7 +619,7 @@ LOG.init(new ConsoleLogger()
 - `traceEnabled` … `errorEnabled` — per-level switches; everything is enabled by default, so switch `TRACE` and `DEBUG` off in production, in code or with `nanolog.level=INFO`. Disabled levels are rejected before the `LogEntry` is built, so lazy messages are never evaluated. `setLevel(level)` sets all five at once, and the switches may change while other threads log; see [Changing levels at run time](#changing-levels-at-run-time).
 
 For a custom layout (other colours, a different order) extend `ConsoleLogger` and
-override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeMessage`,
+override `getOutputStream`, `writeLevel`, `writeDate`, `writeSource`, `writeTags`, `writeMessage`,
 `writeFields`, `writeContext`, `writeSourceLine`, `writeThrowable` or `addDelimiter`.
 
 ### Levels and options without code
@@ -718,7 +721,7 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 {"ts":"2026-11-11T02:30:31.412Z","level":"WARN","logger":"com.acme.PaymentService","thread":"main","message":"Charge of 42 failed, retrying","template":"Charge of {} failed, retrying","args":["42"],"fields":{"amount":42},"context":{"requestId":"r-17"},"caller":{"class":"com.acme.PaymentService","method":"charge","file":"PaymentService.java","line":87}}
 ```
 
-- `ts` — ISO-8601 in UTC with milliseconds, sortable as text; `level`, `logger` (the source class), `thread`, `message` (the formatted message).
+- `ts` — ISO-8601 in UTC with milliseconds, sortable as text; `level`, `logger` (the source class), `thread`, `tags` (the tag of `LOG.tag(...)`, when there is one), `message` (the formatted message).
 - `template` and `args` — the raw message and the arguments as strings, for parameterized messages only; equal events can be grouped whatever their arguments.
 - `dbg`, `breadcrumb` — `true` for an entry of `LOG.dbg` and for one held back by `nanolog.buffer`, see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails).
 - `fields` — the arguments of `LOG.kv(...)` as a nested object, when there are any; `args` leaves out those that no `{}` takes. Select on them with `jq 'select(.fields.orderId=="A-17")'`; see [Fields](#fields-named-arguments).
@@ -755,7 +758,7 @@ LOG.init(new Slf4jLogger());
 Things to know:
 
 - Location-aware backends, Logback and Log4j 2 among them, are told that the call site is the first frame after `LOG`. Their own `%file:%line`, `%method` and `%class` (Logback) or `%l` (Log4j 2) therefore show the code that called `LOG`, not `Slf4jLogger`, with no backend configuration. slf4j-simple prints no location at all.
-- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. Fields of `LOG.kv(...)` that no `{}` takes are appended to the text as `key=value`, as `ConsoleLogger` writes them; the key-value pairs of SLF4J 2 are not used, since backends treat them differently. SLF4J markers are not supported.
+- The message reaches SLF4J already formatted, so the backend does not see the `{}` arguments as structured data. Fields of `LOG.kv(...)` that no `{}` takes are appended to the text as `key=value`, as `ConsoleLogger` writes them; the key-value pairs of SLF4J 2 are not used, since backends treat them differently. The tag of `LOG.tag(...)` is passed as an SLF4J `Marker` of that name, so `%marker` of Logback prints it and the filters of the backend can select on it.
 - The pairs of `LOG.context(...)` are put into the MDC while an entry is forwarded and taken out afterwards; values the MDC already held for those keys are put back. Backends that support MDC, Logback and Log4j 2, print them through their own patterns such as `%X{requestId}`, like values set through `org.slf4j.MDC`; slf4j-simple and slf4j-nop silently discard them, and the JUL binding (slf4j-jdk14) stores them without printing.
 - An entry without a message is passed with an empty message, not the word `null`.
 - An entry without a source class goes to the SLF4J `ROOT` logger.
@@ -1163,6 +1166,24 @@ LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item);
 - `once()` and `atMostEvery(...)` offer four shapes at every level: `("... {} ...", args)`, `(() -> message)` and both with an exception first. The state of each call site takes a few bytes, without locks, and the number of call sites is bounded by the code.
 - A count left at the end of a burst is printed only when the statement runs again. A period of zero or less limits nothing.
 
+## Tags
+
+Some entries belong to a concern rather than to a class: audit, security, SQL. `LOG.tag(name)` marks them, wherever they come from:
+
+```java
+LOG.tag("audit").warn("User {} changed role to {}", user, role);
+LOG.tag("sql").debug("{} rows in {} ms", rows, millis);
+```
+
+```
+WARN 18.11.2026 10:30:00 [UserService] [audit] User alice changed role to admin
+```
+
+- Levels per tag: `nanolog.tags=audit=WARN,sql=DEBUG` (`NANOLOG_TAGS`). A rule for the tag of an entry decides over the global level and the package rules, so the audit entries below `WARN` are dropped wherever they come from, and the SQL entries at `DEBUG` are written even under `nanolog.level=INFO`. A tag without a rule follows the level of its class. `resetLevels()` reads the rules again; `LOG.setLevel` does not change them.
+- `ConsoleLogger` writes `[audit]` after the source class, `JsonLogger` `"tags":["audit"]`, and `Slf4jLogger` passes an SLF4J `Marker` named after the tag. Any logger reads `LogEntry.getTags()` and may answer `ILogger.isEnabled(level, sourceClass, tag)`; by default it ignores the tag.
+- A tag has the four shapes of `LOG.once()` at every level: a message with arguments, a lazy message, and both with an exception first. `LOG.tag("audit").once()` and `.atMostEvery(...)` limit a tagged statement. An entry has at most one tag; `LOG.tag(null)` logs without one.
+- A tag costs nothing over an ordinary call. A rule that enables a level for a tag, `sql=DEBUG` under `INFO`, makes the level possible, so every call at that level walks the stack, as a package rule does.
+
 ## Catching exceptions
 
 Two patterns repeat in every code base: the `try { ... } catch (Exception e) { LOG.error(...) }` block that logs and carries on, and the exception that kills a background thread and is printed by the JVM as `Exception in thread "pool-1-thread-3"`, outside the log format, outside `JsonLogger` and out of sight of `MemoryLogger`:
@@ -1343,7 +1364,7 @@ The direct analogues: a static call without a logger field.
 | [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ❌ | ➖¹⁷ | ❌ | ✅¹⁸ |
 | [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
 | Asynchronous output | ❌ | ✅ | ➖⁵ | ❌ | ❌ |
-| Markers or tags | ❌ | ✅ | ❌ | ➖²⁰ | ✅ |
+| [Markers or tags](#tags) | ✅ | ✅ | ❌ | ➖²⁰ | ✅ |
 | [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ➖²¹ | ✅ | ➖²² | ✅ |
 | [A cheap disabled call, no stack walk](#thread-safety-and-performance) | ➖²³ | ➖²⁴ | ✅ | ✅ | ❌²⁵ |
 | [Print debugging that names the expression](#print-debugging-logdbg-prints-the-expression-and-its-value) | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -1401,7 +1422,7 @@ The loggers most Java code already uses, and Flogger, which limits the rate per 
 | [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ➖⁴⁹ | ➖⁵⁰ | ❌ | ✅ | ➖⁵¹ |
 | [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
 | Asynchronous output | ❌ | ✅ | ✅ | ❌ | ❌ | ➖⁴⁵ |
-| Markers or tags | ❌ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
+| [Markers or tags](#tags) | ✅ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
 | [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ✅ | ✅ | ➖⁵⁴ | ✅ | ✅ |
 | [A cheap disabled call, no stack walk](#thread-safety-and-performance) | ➖²³ | ✅ | ✅⁵⁵ | ✅ | ✅⁵⁵ | ✅ |
 | [Print debugging that names the expression](#print-debugging-logdbg-prints-the-expression-and-its-value) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -1487,6 +1508,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Tags: `LOG.tag("audit").warn(...)` marks the entries of a concern rather than of a class, and `nanolog.tags=audit=WARN,sql=DEBUG` sets levels per tag, which decide over the levels of the class. `ConsoleLogger` writes `[audit]`, `JsonLogger` `"tags":["audit"]`, `Slf4jLogger` passes an SLF4J `Marker`; `LogEntry.getTags()` and `ILogger.isEnabled(level, sourceClass, tag)` are new.
 - Lazy arguments: `LOG.debug("Stats: {}", LOG.lazy(() -> summarize(stats)))` computes one argument only if the level is enabled, once, and keeps the template for strict mode, `JsonLogger` and `assertTemplateLogged`.
 - `nanolog.console.sourceLength` (`setSourceLength`) abbreviates a fully qualified source name like `%logger{n}` of Logback: `com.acme.billing.payments.PaymentService` becomes `c.a.b.p.PaymentService` at 20 characters.
 - `nanolog.console.timeZone` (`setTimeZone`) sets the zone of the timestamps of `ConsoleLogger`, `UTC` or `Europe/Berlin`; an unknown ID is reported instead of being taken for GMT. `nanolog.console.dateFormat=iso` stands for the ISO 8601 pattern with milliseconds and the offset of the zone.

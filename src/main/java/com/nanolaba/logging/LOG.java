@@ -1222,7 +1222,7 @@ public class LOG {
      * Whether a {@code dbg} call of a class prints: if {@code DEBUG} is enabled for it, or always in agent mode.
      */
     private static boolean printsDbg(ILogger current, Class sourceClass) {
-        return Dbg.ignoreLevels || takes(current, DEBUG, sourceClass);
+        return Dbg.ignoreLevels || takes(current, DEBUG, sourceClass, null);
     }
 
     /**
@@ -1894,6 +1894,274 @@ public class LOG {
         return new Lazy(supplier);
     }
 
+
+    // TAGS
+
+    /**
+     * The level methods of a tag, returned by {@link LOG#tag(String)}: every entry they log carries the tag. The view
+     * has the four shapes of {@link Limited}, and {@link #once()} and {@link #atMostEvery(long, TimeUnit)} limit a
+     * tagged statement.
+     */
+    public static final class Tagged {
+
+        /**
+         * Calls of these methods pass through this class, so a location-aware SLF4J backend must look past it, not
+         * only past {@code LOG}, to find the call site.
+         */
+        private static final String CALLER_BOUNDARY = Tagged.class.getName();
+
+        private final String tag;
+
+        private Tagged(String tag) {
+            this.tag = tag;
+        }
+
+        private void log(LogEntry.LogEntryLevel level, Throwable throwable, Supplier<Object> message, Object[] args) {
+            ILogger current = logger;
+            if (mayBeEnabled(current, level)) {
+                CallerDetection.Caller caller = findCaller();
+                if (isEnabled(current, level, caller.sourceClass, tag)) {
+                    writeCall(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, 0,
+                                                       caller.boundaryOr(CALLER_BOUNDARY), tag));
+                }
+            }
+        }
+
+        /**
+         * The tagged statement logged only the first time it runs, see {@link LOG#once()}.
+         *
+         * @return the level methods of the statement
+         */
+        public Limited once() {
+            return new Limited(Long.MAX_VALUE, tag);
+        }
+
+        /**
+         * The tagged statement logged at most once per period, see {@link LOG#atMostEvery(long, TimeUnit)}.
+         *
+         * @param period the shortest time between two entries of the statement; zero or less logs every call
+         * @param unit   the unit of the period; {@code null} logs every call
+         * @return the level methods of the statement
+         */
+        public Limited atMostEvery(long period, TimeUnit unit) {
+            return new Limited(unit == null ? 0 : unit.toNanos(period), tag);
+        }
+
+        /**
+         * Logs a parameterized message with the tag at {@code TRACE} level.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void trace(String message, Object... args) {
+            log(TRACE, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message with the tag at {@code TRACE} level.
+         *
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void trace(Supplier<Object> message) {
+            log(TRACE, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message with the tag at {@code TRACE} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void trace(Throwable t, String message, Object... args) {
+            log(TRACE, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message with the tag at {@code TRACE} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void trace(Throwable t, Supplier<Object> message) {
+            log(TRACE, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message with the tag at {@code DEBUG} level.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void debug(String message, Object... args) {
+            log(DEBUG, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message with the tag at {@code DEBUG} level.
+         *
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void debug(Supplier<Object> message) {
+            log(DEBUG, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message with the tag at {@code DEBUG} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void debug(Throwable t, String message, Object... args) {
+            log(DEBUG, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message with the tag at {@code DEBUG} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void debug(Throwable t, Supplier<Object> message) {
+            log(DEBUG, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message with the tag at {@code INFO} level.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void info(String message, Object... args) {
+            log(INFO, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message with the tag at {@code INFO} level.
+         *
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void info(Supplier<Object> message) {
+            log(INFO, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message with the tag at {@code INFO} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void info(Throwable t, String message, Object... args) {
+            log(INFO, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message with the tag at {@code INFO} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void info(Throwable t, Supplier<Object> message) {
+            log(INFO, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message with the tag at {@code WARN} level.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void warn(String message, Object... args) {
+            log(WARN, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message with the tag at {@code WARN} level.
+         *
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void warn(Supplier<Object> message) {
+            log(WARN, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message with the tag at {@code WARN} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void warn(Throwable t, String message, Object... args) {
+            log(WARN, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message with the tag at {@code WARN} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void warn(Throwable t, Supplier<Object> message) {
+            log(WARN, t, message, NO_ARGS);
+        }
+
+        /**
+         * Logs a parameterized message with the tag at {@code ERROR} level.
+         *
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders; a trailing {@link Throwable} that no placeholder consumes becomes the exception of the entry
+         */
+        public void error(String message, Object... args) {
+            log(ERROR, null, () -> message, args);
+        }
+
+        /**
+         * Logs a lazily built message with the tag at {@code ERROR} level.
+         *
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void error(Supplier<Object> message) {
+            log(ERROR, null, message, NO_ARGS);
+        }
+
+        /**
+         * Logs an exception and a parameterized message with the tag at {@code ERROR} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message the message with {@code {}} placeholders
+         * @param args    the arguments for the placeholders
+         */
+        public void error(Throwable t, String message, Object... args) {
+            log(ERROR, t, () -> message, args);
+        }
+
+        /**
+         * Logs an exception and a lazily built message with the tag at {@code ERROR} level.
+         *
+         * @param t       the exception, logged with its stack trace
+         * @param message builds the message; called only if the level is enabled for the tag
+         */
+        public void error(Throwable t, Supplier<Object> message) {
+            log(ERROR, t, message, NO_ARGS);
+        }
+    }
+
+    /**
+     * Tags the entries of a concern rather than of a class, such as audit, security or SQL:
+     * {@code LOG.tag("audit").info("User {} changed role to {}", user, role)}. {@link ConsoleLogger} writes
+     * {@code [audit]} after the source class, {@link JsonLogger} {@code "tags":["audit"]}, {@link Slf4jLogger} passes
+     * an SLF4J {@code Marker}, and any logger reads {@link LogEntry#getTags()}. {@code nanolog.tags=audit=WARN,sql=DEBUG}
+     * sets levels per tag, which decide over the levels of the classes.
+     *
+     * @param tag the tag; {@code null} logs without one
+     * @return the level methods of the tag
+     */
+    public static Tagged tag(String tag) {
+        return new Tagged(tag);
+    }
+
     // RATE LIMITING
 
     /**
@@ -1926,7 +2194,7 @@ public class LOG {
      * @return the level methods of a statement logged at most once per period
      */
     public static Limited atMostEvery(long period, TimeUnit unit) {
-        return new Limited(unit == null ? 0 : unit.toNanos(period));
+        return new Limited(unit == null ? 0 : unit.toNanos(period), null);
     }
 
     /**
@@ -1986,7 +2254,7 @@ public class LOG {
      */
     public static final class Limited {
 
-        static final Limited ONCE = new Limited(Long.MAX_VALUE);
+        static final Limited ONCE = new Limited(Long.MAX_VALUE, null);
 
         /**
          * Calls of these methods pass through this class, so a location-aware SLF4J backend must look past it, not
@@ -1996,18 +2264,24 @@ public class LOG {
 
         private final long periodNanos;
 
-        private Limited(long periodNanos) {
+        /**
+         * The tag of the entries, from {@link Tagged}; {@code null} for none.
+         */
+        private final String tag;
+
+        private Limited(long periodNanos, String tag) {
             this.periodNanos = periodNanos;
+            this.tag = tag;
         }
 
         private void log(LogEntry.LogEntryLevel level, Throwable throwable, Supplier<Object> message, Object[] args) {
             ILogger current = logger;
             if (mayBeEnabled(current, level)) {
                 CallerDetection.Caller caller = findCaller();
-                long skipped = admit(isEnabled(current, level, caller.sourceClass), caller);
+                long skipped = admit(isEnabled(current, level, caller.sourceClass, tag), caller);
                 if (skipped >= 0) {
                     writeCall(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
-                                                       caller.boundaryOr(CALLER_BOUNDARY)));
+                                                       caller.boundaryOr(CALLER_BOUNDARY), tag));
                 }
             }
         }
@@ -2344,7 +2618,7 @@ public class LOG {
         if (captures != null) {
             // the levels may have been passed only for a capture that takes every level: ask the logger itself
             boolean accepted = entry.isDbg() && Dbg.ignoreLevels || Breadcrumbs.buffers(entry) ||
-                               accepts(current, entry.getLevel(), entry.getSourceClass());
+                               accepts(current, entry.getLevel(), entry.getSourceClass(), entry.getTag());
             for (MemoryLogger capture : captures) {
                 if (capture.everyLevel || accepted) {
                     capture.log(entry);
@@ -2405,23 +2679,30 @@ public class LOG {
      * too.
      */
     private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
-        return Breadcrumbs.buffers(level) || takes(current, level, sourceClass);
+        return isEnabled(current, level, sourceClass, null);
+    }
+
+    /**
+     * Like {@link #isEnabled(ILogger, LogEntry.LogEntryLevel, Class)}, for an entry with a tag.
+     */
+    private static boolean isEnabled(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+        return Breadcrumbs.buffers(level) || takes(current, level, sourceClass, tag);
     }
 
     /**
      * Whether a capture or the logger itself takes a level, whatever {@code nanolog.buffer} holds back; for
      * {@code LOG.dbg}, which is never held back.
      */
-    private static boolean takes(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
-        return takesEveryLevel(captures()) || accepts(current, level, sourceClass);
+    private static boolean takes(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+        return takesEveryLevel(captures()) || accepts(current, level, sourceClass, tag);
     }
 
     /**
      * Asks the logger itself whether it takes an entry, with the same guard as {@link #isEnabled}.
      */
-    private static boolean accepts(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass) {
+    private static boolean accepts(ILogger current, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
         try {
-            return current.isEnabled(level, sourceClass);
+            return current.isEnabled(level, sourceClass, tag);
         } catch (Throwable t) {
             reportLoggerFailure(current, t, FALLBACK_NOTE);
             return true;

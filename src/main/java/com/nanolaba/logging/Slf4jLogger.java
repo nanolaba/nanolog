@@ -3,6 +3,8 @@ package com.nanolaba.logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
 import org.slf4j.spi.LocationAwareLogger;
 import org.slf4j.spi.MDCAdapter;
 
@@ -110,7 +112,12 @@ public class Slf4jLogger implements ILogger {
             // no arguments: the message is formatted already, and a backend must not format its {} again
             // the boundary: the call site is the first frame after it, so %file:%line (Logback) or %l (Log4j 2) point at
             // the code that called LOG, also when the call passed through LOG.Limited
-            ((LocationAwareLogger) logger).log(null, entry.getCallerBoundary(), toLocationAwareLevel(entry.getLevel()), message, null, entry.getThrowable());
+            ((LocationAwareLogger) logger).log(marker(entry), entry.getCallerBoundary(), toLocationAwareLevel(entry.getLevel()), message, null,
+                                               entry.getThrowable());
+            return;
+        }
+        if (entry.getTag() != null) {
+            forwardMarked(logger, marker(entry), entry.getLevel(), message, entry.getThrowable());
             return;
         }
 
@@ -129,6 +136,33 @@ public class Slf4jLogger implements ILogger {
                 break;
             default:
                 logger.info(message, entry.getThrowable());
+                break;
+        }
+    }
+
+    /**
+     * The tag of an entry as an SLF4J marker; {@code null} for an entry without a tag.
+     */
+    private static Marker marker(LogEntry entry) {
+        return entry.getTag() == null ? null : MarkerFactory.getMarker(entry.getTag());
+    }
+
+    private static void forwardMarked(Logger logger, Marker marker, LogEntry.LogEntryLevel level, String message, Throwable throwable) {
+        switch (level) {
+            case TRACE:
+                logger.trace(marker, message, throwable);
+                break;
+            case DEBUG:
+                logger.debug(marker, message, throwable);
+                break;
+            case WARN:
+                logger.warn(marker, message, throwable);
+                break;
+            case ERROR:
+                logger.error(marker, message, throwable);
+                break;
+            default:
+                logger.info(marker, message, throwable);
                 break;
         }
     }

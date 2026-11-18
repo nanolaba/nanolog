@@ -64,7 +64,7 @@ public class CompositeLogger implements ILogger, ILevelControl {
     @Override
     public void log(LogEntry entry) {
         for (ILogger logger : loggers) {
-            if (entry.isDbg() && Dbg.ignoreLevels || isEnabled(logger, entry.getLevel(), entry.getSourceClass())) {
+            if (entry.isDbg() && Dbg.ignoreLevels || isEnabled(logger, entry.getLevel(), entry.getSourceClass(), entry.getTag())) {
                 try {
                     logger.log(entry);
                 } catch (Throwable t) {
@@ -101,8 +101,22 @@ public class CompositeLogger implements ILogger, ILevelControl {
      */
     @Override
     public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+        return isEnabled(level, sourceClass, null);
+    }
+
+    /**
+     * Returns {@code true} if at least one delegate has the level enabled for the tag. A delegate whose check throws
+     * counts as enabled.
+     *
+     * @param level       the level of the entry
+     * @param sourceClass the source class; may be {@code null}
+     * @param tag         the tag; {@code null} for an entry without one
+     * @return {@code true} if at least one delegate takes the entry
+     */
+    @Override
+    public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
         for (ILogger logger : loggers) {
-            if (isEnabled(logger, level, sourceClass)) {
+            if (isEnabled(logger, level, sourceClass, tag)) {
                 return true;
             }
         }
@@ -257,9 +271,9 @@ public class CompositeLogger implements ILogger, ILevelControl {
 
     private static final String DELEGATE_NOTE = "the other loggers of the CompositeLogger still receive its entries";
 
-    private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass) {
+    private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
         try {
-            return logger.isEnabled(level, sourceClass);
+            return logger.isEnabled(level, sourceClass, tag);
         } catch (Throwable t) {
             LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
             return true;
