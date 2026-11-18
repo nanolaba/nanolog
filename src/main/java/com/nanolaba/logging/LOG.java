@@ -1838,6 +1838,62 @@ public class LOG {
         return SECRET;
     }
 
+    // LAZY ARGUMENTS
+
+    /**
+     * An argument computed only for an enabled level, made by {@link LOG#lazy(Supplier)}. Its {@code toString()} asks
+     * the supplier the first time and keeps the text; the entry calls it when it is created, after the level check.
+     */
+    public static final class Lazy {
+
+        private Supplier<?> supplier;
+        private String text;
+
+        private Lazy(Supplier<?> supplier) {
+            this.supplier = supplier;
+        }
+
+        /**
+         * Returns the value of the supplier, formatted like any argument, asking the supplier only the first time. A
+         * supplier that throws gives {@code [FAILED supplier: <exception>]}, kept the same way.
+         *
+         * @return the text of the value
+         */
+        @Override
+        public synchronized String toString() {
+            if (text == null) {
+                text = evaluate(supplier);
+                supplier = null;
+            }
+            return text;
+        }
+
+        private static String evaluate(Supplier<?> supplier) {
+            try {
+                return LogEntry.argToString(supplier == null ? null : supplier.get());
+            } catch (Throwable t) {
+                return "[FAILED supplier: " + LogEntry.safeToString(t) + "]";
+            }
+        }
+    }
+
+    /**
+     * Makes one argument lazy: {@code LOG.debug("Stats: {}", LOG.lazy(() -> summarize(stats)))} calls
+     * {@code summarize} only when the level is enabled, in the thread that logs, and only once however many loggers
+     * format the entry. Unlike a lazy message, {@code LOG.debug(() -> "Stats: " + summarize(stats))}, the template
+     * stays a template: strict mode checks it, {@link JsonLogger} writes it with its arguments, and
+     * {@code MemoryLogger.assertTemplateLogged} finds it, all without a second level check.
+     * <p>
+     * There are no overloads that take a {@code Supplier} for the arguments: a lambda has no type as an
+     * {@code Object}, and such overloads would make calls ambiguous, from Kotlin as well.
+     *
+     * @param supplier computes the value; {@code null} is the value {@code null}
+     * @return the argument to pass to a logging method
+     */
+    public static Lazy lazy(Supplier<?> supplier) {
+        return new Lazy(supplier);
+    }
+
     // RATE LIMITING
 
     /**
