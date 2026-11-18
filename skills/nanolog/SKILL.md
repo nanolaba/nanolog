@@ -45,6 +45,7 @@ LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period,
 LOG.catching(() -> connection.close());              // ERROR with the stack trace, then carry on (1.4+)
 int n = LOG.catching(() -> Integer.parseInt(s), -1); // a default value when it fails (1.4+)
 LOG.info("Payment accepted", LOG.kv("orderId", id)); // a field: "Payment accepted orderId=A-17", JSON "fields" (1.4+)
+try (LOG.Timer t = LOG.time("Load users")) { ... }  // "Load users took 123 ms" when the block ends (1.4+)
 try (LOG.Unit u = LOG.unit("checkout")) {          // one line when it ends: "checkout ok 182 ms warn=1" (1.4+)
     u.put("orderId", id);
 }

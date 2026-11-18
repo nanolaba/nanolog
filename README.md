@@ -52,38 +52,39 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 4.3 [Run log](#run-log)
 	- 4.4 [Using Nanolog from a coding agent](#using-nanolog-from-a-coding-agent)
 - 5 [Wide events: one line per request (canonical log lines)](#wide-events-one-line-per-request-canonical-log-lines)
-- 6 [Breadcrumbs: DEBUG only when something fails](#breadcrumbs-debug-only-when-something-fails)
-- 7 [Choosing a logger](#choosing-a-logger)
-	- 7.1 [ConsoleLogger](#consolelogger)
-	- 7.2 [Levels and options without code](#levels-and-options-without-code)
-	- 7.3 [Changing levels at run time](#changing-levels-at-run-time)
-	- 7.4 [Shorter stack traces](#shorter-stack-traces)
-	- 7.5 [JsonLogger](#jsonlogger)
-	- 7.6 [Slf4jLogger](#slf4jlogger)
-	- 7.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
-- 8 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
-- 9 [Message formatting](#message-formatting)
-	- 9.1 [Fields: named arguments](#fields-named-arguments)
-	- 9.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
-- 10 [Logging payloads safely](#logging-payloads-safely)
-- 11 [Logging LLM calls](#logging-llm-calls)
-	- 11.1 [LangChain4j](#langchain4j)
-	- 11.2 [Spring AI](#spring-ai)
-- 12 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
-- 13 [Rate limiting](#rate-limiting)
-- 14 [Catching exceptions](#catching-exceptions)
-- 15 [Caller detection](#caller-detection)
-- 16 [Writing your own logger](#writing-your-own-logger)
-- 17 [Thread safety and performance](#thread-safety-and-performance)
-- 18 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 19 [Changelog](#changelog)
-	- 19.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 19.2 [1.3](#13)
-	- 19.3 [1.2](#12)
-	- 19.4 [1.1](#11)
-	- 19.5 [1.0](#10)
-- 20 [Contributing](#contributing)
-- 21 [License](#license)
+- 6 [Timing a block](#timing-a-block)
+- 7 [Breadcrumbs: DEBUG only when something fails](#breadcrumbs-debug-only-when-something-fails)
+- 8 [Choosing a logger](#choosing-a-logger)
+	- 8.1 [ConsoleLogger](#consolelogger)
+	- 8.2 [Levels and options without code](#levels-and-options-without-code)
+	- 8.3 [Changing levels at run time](#changing-levels-at-run-time)
+	- 8.4 [Shorter stack traces](#shorter-stack-traces)
+	- 8.5 [JsonLogger](#jsonlogger)
+	- 8.6 [Slf4jLogger](#slf4jlogger)
+	- 8.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+- 9 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
+- 10 [Message formatting](#message-formatting)
+	- 10.1 [Fields: named arguments](#fields-named-arguments)
+	- 10.2 [Checking placeholders in tests](#checking-placeholders-in-tests)
+- 11 [Logging payloads safely](#logging-payloads-safely)
+- 12 [Logging LLM calls](#logging-llm-calls)
+	- 12.1 [LangChain4j](#langchain4j)
+	- 12.2 [Spring AI](#spring-ai)
+- 13 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+- 14 [Rate limiting](#rate-limiting)
+- 15 [Catching exceptions](#catching-exceptions)
+- 16 [Caller detection](#caller-detection)
+- 17 [Writing your own logger](#writing-your-own-logger)
+- 18 [Thread safety and performance](#thread-safety-and-performance)
+- 19 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 20 [Changelog](#changelog)
+	- 20.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 20.2 [1.3](#13)
+	- 20.3 [1.2](#12)
+	- 20.4 [1.1](#11)
+	- 20.5 [1.0](#10)
+- 21 [Contributing](#contributing)
+- 22 [License](#license)
 
 
 ## Installation
@@ -178,6 +179,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.dbg(expression)` | print the expression, its value and the call site, and return the value, see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value) |
 | `LOG.once().warn(...)` | log a statement only the first time it runs, see [Rate limiting](#rate-limiting) |
 | `LOG.atMostEvery(10, TimeUnit.SECONDS).warn(...)` | at most once per period, with the number of skipped calls on the next entry |
+| `try (LOG.Timer t = LOG.time("Load users"))` | `Load users took 123 ms` when the block ends; `LOG.timed("Count", () -> repo.count())` returns the value, see [Timing a block](#timing-a-block) |
 | `try (LOG.Unit u = LOG.unit("checkout"))` | one line when the unit closes: name, outcome, duration, fields and the counts of warnings and errors inside, see [Wide events](#wide-events-one-line-per-request-canonical-log-lines) |
 | `LOG.unit("import", () -> importer.run())` | the same for a lambda: a thrown exception fails the unit and is thrown on |
 | `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
@@ -444,6 +446,24 @@ LOG.unit("import", () -> importFile(file)); // an exception fails the unit and i
 - **Levels.** The line has the source class and call site of the `LOG.unit` call and the context of the thread, and follows the levels: an `ok` unit of a class set to `WARN` writes nothing, a failed one is still written. In agent mode the console shows only the failed units, and the run log has them all.
 - **Breadcrumbs.** With `nanolog.buffer=DEBUG` a failed unit is followed by the `DEBUG` entries logged inside it, and a successful one drops them; see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails).
 - **Cost.** A unit costs one stack walk, to find where it was opened, and one line. Code outside units pays nothing beyond the `ThreadLocal` read of the context.
+
+## Timing a block
+
+"Which step is slow?" usually means two `System.nanoTime()` calls and a subtraction, written again each time. `LOG.time(name)` writes one uniform line that a person or an agent can compare between runs:
+
+```java
+try (LOG.Timer t = LOG.time("Load users")) {
+    users = repository.loadAll();
+}
+// INFO 16.11.2026 10:15:02 [UserService] Load users took 123 ms
+
+int count = LOG.timed("Count users", () -> repository.count()); // returns the value
+LOG.time(LogEntry.LogEntryLevel.DEBUG, "Parse").close();         // another level; INFO by default
+```
+
+- The line has the fields `timer` and `duration_ms`, as a unit of work has its `duration_ms`, so `JsonLogger` writes `"fields":{"timer":"Load users","duration_ms":123}`. Its source class and call site are those of the `LOG.time` call.
+- A level that is off for the class reads no clock and writes nothing, so a timer can stay in a hot path. The clock is the one of `atMostEvery`, which tests replace.
+- `LOG.timed(name, body)` writes `Count users failed after 12 ms` with the stack trace when the body throws, and throws the exception on; `close()` of a try-with-resources block cannot see an exception. For a request or a job with an outcome and fields, use a [unit of work](#wide-events-one-line-per-request-canonical-log-lines).
 
 ## Breadcrumbs: DEBUG only when something fails
 
@@ -1221,6 +1241,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `LOG.time("Load users")` and `LOG.timed("Count users", () -> ...)` time a block: `Load users took 123 ms` with the fields `timer` and `duration_ms`; a level that is off reads no clock, and the lambda form reports and rethrows an exception.
 - `nanolog.console.repeats=collapse` (`setRepeats`), the default in agent mode: consecutive repeats of an entry become one line with a count, `(repeated 41 more times in 20.3 s)`, written when another entry comes, the logger is replaced or the run ends, and every ten seconds while the repeats go on; the run log, `JsonLogger` and `MemoryLogger` keep every entry.
 - `nanolog.diagnostics=once|all|off`: each distinct `[NANOLOG]` diagnostic is printed once per JVM by default, configuration mistakes and the findings of strict mode at each call site included, so a `ConsoleLogger` created again does not repeat them; `all` prints every one, `off` none. A diagnostic about an invalid value says where it was set: a system property, an environment variable or the file. The run summary and the other notices are not affected.
 - `nanolog.console.showSourceLine` (`setShowSourceLine`): the source line of the call under each entry, `    > LOG.warn("Charge of {} failed", amount);`, and under the first three frames of a stack trace outside the JDK, found as `LOG.dbg` finds its source and left out when the source is missing or stale; `JsonLogger` adds `"source"` to `"caller"`. A part of a `ConsoleLogger` line that follows a line break no longer starts with a space.

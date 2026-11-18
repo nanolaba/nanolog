@@ -1669,6 +1669,93 @@ public class LOG {
         Units.interruptThread();
     }
 
+    // TIMERS
+
+    /**
+     * A running timer of {@link LOG#time(String)}; closing it writes the line.
+     */
+    public interface Timer extends AutoCloseable {
+
+        /**
+         * Writes {@code <name> took <duration> ms}, once; closing again changes nothing. Never throws.
+         */
+        @Override
+        void close();
+    }
+
+    /**
+     * Times a block at {@code INFO}: {@code try (LOG.Timer t = LOG.time("Load users")) { ... }} writes
+     * {@code Load users took 123 ms} when it closes, with the fields {@code timer} and {@code duration_ms}, as a unit of
+     * {@link #unit(String)} writes its duration. See {@link #time(LogEntry.LogEntryLevel, String)}.
+     *
+     * @param name what is timed
+     * @return the timer to close
+     */
+    public static Timer time(String name) {
+        return time(INFO, name);
+    }
+
+    /**
+     * Times a block at a level: the line has the source class and call site of this call, and a level that is off for
+     * the class reads no clock and writes nothing, so a timer left in a hot path costs what a disabled call costs. The
+     * clock is that of {@link #atMostEvery}. An exception that leaves a try-with-resources block is not seen; use
+     * {@link #timed(String, Supplier)} to have it reported.
+     *
+     * @param level the level of the line; {@code null} writes nothing
+     * @param name  what is timed
+     * @return the timer to close
+     */
+    public static Timer time(LogEntry.LogEntryLevel level, String name) {
+        ILogger current = logger;
+        if (level == null || !mayBeEnabled(current, level)) {
+            return Timers.NOTHING;
+        }
+        CallerDetection.Caller caller = findCaller();
+        if (!isEnabled(current, level, caller.sourceClass)) {
+            return Timers.NOTHING;
+        }
+        return new Timers.Timing(level, String.valueOf(name), caller, nanoClock.getAsLong());
+    }
+
+    /**
+     * Times a body at {@code INFO}: {@code LOG.timed("Warm up", () -> cache.load())}. An exception the body throws is
+     * written as {@code <name> failed after <duration> ms} with its stack trace and thrown on.
+     *
+     * @param name what is timed
+     * @param body the work to time
+     */
+    public static void timed(String name, Runnable body) {
+        Timers.run(time(INFO, name), () -> {
+            body.run();
+            return null;
+        });
+    }
+
+    /**
+     * Times a body that returns a value at {@code INFO}: {@code int n = LOG.timed("Count users", () -> repo.count())}.
+     * An exception the body throws is written as {@code <name> failed after <duration> ms} with its stack trace and
+     * thrown on.
+     *
+     * @param name what is timed
+     * @param body the work to time
+     * @param <T>  the type of the value
+     * @return the value of the body
+     */
+    public static <T> T timed(String name, Supplier<T> body) {
+        return Timers.run(time(INFO, name), body);
+    }
+
+    /**
+     * Writes the line of a timer, if its level is still enabled for its class.
+     */
+    static void writeTimer(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable error, String template,
+                           Object[] args) {
+        ILogger current = logger;
+        if (isEnabled(current, level, sourceClass)) {
+            write(current, LogEntry.create(level, sourceClass, frame, error, template, args, 0, Timers.Timing.class.getName()));
+        }
+    }
+
     // RATE LIMITING
 
     /**
