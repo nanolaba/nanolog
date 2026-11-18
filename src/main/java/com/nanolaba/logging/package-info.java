@@ -1,8 +1,9 @@
 /**
  * Nanolog: a tiny logging facade with static methods and automatic caller detection, so no class needs a logger
- * field. It runs on its own or on top of SLF4J, and has no runtime dependencies. When an AI coding agent runs the
- * program, agent mode keeps the console short, writes the full log to a file ({@code nanolog.agent}) and ends the run
- * with a summary that survives a truncated output ({@code nanolog.summary}).
+ * field, and with an agent mode that cuts the tokens an AI coding agent spends reading the console. It runs on its own
+ * or on top of SLF4J, and has no runtime dependencies. When an AI coding agent runs the program, agent mode keeps the
+ * console short, writes the full log to a file ({@code nanolog.agent}) and ends the run with a summary that survives a
+ * truncated output ({@code nanolog.summary}).
  * <pre>{@code
  * LOG.info("Application started");                    // the source class is detected from the stack
  * LOG.debug("Loaded {} items in {} ms", count, millis);

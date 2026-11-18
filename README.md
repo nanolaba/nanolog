@@ -24,7 +24,7 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 ## Why Nanolog
 
 - **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
-- **Detects coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: the output of a failing test run shrank from 565 lines to 46, the run summary included; see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
+- **Fewer tokens for coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: a failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
 - **A summary that survives truncation.** Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 - **Wide events, one line per request.** `LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see [Wide events](#wide-events-one-line-per-request-canonical-log-lines).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
@@ -326,7 +326,7 @@ When a coding agent (Claude Code, Codex, Copilot and others) writes and debugs t
 one short loop repeats many times: edit, run, read the output, edit again.
 **Nanolog** keeps every step of that loop cheap.
 
-**Nanolog detects coding agents.** When an agent runs the program, the console keeps what the agent needs: `WARN`, `ERROR` and `LOG.dbg`, one line per entry, without dates and with short stack traces, and every entry still goes to `target/nanolog/latest.log`. A test that logs 200 orders and then fails printed 565 lines and 39,320 characters through `mvn -q test`; in agent mode it printed 46 lines and 4,339 characters, the failure, its cause and the run summary included. See [Agent mode](#agent-mode-nanolog-detects-coding-agents).
+**Nanolog detects coding agents.** When an agent runs the program, the console keeps what the agent needs: `WARN`, `ERROR` and `LOG.dbg`, one line per entry, without dates and with short stack traces, and every entry still goes to `target/nanolog/latest.log`. A test that logs 200 orders and then fails printed 558 lines, 13,577 tokens, through `mvn -q test`; in agent mode it printed 43 lines, 1,022 tokens (o200k_base), the failure, its cause and the run summary included. See [Agent mode](#agent-mode-nanolog-detects-coding-agents) and [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
 
 - **One line to add logging.** No logger field and no `getLogger(Foo.class)` that has to match the class name: one import and `LOG.info(...)`. The diff is a single line, and nothing goes stale when the code is moved or the class is renamed.
 - **Output from the first run.** `ConsoleLogger` works without configuration and prints every level, `TRACE` included; in agent mode the console keeps `WARN` and above, and the run log every level. A `LOG.debug(...)` added while investigating a problem is visible in the very next run, with no backend to set up first.
@@ -348,17 +348,17 @@ one short loop repeats many times: edit, run, read the output, edit again.
 
 Coding agents read program output through a narrow window: a long output is cut down to its head and tail or summarised, and agents rarely ask for the rest. When the environment names a coding agent, **Nanolog** keeps its own console short and writes the full log to a file. Since 1.4.
 
-A test that logs 200 orders and fails on the last one prints this under Claude Code:
+A test that logs 200 orders and fails on order 150 prints this under Claude Code:
 
 ```
 [NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /home/me/shop/target/nanolog/latest.log, WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
 WARN [OrderService] Order 150: stock of SKU A-7 below the threshold
-ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150\n	at com.acme.shop.OrderService.reserve(OrderService.java:28)\n	at com.acme.shop.OrderService.process(OrderService.java:18)\n	... 2 frames excluded\n	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)\n	... 71 frames excluded\nCaused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150\n	at com.acme.shop.OrderService.update(OrderService.java:34)\n	at com.acme.shop.OrderService.reserve(OrderService.java:26)\n	... 75 more
+ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150\n	at com.acme.shop.OrderService.reserve(OrderService.java:32)\n	at com.acme.shop.OrderService.process(OrderService.java:20)\n	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:16)\n	... 71 frames excluded\nCaused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150\n	at com.acme.shop.OrderService.update(OrderService.java:38)\n	at com.acme.shop.OrderService.reserve(OrderService.java:30)\n	... 73 more
 ```
 
 The run then ends with the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 
-Without agent mode the same run printed 534 lines of **Nanolog** output: three lines per order with dates, then the stack trace with every frame of JUnit, Surefire and reflection. The whole `mvn -q test` output went from 565 lines and 39,320 characters to 46 lines and 4,339 characters, the run summary included (JDK 8, Maven 3.9, Surefire 3.2.5, on Windows, with long absolute paths), and `latest.log` still holds all 454 entries.
+Without agent mode the same run printed 530 lines of **Nanolog** output: three lines per order with dates, then the stack trace with every frame of JUnit, Surefire and reflection. The whole `mvn -q test` output went from 558 lines, 39,355 characters and 13,577 tokens to 43 lines, 3,771 characters and 1,022 tokens, the run summary included (JDK 8, Maven 3.9, Surefire 3.2.5, on Windows, with long absolute paths), and `latest.log` still holds all 451 entries. The project of this example is in [`src/tokens`](src/tokens); [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents) has three more runs.
 
 - **Detection.** Agent mode is on when one of these variables is set to anything but `0`, `false`, `no` or `off`: `AI_AGENT` and `AGENT`, the convention proposed in [agents.md #136](https://github.com/agentsmd/agents.md/issues/136), then `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT` and `CLINE_ACTIVE`. Claude Code, for one, sets `AI_AGENT` and `CLAUDECODE`. Environment variables are lost across `sudo`, `docker run` and `ssh`, so detection is a hint: `nanolog.agent=on` or `off` (`NANOLOG_AGENT`) decides instead.
 - **The console.** `WARN` and above, unless `nanolog.level` or a package rule says otherwise. One line per entry, with line breaks written as `\n` (`nanolog.console.multiline=escape`), no date and no colours, and consecutive repeats collapsed into one line with a count (`nanolog.console.repeats=collapse`), unless these settings are given. Stack traces collapse runs of frames of the JDK, Kotlin, test runners, build tools and common frameworks and servers (Spring, Tomcat, Jetty, Netty, Hibernate), print at most 20 frames per throwable and keep every cause; `nanolog.exception.exclude` and `nanolog.exception.maxFrames` replace these defaults.
@@ -373,22 +373,21 @@ Without agent mode the same run printed 534 lines of **Nanolog** output: three l
 A coding agent often sees only the start and the end of a long output. Claude Code shows a failing command as an excerpt of its head and tail, about 10,000 characters ([tools reference](https://code.claude.com/docs/en/tools-reference)); Cursor cuts the output of a command at 20,000 characters ([forum](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); agents add `| tail -30` themselves and rarely ask for the rest ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). The error that matters is often in the part that was dropped. **Nanolog** prints a summary of the run last, where it survives. Since 1.4.
 
 ```
-[NANOLOG] Run summary: 454 entries: 1 ERROR, 1 WARN, 151 INFO, 301 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
-[NANOLOG]   ERROR x1 at OrderServiceTest.java:17: The batch failed
+[NANOLOG] Run summary: 451 entries: 1 ERROR, 1 WARN, 150 INFO, 299 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
+[NANOLOG]   ERROR x1 at OrderServiceTest.java:19: The batch failed
 [NANOLOG]       java.lang.IllegalStateException: Cannot reserve stock for order 150
-[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:28)
-[NANOLOG]           at com.acme.shop.OrderService.process(OrderService.java:18)
-[NANOLOG]           ... 2 frames excluded
-[NANOLOG]           at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:32)
+[NANOLOG]           at com.acme.shop.OrderService.process(OrderService.java:20)
+[NANOLOG]           at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:16)
 [NANOLOG]           ... 71 frames excluded
 [NANOLOG]       Caused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150
-[NANOLOG]           at com.acme.shop.OrderService.update(OrderService.java:34)
-[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:26)
-[NANOLOG]           ... 75 more
-[NANOLOG]   WARN x1 at OrderService.java:24: Order {}: stock of SKU A-7 below the threshold
+[NANOLOG]           at com.acme.shop.OrderService.update(OrderService.java:38)
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:30)
+[NANOLOG]           ... 73 more
+[NANOLOG]   WARN x1 at OrderService.java:27: Order {}: stock of SKU A-7 below the threshold
 ```
 
-In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects-coding-agents) example these 13 lines end 14 lines before the end of the output, after Surefire has printed the failure, so `tail -30` keeps them.
+In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects-coding-agents) example these 12 lines end 14 lines before the end of the output, after Surefire has printed the failure, so `tail -30` keeps them.
 
 - **What.** The number of entries by level; each kind of warning and error, by level, call site and message template, with how often it was logged, errors first; the stack trace of the first error with an exception, without the frames of agent mode and with every cause; the `LOG.dbg` calls that ran; the path of the [run log](#run-log).
 - **Bounded.** At most 10 kinds and 15 lines of the trace are shown; the rest is counted (`... and 7 more kinds of WARN and ERROR`). Counting keeps no entry, only a counter per level and per kind, for at most 1000 kinds, and costs nothing while the summary is off.
@@ -426,6 +425,28 @@ Two files give an agent the rules of the library in a few hundred lines, without
 Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the project are enough:
 
 ```markdown
+## Fewer tokens: logs for AI coding agents
+
+A coding agent pays for every token of output it reads, and a test run competes with the code for its context window. Agent mode keeps that cost low. The same runs of a small project printed this much through `mvn -q test`, first without agent mode, then as Claude Code runs them (`AI_AGENT=claude-code`):
+
+| Run | Lines | Tokens, o200k_base |
+|---|---|---|
+| A test logs 200 orders and fails; the error has a cause | 558 → 43 | 13,577 → 1,022 (13.3×) |
+| A green test of a job that logs `INFO` and `DEBUG` for each of 300 records | 602 → 2 | 16,550 → 142 (117×) |
+| A green test whose retry loop logs the same `WARN` 300 times | 301 → 5 | 9,925 → 223 (44.5×) |
+| A test fails with an exception thrown inside a stream pipeline | 120 → 45 | 2,427 → 1,016 (2.4×) |
+
+Measured on 2026-11-18 on Windows 10, JDK 8, Maven 3.9 and Surefire 3.2.5, with the default settings. The counts include everything Maven printed, Surefire's report of a failure too, and agent mode leaves that report as it is; that is why the last run saves the least. o200k_base is the tokenizer of OpenAI's GPT-4o and later models; Claude's tokenizer has not been measured yet. The project, the script and the full table with characters are in [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` repeats the runs, and counts Claude tokens as well when an Anthropic API key is set.
+
+Where the tokens go:
+
+- **The console keeps `WARN` and above** in agent mode, and the run log every level: a green run prints one line about agent mode and the run summary. See [Agent mode](#agent-mode-nanolog-detects-coding-agents).
+- **One line per entry,** without the date and colours: line breaks inside an entry are written as `\n`.
+- **Repeats collapse.** A line repeated by a loop or a retry is printed once, then as `(repeated 299 more times in 53 ms)`.
+- **Short stack traces.** Frames of the JDK, test runners, build tools and frameworks collapse, at most 20 frames per throwable are printed, and every cause is kept. See [Shorter stack traces](#shorter-stack-traces).
+- **A summary instead of another run.** The run ends with the counts and the first error, and `latest.log` holds the rest, so the agent reads a file instead of running again with another level. See [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation) and [Run log](#run-log).
+- **Fewer lines from the code itself.** `LOG.once()` and `LOG.atMostEvery(...)` thin out loops and polls, and `LOG.content(...)` writes a prompt or a response as its size and hash. See [Rate limiting](#rate-limiting) and [Logging payloads safely](#logging-payloads-safely).
+
 ## Logging
 
 This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
@@ -1513,6 +1534,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - Run log for agents: with `nanolog.run=on` every entry of the run also goes to `target/nanolog/latest.log` (Gradle: `build/nanolog`, otherwise `.nanolog`), warnings and errors to `latest.errors.log` one line each, and the absolute path is printed when `LOG` initialises. Each run writes `runs/<time>-<pid>.log`, `latest.log` is a hard link to it, the last 10 runs are kept. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 - Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, one line per entry, without dates or colours and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; a level or a display setting that is set wins.
 - Run summary, `nanolog.summary=on|off|errors`, on by default in agent mode: the run ends with the counts by level, each kind of warning and error with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the run log, printed last so that it survives when an agent keeps only the tail of the output. In test runs `SummaryListener`, which the JUnit Platform loads by itself, prints it, and the list of `LOG.dbg` calls, when the tests have run: Surefire drops what a shutdown hook of its forked JVM prints, which hid that list in Maven test runs.
+- Documentation: what agent mode saves, measured in tokens. Four runs of a small project in `src/tokens`, with the script that repeats them; a failing test run printed 1,022 tokens instead of 13,577 (o200k_base). See [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.

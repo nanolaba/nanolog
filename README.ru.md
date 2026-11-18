@@ -24,7 +24,7 @@ Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](http
 ## Зачем нужен Nanolog
 
 - **Отладочная печать, которая называет значения.** `LOG.dbg(order.total())` печатает `order.total() = 129.90 (BigDecimal)` с файлом и строкой вызова и возвращает значение, как `dbg!` в Rust и icecream в Python; объекты без `toString()` показываются поле за полем, а не как `Order@2f92e0f4`; см. [Отладочная печать](#отладочная-печать-logdbg-печатает-выражение-и-его-значение).
-- **Распознаёт кодовых агентов.** Когда программу запускает Claude Code, Gemini CLI, Codex, Cursor CLI или другой агент, задающий `AI_AGENT`, консоль оставляет `WARN`, `ERROR` и `LOG.dbg`, а полный лог уходит в `target/nanolog/latest.log`: вывод падающего тестового запуска сократился с 565 строк до 46, вместе со сводкой запуска; см. [Агентский режим](#агентский-режим-nanolog-распознаёт-кодовых-агентов).
+- **Меньше токенов для кодовых агентов.** Когда программу запускает Claude Code, Gemini CLI, Codex, Cursor CLI или другой агент, задающий `AI_AGENT`, консоль оставляет `WARN`, `ERROR` и `LOG.dbg`, а полный лог уходит в `target/nanolog/latest.log`: упавший тестовый запуск напечатал 1 022 токена вместо 13 577, вместе со сводкой запуска, а зелёный — 142 вместо 16 550 (o200k_base); см. [Меньше токенов](#меньше-токенов-логи-для-ии-агентов).
 - **Сводка, которая переживает обрезку.** Агенты часто оставляют только начало и конец длинного вывода; в агентском режиме запуск заканчивается числом записей по уровням, каждым видом предупреждений и ошибок с местом вызова и трассировкой первой ошибки, напечатанными последними; см. [Сводка запуска](#сводка-запуска-часть-вывода-которая-переживает-обрезку).
 - **Wide events: одна строка на запрос.** `LOG.unit("checkout")` пишет одну каноническую строку лога на запрос или задание, когда оно заканчивается: исход, длительность, ваши поля и число предупреждений и ошибок внутри, `checkout ok 182 ms orderId=A-17 warn=1`; у неудачных единиц есть стабильный ключ ошибки; см. [Wide events](#wide-events-одна-строка-на-запрос-canonical-log-lines).
 - **Нет полей логгера.** `LOG.info("...")` работает из любого класса, вызывающий определяется по стеку.
@@ -326,7 +326,7 @@ src/main/java/com/acme/CartService.java:31: LOG.dbg();
 много раз повторяется один короткий цикл: правка, запуск, чтение вывода, снова правка.
 **Nanolog** делает каждый шаг этого цикла дешёвым.
 
-**Nanolog распознаёт кодовых агентов.** Когда программу запускает агент, консоль оставляет то, что нужно агенту: `WARN`, `ERROR` и `LOG.dbg`, по строке на запись, без дат и с короткими трассировками стека, а каждая запись всё равно попадает в `target/nanolog/latest.log`. Тест, который логирует 200 заказов и затем падает, напечатал через `mvn -q test` 565 строк и 39 320 символов; в агентском режиме — 46 строк и 4 339 символов, включая саму ошибку, её причину и сводку запуска. См. [Агентский режим](#агентский-режим-nanolog-распознаёт-кодовых-агентов).
+**Nanolog распознаёт кодовых агентов.** Когда программу запускает агент, консоль оставляет то, что нужно агенту: `WARN`, `ERROR` и `LOG.dbg`, по строке на запись, без дат и с короткими трассировками стека, а каждая запись всё равно попадает в `target/nanolog/latest.log`. Тест, который логирует 200 заказов и затем падает, напечатал через `mvn -q test` 558 строк, 13 577 токенов; в агентском режиме — 43 строки, 1 022 токена (o200k_base), включая саму ошибку, её причину и сводку запуска. См. [Агентский режим](#агентский-режим-nanolog-распознаёт-кодовых-агентов) и [Меньше токенов](#меньше-токенов-логи-для-ии-агентов).
 
 - **Логирование добавляется одной строкой.** Нет ни поля логгера, ни `getLogger(Foo.class)`, который обязан совпадать с именем класса: один импорт и `LOG.info(...)`. Диф состоит из одной строки, и ничего не устаревает при переносе кода и переименовании класса.
 - **Вывод с первого запуска.** `ConsoleLogger` работает без настройки и печатает все уровни, включая `TRACE`; в агентском режиме консоль оставляет `WARN` и выше, а журнал запуска — все уровни. `LOG.debug(...)`, добавленный при разборе проблемы, виден уже в следующем запуске, и настраивать бэкенд для этого не нужно.
@@ -348,17 +348,17 @@ src/main/java/com/acme/CartService.java:31: LOG.dbg();
 
 Кодовые агенты читают вывод программы через узкое окно: длинный вывод урезается до начала и конца или пересказывается, а остальное агенты запрашивают редко. Когда окружение называет кодового агента, **Nanolog** делает свою консоль короткой, а полный лог пишет в файл. Начиная с 1.4.
 
-Тест, который логирует 200 заказов и падает на последнем, печатает под Claude Code вот что:
+Тест, который логирует 200 заказов и падает на 150-м, печатает под Claude Code вот что:
 
 ```
 [NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /home/me/shop/target/nanolog/latest.log, WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
 WARN [OrderService] Order 150: stock of SKU A-7 below the threshold
-ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150\n	at com.acme.shop.OrderService.reserve(OrderService.java:28)\n	at com.acme.shop.OrderService.process(OrderService.java:18)\n	... 2 frames excluded\n	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)\n	... 71 frames excluded\nCaused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150\n	at com.acme.shop.OrderService.update(OrderService.java:34)\n	at com.acme.shop.OrderService.reserve(OrderService.java:26)\n	... 75 more
+ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150\n	at com.acme.shop.OrderService.reserve(OrderService.java:32)\n	at com.acme.shop.OrderService.process(OrderService.java:20)\n	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:16)\n	... 71 frames excluded\nCaused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150\n	at com.acme.shop.OrderService.update(OrderService.java:38)\n	at com.acme.shop.OrderService.reserve(OrderService.java:30)\n	... 73 more
 ```
 
 Затем запуск заканчивается [сводкой](#сводка-запуска-часть-вывода-которая-переживает-обрезку).
 
-Без агентского режима тот же запуск напечатал 534 строки вывода **Nanolog**: по три строки на заказ с датами, затем трассировку стека со всеми кадрами JUnit, Surefire и рефлексии. Весь вывод `mvn -q test` сократился с 565 строк и 39 320 символов до 46 строк и 4 339 символов, вместе со сводкой запуска (JDK 8, Maven 3.9, Surefire 3.2.5, Windows, длинные абсолютные пути), а в `latest.log` по-прежнему лежат все 454 записи.
+Без агентского режима тот же запуск напечатал 530 строк вывода **Nanolog**: по три строки на заказ с датами, затем трассировку стека со всеми кадрами JUnit, Surefire и рефлексии. Весь вывод `mvn -q test` сократился с 558 строк, 39 355 символов и 13 577 токенов до 43 строк, 3 771 символа и 1 022 токенов, вместе со сводкой запуска (JDK 8, Maven 3.9, Surefire 3.2.5, Windows, длинные абсолютные пути), а в `latest.log` по-прежнему лежат все 451 запись. Проект из этого примера лежит в [`src/tokens`](src/tokens); ещё три запуска — в разделе [Меньше токенов](#меньше-токенов-логи-для-ии-агентов).
 
 - **Распознавание.** Агентский режим включается, когда одна из этих переменных задана и не равна `0`, `false`, `no` или `off`: `AI_AGENT` и `AGENT`, соглашение, предложенное в [agents.md #136](https://github.com/agentsmd/agents.md/issues/136), затем `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT` и `CLINE_ACTIVE`. Claude Code, например, задаёт `AI_AGENT` и `CLAUDECODE`. Переменные окружения теряются при `sudo`, `docker run` и `ssh`, поэтому распознавание — лишь подсказка: `nanolog.agent=on` или `off` (`NANOLOG_AGENT`) решает вместо него.
 - **Консоль.** `WARN` и выше, если `nanolog.level` или правило пакета не говорят иного. Одна строка на запись, переводы строк пишутся как `\n` (`nanolog.console.multiline=escape`), без даты и без цветов, а подряд идущие повторы сворачиваются в одну строку со счётчиком (`nanolog.console.repeats=collapse`), если эти настройки не заданы. Трассировки стека сворачивают подряд идущие кадры JDK, Kotlin, средств запуска тестов, систем сборки и распространённых фреймворков и серверов (Spring, Tomcat, Jetty, Netty, Hibernate), печатают не больше 20 кадров на исключение и сохраняют каждую причину; `nanolog.exception.exclude` и `nanolog.exception.maxFrames` заменяют эти значения.
@@ -373,22 +373,21 @@ ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Canno
 Кодовый агент часто видит только начало и конец длинного вывода. Claude Code показывает упавшую команду фрагментом из её начала и конца, около 10 000 символов ([справочник инструментов](https://code.claude.com/docs/en/tools-reference)); Cursor обрезает вывод команды на 20 000 символах ([форум](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); агенты сами дописывают `| tail -30` и редко просят остальное ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). Нужная ошибка часто оказывается в отброшенной части. **Nanolog** печатает сводку запуска последней, там, где она сохраняется. Начиная с 1.4.
 
 ```
-[NANOLOG] Run summary: 454 entries: 1 ERROR, 1 WARN, 151 INFO, 301 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
-[NANOLOG]   ERROR x1 at OrderServiceTest.java:17: The batch failed
+[NANOLOG] Run summary: 451 entries: 1 ERROR, 1 WARN, 150 INFO, 299 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
+[NANOLOG]   ERROR x1 at OrderServiceTest.java:19: The batch failed
 [NANOLOG]       java.lang.IllegalStateException: Cannot reserve stock for order 150
-[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:28)
-[NANOLOG]           at com.acme.shop.OrderService.process(OrderService.java:18)
-[NANOLOG]           ... 2 frames excluded
-[NANOLOG]           at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:15)
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:32)
+[NANOLOG]           at com.acme.shop.OrderService.process(OrderService.java:20)
+[NANOLOG]           at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:16)
 [NANOLOG]           ... 71 frames excluded
 [NANOLOG]       Caused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150
-[NANOLOG]           at com.acme.shop.OrderService.update(OrderService.java:34)
-[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:26)
-[NANOLOG]           ... 75 more
-[NANOLOG]   WARN x1 at OrderService.java:24: Order {}: stock of SKU A-7 below the threshold
+[NANOLOG]           at com.acme.shop.OrderService.update(OrderService.java:38)
+[NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:30)
+[NANOLOG]           ... 73 more
+[NANOLOG]   WARN x1 at OrderService.java:27: Order {}: stock of SKU A-7 below the threshold
 ```
 
-В упавшем запуске `mvn -q test` из примера [агентского режима](#агентский-режим-nanolog-распознаёт-кодовых-агентов) эти 13 строк заканчиваются за 14 строк до конца вывода, после того как Surefire напечатал ошибку, поэтому `tail -30` их сохраняет.
+В упавшем запуске `mvn -q test` из примера [агентского режима](#агентский-режим-nanolog-распознаёт-кодовых-агентов) эти 12 строк заканчиваются за 14 строк до конца вывода, после того как Surefire напечатал ошибку, поэтому `tail -30` их сохраняет.
 
 - **Что.** Число записей по уровням; каждый вид предупреждений и ошибок — по уровню, месту вызова и шаблону сообщения — с числом повторений, сначала ошибки; трассировка стека первой ошибки с исключением, без кадров агентского режима и со всеми причинами; вызовы `LOG.dbg`, которые выполнились; путь к [журналу запуска](#журнал-запуска).
 - **Ограничена.** Показывается не больше 10 видов и 15 строк трассировки; остальное подсчитывается (`... and 7 more kinds of WARN and ERROR`). Подсчёт не хранит записей, только счётчик на уровень и на вид, не больше 1000 видов, и ничего не стоит, пока сводка выключена.
@@ -426,6 +425,28 @@ ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Canno
 Можно ничего не устанавливать: достаточно нескольких строк в собственном `AGENTS.md` (или `CLAUDE.md`) проекта:
 
 ```markdown
+## Меньше токенов: логи для ИИ-агентов
+
+Кодовый агент платит за каждый токен вывода, который читает, а тестовый запуск отнимает место в окне контекста у кода. Агентский режим держит эту цену низкой. Одни и те же запуски небольшого проекта напечатали через `mvn -q test` вот сколько: сначала без агентского режима, затем так, как их запускает Claude Code (`AI_AGENT=claude-code`):
+
+| Запуск | Строки | Токены, o200k_base |
+|---|---|---|
+| Тест логирует 200 заказов и падает; у ошибки есть причина | 558 → 43 | 13 577 → 1 022 (13,3×) |
+| Зелёный тест задачи, которая логирует `INFO` и `DEBUG` на каждую из 300 записей | 602 → 2 | 16 550 → 142 (117×) |
+| Зелёный тест, цикл повторов которого 300 раз логирует один и тот же `WARN` | 301 → 5 | 9 925 → 223 (44,5×) |
+| Тест падает с исключением изнутри цепочки стримов | 120 → 45 | 2 427 → 1 016 (2,4×) |
+
+Замерено 18.11.2026 на Windows 10, JDK 8, Maven 3.9 и Surefire 3.2.5, с настройками по умолчанию. В счёт входит всё, что напечатал Maven, в том числе отчёт Surefire о падении, а его агентский режим оставляет как есть; поэтому последний запуск экономит меньше всех. o200k_base — токенизатор OpenAI для GPT-4o и более новых моделей; токенизатор Claude пока не замерялся. Проект, скрипт и полная таблица с символами лежат в [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` повторяет запуски и, если задан ключ Anthropic API, считает и токены Claude.
+
+Куда уходят токены:
+
+- **Консоль оставляет `WARN` и выше** в агентском режиме, а журнал запуска — все уровни: зелёный запуск печатает строку об агентском режиме и сводку. См. [Агентский режим](#агентский-режим-nanolog-распознаёт-кодовых-агентов).
+- **Одна строка на запись,** без даты и цветов: переводы строк внутри записи пишутся как `\n`.
+- **Повторы схлопываются.** Строка, которую повторяет цикл или ретрай, печатается один раз, затем как `(repeated 299 more times in 53 ms)`.
+- **Короткие трассировки стека.** Кадры JDK, тест-раннеров, инструментов сборки и фреймворков схлопываются, печатается не больше 20 кадров на исключение, и все причины сохраняются. См. [Короткие трассировки стека](#короткие-трассировки-стека).
+- **Сводка вместо повторного запуска.** Запуск заканчивается счётчиками и первой ошибкой, а остальное лежит в `latest.log`, поэтому агент читает файл, а не запускает всё снова с другим уровнем. См. [Сводка запуска](#сводка-запуска-часть-вывода-которая-переживает-обрезку) и [Журнал запуска](#журнал-запуска).
+- **Меньше строк от самого кода.** `LOG.once()` и `LOG.atMostEvery(...)` прореживают циклы и опросы, а `LOG.content(...)` пишет промпт или ответ как его размер и хеш. См. [Ограничение частоты](#ограничение-частоты) и [Безопасное логирование содержимого](#безопасное-логирование-содержимого).
+
 ## Logging
 
 This project logs with Nanolog (com.nanolaba:nanolog). Before adding or changing log calls,
@@ -1513,6 +1534,7 @@ tinylog — ближайший аналог. Одни и те же вызовы,
 - Журнал запуска для агентов: с `nanolog.run=on` каждая запись запуска попадает ещё и в `target/nanolog/latest.log` (Gradle: `build/nanolog`, иначе `.nanolog`), предупреждения и ошибки — в `latest.errors.log`, по строке на запись, а абсолютный путь печатается при инициализации `LOG`. Каждый запуск пишет `runs/<время>-<pid>.log`, `latest.log` — жёсткая ссылка на него, хранятся последние 10 запусков. `nanolog.run.dir`, `nanolog.run.format=json`, `nanolog.run.keep`, `nanolog.run.maxSize`.
 - Агентский режим: когда окружение называет кодового агента (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), консоль логгера по умолчанию показывает `WARN` и выше, по строке на запись, без дат и цветов и с короткими трассировками стека, `LOG.dbg` печатает при любых уровнях, журнал запуска включён, а одна строка `[NANOLOG]` сообщает об этом и называет файл. Решает `nanolog.agent=auto|on|off`; заданные уровень или настройка вывода побеждают.
 - Сводка запуска, `nanolog.summary=on|off|errors`, по умолчанию включена в агентском режиме: запуск заканчивается числом записей по уровням, каждым видом предупреждений и ошибок с местом вызова и числом повторений, трассировкой первой ошибки, вызовами `LOG.dbg`, которые выполнились, и путём к журналу запуска; она печатается последней, чтобы сохраниться, когда агент оставляет только хвост вывода. В тестовых запусках её, как и список вызовов `LOG.dbg`, печатает `SummaryListener`, который платформа JUnit загружает сама, когда тесты выполнены: Surefire отбрасывает то, что печатает shutdown hook его отдельной JVM, и из-за этого список терялся в тестовых запусках Maven.
+- Документация: что экономит агентский режим, в токенах. Четыре запуска небольшого проекта в `src/tokens` и скрипт, который их повторяет; упавший тестовый запуск напечатал 1 022 токена вместо 13 577 (o200k_base). См. [Меньше токенов](#меньше-токенов-логи-для-ии-агентов).
 - `NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.
 - `nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.
 - Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.

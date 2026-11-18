@@ -39,6 +39,14 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 - Benchmarks use only the 1.2 API (`LOG.init`, the `ConsoleLogger` setters, `-Dnanolog.level.<name>` set before construction), so the same classes run against the sources of an older commit compiled on their own: that is how the "before #16" numbers were taken. Keep it that way.
 - Results, with the JDK, CPU and OS they were measured on, are in `src/jmh/RESULTS.md`. Re-measure and update it, and the numbers quoted in README *Thread safety and performance*, after a change to caller detection or the level check.
 
+### Token measurements
+
+`src/tokens` measures what agent mode saves a coding agent. `shop` is a small Maven project whose four tests log the way real code does, and `measure.py` runs each test through `mvn -q test` with and without agent mode and counts the lines, characters and tokens of the whole output: o200k_base through `tiktoken`, and Claude's tokenizer through the token counting endpoint of the Anthropic API when a credential is set. As with the JMH benchmarks, the build, CI, pitest and the published jar never see it.
+
+- Run: `mvn -q compile jar:jar`, then `python src/tokens/measure.py --jar target/nanolog-<version>.jar` (`pip install tiktoken`, and `anthropic` for the Claude column). It unsets the variables that turn agent mode on for the run without it, so it works from inside an agent too.
+- The shop project takes the jar as `-Dtokens.jar`: a `nanolog.*` system property of its own would print `[NANOLOG] Unknown setting` into every output and be counted.
+- Results, with the environment, are in `src/tokens/RESULTS.md`. Re-measure after a change to agent mode, the console format, stack traces, repeats or the run summary, and update that file together with the numbers quoted in README *Why Nanolog*, *Agent-driven development*, *Agent mode*, *Run summary* and *Fewer tokens*, and in `agent-guide.src.md`. Quote only measured numbers, with the tokenizer named.
+
 ### README generation
 
 `README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, and `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`. Never edit the generated files.
