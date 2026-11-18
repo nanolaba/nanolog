@@ -218,13 +218,13 @@ public class LOG {
     }
 
     /**
-     * Writes a line captured from {@code System.out} or {@code System.err}, if its level is enabled; the line is the
-     * message as it is, with no placeholders.
+     * Writes a line from outside Nanolog, captured from {@code System.out} or {@code System.err} or a record of
+     * {@code java.util.logging}, if its level is enabled; the line is the message as it is, with no placeholders.
      */
-    static void writeLine(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, String line) {
+    static void writeLine(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable throwable, String line) {
         ILogger current = logger;
         if (isEnabled(current, level, sourceClass)) {
-            write(current, LogEntry.create(level, sourceClass, frame, null, line, NO_ARGS, 0));
+            write(current, LogEntry.create(level, sourceClass, frame, throwable, line, NO_ARGS, 0));
         }
     }
 

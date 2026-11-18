@@ -3,6 +3,8 @@
 # nanolog.logger creates a logger through its public no-argument constructor, and LoggerIntrospection looks up
 # isEnabled by name.
 -keep class com.nanolaba.logging.*Logger { public <init>(); }
+# logging.properties names NanologHandler in handlers=
+-keep class com.nanolaba.logging.NanologHandler { public <init>(); }
 -keepclassmembers class * implements com.nanolaba.logging.ILogger {
     public boolean isEnabled(com.nanolaba.logging.LogEntry$LogEntryLevel, java.lang.Class);
 }

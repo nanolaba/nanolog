@@ -172,7 +172,7 @@ final class SystemStreams {
                 LOGGING.set(Boolean.TRUE);
                 try {
                     CallerDetection.Caller printer = printer();
-                    LOG.writeLine(level, printer.sourceClass, printer.frame, new String(bytes, 0, length, StandardCharsets.UTF_8));
+                    LOG.writeLine(level, printer.sourceClass, printer.frame, null, new String(bytes, 0, length, StandardCharsets.UTF_8));
                 } catch (Throwable t) {
                     // logging does not throw; should it, the line is lost, not the stream
                 }

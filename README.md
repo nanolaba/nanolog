@@ -105,7 +105,8 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 8.5 [JsonLogger](#jsonlogger)
 	- 8.6 [FileLogger](#filelogger)
 	- 8.7 [Slf4jLogger](#slf4jlogger)
-	- 8.8 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 8.8 [JulLogger](#jullogger)
+	- 8.9 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 9 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
 - 10 [Message formatting](#message-formatting)
 	- 10.1 [Fields: named arguments](#fields-named-arguments)
@@ -121,24 +122,25 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 16 [Tags](#tags)
 - 17 [Catching exceptions](#catching-exceptions)
 - 18 [System.out and System.err](#systemout-and-systemerr)
-- 19 [Caller detection](#caller-detection)
-	- 19.1 [Logging helpers](#logging-helpers)
-- 20 [Writing your own logger](#writing-your-own-logger)
-- 21 [Thread safety and performance](#thread-safety-and-performance)
-- 22 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 23 [Related projects](#related-projects)
-	- 23.1 [Static facades](#static-facades)
-	- 23.2 [Mainstream loggers](#mainstream-loggers)
-	- 23.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 23.4 [When another logger fits better](#when-another-logger-fits-better)
-- 24 [Changelog](#changelog)
-	- 24.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 24.2 [1.3](#13)
-	- 24.3 [1.2](#12)
-	- 24.4 [1.1](#11)
-	- 24.5 [1.0](#10)
-- 25 [Contributing](#contributing)
-- 26 [License](#license)
+- 19 [java.util.logging and System.Logger into Nanolog](#javautillogging-and-systemlogger-into-nanolog)
+- 20 [Caller detection](#caller-detection)
+	- 20.1 [Logging helpers](#logging-helpers)
+- 21 [Writing your own logger](#writing-your-own-logger)
+- 22 [Thread safety and performance](#thread-safety-and-performance)
+- 23 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 24 [Related projects](#related-projects)
+	- 24.1 [Static facades](#static-facades)
+	- 24.2 [Mainstream loggers](#mainstream-loggers)
+	- 24.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 24.4 [When another logger fits better](#when-another-logger-fits-better)
+- 25 [Changelog](#changelog)
+	- 25.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 25.2 [1.3](#13)
+	- 25.3 [1.2](#12)
+	- 25.4 [1.1](#11)
+	- 25.5 [1.0](#10)
+- 26 [Contributing](#contributing)
+- 27 [License](#license)
 
 
 </details>
@@ -914,6 +916,20 @@ Things to know:
 - An entry without a source class goes to the SLF4J `ROOT` logger.
 - Loggers are cached per source class in a `ConcurrentHashMap` and never evicted, so with dynamic class reloading the cache retains `Class` references.
 
+### JulLogger
+
+*Since 1.4.*
+
+Writes the entries to `java.util.logging`, for an application that configures its logging there, with no SLF4J and no binding:
+
+```properties
+nanolog.logger=com.nanolaba.logging.JulLogger
+```
+
+- Each entry goes to the JUL logger named after its source class. JUL decides the levels (`logging.properties`), and `LOG.isDebugEnabled()` asks it. `TRACE`, `DEBUG`, `INFO`, `WARN` and `ERROR` become `FINEST`, `FINE`, `INFO`, `WARNING` and `SEVERE`, so `LOG.dbg` is a `FINE` record.
+- The message arrives formatted, followed by the fields of `LOG.kv` and the context as `key=value`, since JUL has no place for them; the record names the call site as its source class and method, which `%2$s` of `SimpleFormatter` prints.
+- On the module path the application needs the module `java.logging`.
+
 ### MemoryLogger and CompositeLogger
 
 `MemoryLogger` keeps entries in memory for tests. Every level is enabled, so entries are captured whatever the production configuration says, and nothing is printed.
@@ -1387,6 +1403,28 @@ ERROR 18.11.2026 10:30:01 [LegacyImporter] java.io.IOException: disk full
 - No loop: Nanolog writes its own output, the console included, to the streams it found when the capture started, and what a logger prints to `System.out` while it writes an entry passes straight through.
 - `LOG.restoreSystemStreams()` puts the streams back, unless something replaced them since; capturing or restoring twice changes nothing.
 
+## java.util.logging and System.Logger into Nanolog
+
+*Since 1.4.*
+
+Many libraries log through `java.util.logging`, and the JDK through `System.Logger`. Their lines come in another format on another stream and miss `JsonLogger` and `MemoryLogger`. `NanologHandler` turns their records into entries of Nanolog:
+
+```java
+NanologHandler.install();   // once, at startup
+```
+
+or in `logging.properties`:
+
+```properties
+handlers=com.nanolaba.logging.NanologHandler
+```
+
+- `install()` replaces the handlers of the root logger, its console handler among them, so nothing is printed twice; `uninstall()` puts them back. A record becomes an entry of the code that called JUL, with the call site and the exception; the message is formatted as JUL formats it, `{0}` parameters and resource bundles included.
+- `SEVERE` becomes `ERROR`, `WARNING` `WARN`, `INFO` `INFO`, `CONFIG` and `FINE` `DEBUG`, `FINER` and `FINEST` `TRACE`; then the levels of Nanolog apply.
+- JUL decides first: a record below the level of its JUL logger, `INFO` by default, never reaches Nanolog. To see the `FINE` records of one library, lower its level in JUL too, `com.zaxxer.hikari.level=FINE`; lowering the level of the root logger instead makes JUL build a record for every disabled call of every library.
+- `System.Logger` (Java 9+) reaches the handler as well: the JDK sends it to JUL while the module `java.logging` is present. Nanolog registers no `System.LoggerFinder` of its own, which would take over `System.Logger` in every application that has Nanolog on its classpath.
+- Not together with `JulLogger`: entries would go round from Nanolog to JUL and back. A record that comes back is dropped, with one `[NANOLOG]` line.
+
 ## Caller detection
 
 When no class is passed explicitly, `LOG` walks the stack and takes the first frame
@@ -1693,6 +1731,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `java.util.logging` both ways: `JulLogger` (`nanolog.logger=com.nanolaba.logging.JulLogger`) writes the entries to JUL, to the logger of the source class with the call site, and asks JUL for the levels; `NanologHandler.install()` or `handlers=com.nanolaba.logging.NanologHandler` turns the records of JUL, and so of `System.Logger`, into entries of the code that called it. A loop between the two is reported and cut.
 - GraalVM native image and Android: the jar carries the metadata of a native image (`META-INF/native-image`: the constructors of the loggers, the stack walker, `nanolog.properties`) and rules for R8 and ProGuard (`META-INF/proguard/nanolog.pro`), so neither needs setup; CI builds and runs a native image on GraalVM 21 and 25.
 - `FileLogger`: `nanolog.logger=com.nanolaba.logging.FileLogger` with `nanolog.file=logs/app.log` writes the entries to a file, appended, each written through at once or with `nanolog.file.flush=buffer` kept until `LOG.flush()`, rolled over by `nanolog.file.maxSize` with `nanolog.file.backups`, in the text of `ConsoleLogger` or the JSON lines of `JsonLogger`. `LOG.flush()` and `ILogger.flush()` are new.
 - A real module descriptor: on Java 9+ the jar is the module `com.nanolaba.nanolog`, from `META-INF/versions/9/module-info.class` of a multi-release jar, so `jlink` accepts it; the module needs only `java.base`. The run log no longer needs `java.management` for the id of the process, which a runtime image of `java.base` alone left out with a `NoClassDefFoundError` from the first logging call.

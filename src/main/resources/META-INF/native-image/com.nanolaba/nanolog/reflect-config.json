@@ -15,6 +15,17 @@
     "queryAllPublicMethods": true
   },
   {
+    "condition": {"typeReachable": "java.util.logging.Logger"},
+    "name": "com.nanolaba.logging.JulLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "condition": {"typeReachable": "java.util.logging.LogManager"},
+    "name": "com.nanolaba.logging.NanologHandler",
+    "methods": [{"name": "<init>", "parameterTypes": []}]
+  },
+  {
     "name": "com.nanolaba.logging.MemoryLogger",
     "methods": [{"name": "<init>", "parameterTypes": []}],
     "queryAllPublicMethods": true
