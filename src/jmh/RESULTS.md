@@ -100,6 +100,27 @@ frames down. It still grows with the depth, more slowly: creating the `Throwable
 whole stack. The calls with an explicit class and the disabled calls did not change. The JDK 8 column of the tables
 above and below shows the code before #71.
 
+## Before and after #25
+
+Caller detection now walks through `CallerDetection.Walk`, which also checks each frame outside Nanolog against
+`nanolog.caller.skip`: without the setting a check of an empty set, with it a lookup in a cache per class. Measured on
+2026-11-18 on the same machine, the same benchmark classes, before (commit `9f928e4`) → after, in microseconds per
+call; "with the setting" is the code after #25 run with `-Dnanolog.caller.skip=com.acme.other`, which matches no frame.
+
+| Call | Depth | JDK 8 | JDK 8, with the setting | JDK 17 | JDK 17, with the setting |
+|---|---:|---:|---:|---:|---:|
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere (`DisabledCallBenchmark`) | | 4.6 → 4.8 | 4.5 | 2.4 → 2.8 ± 1.2 | 2.4 |
+| the same (`StackDepthBenchmark`) | 10 | 5.0 → 4.9 | 4.9 | 2.5 → 3.0 ± 0.5 | 2.6 |
+| | 100 | 8.0 → 8.1 | 7.9 | 2.7 → 3.0 ± 0.7 | 2.9 |
+| | 500 | 23.2 ± 20.7 → 18.8 | 18.6 | 4.1 → 4.2 | 4.5 |
+| `LOG.info("value {}", v)`, enabled, logger keeps the entry | 10 | 5.1 → 5.1 | 5.2 | 2.7 → 2.7 | 3.4 ± 1.1 |
+| | 100 | 8.1 → 8.2 | 8.0 | 2.9 → 2.9 | 4.1 ± 6.5 |
+| | 500 | 22.8 ± 9.0 → 18.7 | 18.7 | 4.1 → 4.1 | 4.4 |
+
+The differences are within the error of the measurements. A second pair of runs on JDK 17 had larger errors on both
+sides and put the code before #25 above the code after it in three of the seven rows, so the numbers quoted in the
+README stay as they are. The calls with an explicit class do not detect a caller and were not affected.
+
 ## Before and after #16
 
 `DisabledCallBenchmark` against the code before #16, in nanoseconds per call, before → after (after: commit

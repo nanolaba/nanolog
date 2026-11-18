@@ -1,6 +1,7 @@
 package com.nanolaba.logging;
 
 import com.nanolaba.logging.util.InfoObject;
+import com.nanolaba.logging.wrap.Audit;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.spi.LocationAwareLogger;
@@ -100,6 +101,29 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         assertEquals("testRateLimitedCallTellsTheBackendItsOwnBoundary", call.location.getMethodName());
         assertEquals(line, call.location.getLineNumber());
         LOG.clearLimits();
+    }
+
+    @Test
+    public void testASkippedHelperIsTheBoundary() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        System.setProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP, Audit.class.getName());
+        try {
+            LOG.init();
+            LOG.init(new Slf4jLogger(recorder::loggerFor));
+
+            int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+            Audit.record("through a helper");
+
+            LocationAwareRecorder.Call call = recorder.calls.get(0);
+            assertEquals(Audit.class.getName(), call.fqcn);
+            // the backend reports the code that called the helper, not the helper
+            assertEquals(Slf4jLoggerTest.class.getName(), call.location.getClassName());
+            assertEquals("testASkippedHelperIsTheBoundary", call.location.getMethodName());
+            assertEquals(line, call.location.getLineNumber());
+        } finally {
+            System.clearProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP);
+            LOG.init();
+        }
     }
 
     @Test

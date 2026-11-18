@@ -79,8 +79,8 @@ public class LOG {
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
      * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
-     * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*} and {@code nanolog.redact}. Called once when the
-     * class initialises.
+     * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*}, {@code nanolog.redact} and
+     * {@code nanolog.caller.skip}. Called once when the class initialises.
      */
     public static void init() {
         flushRepeats(LOG.logger);
@@ -97,6 +97,7 @@ public class LOG {
         Breadcrumbs.configure();
         Contents.configure();
         Redaction.configure();
+        CallerDetection.configureSkip();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -112,6 +113,19 @@ public class LOG {
     public static void init(ILogger logger) {
         flushRepeats(LOG.logger);
         LOG.logger = logger;
+    }
+
+    /**
+     * Skips the frames of logging helpers in caller detection, like those of {@code LOG}: an entry logged through
+     * {@code Audit.record(...)} belongs to the code that called {@code Audit}, its source class, call site and rate
+     * limit included. Nested classes of a skipped class are skipped too. For a library that wraps {@code LOG}; an
+     * application can name its helpers and packages in {@code nanolog.caller.skip} instead. The classes add up, apply
+     * to the whole JVM and stay skipped after {@link #init()}.
+     *
+     * @param classes the helpers; {@code null}s are ignored
+     */
+    public static void skipCaller(Class<?>... classes) {
+        CallerDetection.skipClasses(classes);
     }
 
     /**
@@ -1191,7 +1205,7 @@ public class LOG {
     private static void writeDbg(ILogger current, Object[] values) {
         CallerDetection.Caller caller = findCaller();
         if (printsDbg(current, caller.sourceClass)) {
-            writeDbgEntry(current, Dbg.entry(caller, values, 0, LogEntry.LOG_BOUNDARY));
+            writeDbgEntry(current, Dbg.entry(caller, values, 0, caller.boundaryOr(LogEntry.LOG_BOUNDARY)));
         }
     }
 
@@ -1665,7 +1679,7 @@ public class LOG {
         ILogger current = logger;
         deliver(current, Breadcrumbs.drainThread());
         CallerDetection.Caller origin = Uncaught.origin(error);
-        doLog(current, ERROR, origin.sourceClass, origin.frame, error, () -> "Uncaught exception in thread {}",
+        doLog(current, ERROR, origin.sourceClass, origin.frame, LogEntry.LOG_BOUNDARY, error, () -> "Uncaught exception in thread {}",
               new Object[]{thread.getName()});
         Units.interruptThread();
     }
@@ -1910,7 +1924,7 @@ public class LOG {
                 long skipped = admit(isEnabled(current, level, caller.sourceClass), caller);
                 if (skipped >= 0) {
                     writeCall(current, LogEntry.create(level, caller.sourceClass, caller.frame, throwable, resolve(message), args, skipped,
-                                                       CALLER_BOUNDARY));
+                                                       caller.boundaryOr(CALLER_BOUNDARY)));
                 }
             }
         }
@@ -1933,7 +1947,7 @@ public class LOG {
             CallerDetection.Caller caller = findCaller();
             long skipped = admit(printsDbg(current, caller.sourceClass), caller);
             if (skipped >= 0) {
-                writeDbgEntry(current, Dbg.entry(caller, values, skipped, CALLER_BOUNDARY));
+                writeDbgEntry(current, Dbg.entry(caller, values, skipped, caller.boundaryOr(CALLER_BOUNDARY)));
             }
         }
 
@@ -2194,7 +2208,7 @@ public class LOG {
      * @param args        the arguments for {@code {}} placeholders in the message
      */
     public static void log(LogEntry.LogEntryLevel level, Class loggedClass, Throwable throwable, Supplier<Object> message, Object... args) {
-        doLog(logger, level, loggedClass, null, throwable, message, args);
+        doLog(logger, level, loggedClass, null, LogEntry.LOG_BOUNDARY, throwable, message, args);
     }
 
     /**
@@ -2205,7 +2219,7 @@ public class LOG {
         ILogger current = logger;
         if (mayBeEnabled(current, level)) {
             CallerDetection.Caller caller = findCaller();
-            doLog(current, level, caller.sourceClass, caller.frame, throwable, message, args);
+            doLog(current, level, caller.sourceClass, caller.frame, caller.boundaryOr(LogEntry.LOG_BOUNDARY), throwable, message, args);
         }
     }
 
@@ -2214,9 +2228,10 @@ public class LOG {
         return mayBeEnabled(current, level) && isEnabled(current, level, findCaller().sourceClass);
     }
 
-    private static void doLog(ILogger current, LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, Throwable throwable, Supplier<Object> message, Object[] args) {
+    private static void doLog(ILogger current, LogEntry.LogEntryLevel level, Class loggedClass, StackTraceElement frame, String boundary,
+                              Throwable throwable, Supplier<Object> message, Object[] args) {
         if (isEnabled(current, level, loggedClass)) {
-            writeCall(current, LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args, 0));
+            writeCall(current, LogEntry.create(level, loggedClass, frame, throwable, resolve(message), args, 0, boundary));
         }
     }
 

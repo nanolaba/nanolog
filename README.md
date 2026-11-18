@@ -77,6 +77,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 15 [Rate limiting](#rate-limiting)
 - 16 [Catching exceptions](#catching-exceptions)
 - 17 [Caller detection](#caller-detection)
+	- 17.1 [Logging helpers](#logging-helpers)
 - 18 [Writing your own logger](#writing-your-own-logger)
 - 19 [Thread safety and performance](#thread-safety-and-performance)
 - 20 [Using SNAPSHOT versions](#using-snapshot-versions)
@@ -551,6 +552,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.content.<package or class>` | the same for one package or class; the most specific rule wins | — |
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.diagnostics` | how often a `[NANOLOG]` diagnostic is printed: `once` per JVM, `all` every time or `off`; `ILogger.onDiagnostic` still gets the findings of strict mode | `once` |
+| `nanolog.caller.skip` | classes and packages, comma-separated, whose frames caller detection skips like those of `LOG`, see [Logging helpers](#logging-helpers) | — |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, whose argument repeats the message of the exception or whose template is built from data, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
@@ -564,7 +566,7 @@ A setting that **Nanolog** does not know is reported, not ignored without a word
 [NANOLOG] "level" in file:/app/classes/nanolog.properties is ignored: keys must start with "nanolog." (did you mean "nanolog.level"?)
 ```
 
-`nanolog.console.*`, `nanolog.exception.*`, `nanolog.level.*`, `nanolog.run.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
+`nanolog.buffer.*`, `nanolog.caller.*`, `nanolog.console.*`, `nanolog.content.*`, `nanolog.exception.*`, `nanolog.junit.*`, `nanolog.level.*`, `nanolog.run.*`, `nanolog.unit.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
 
 > [!IMPORTANT]
 > `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code.
@@ -1123,7 +1125,7 @@ LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item);
 // WARN 16.11.2026 10:15:02 [Worker] Queue is full, dropping 17 [skipped 241]
 ```
 
-- A statement is its call site, the file and line of the call. Two calls on one line share one limit, and so do all the callers of a helper method that logs for them.
+- A statement is its call site, the file and line of the call. Two calls on one line share one limit, and so do all the callers of a helper method that logs for them, unless the helper is skipped: [Logging helpers](#logging-helpers).
 - The next entry that gets through carries the number of calls skipped since the previous one: `ConsoleLogger` prints `[skipped 241]` after the message, `JsonLogger` writes `"skipped":241`, `Slf4jLogger` appends `[skipped 241]` to the message, and any logger reads `LogEntry.getSkippedCount()`.
 - The level is checked first, the limit last: a call at a disabled level is not counted, and a skipped call builds no message and formats nothing.
 - `once()` and `atMostEvery(...)` offer four shapes at every level: `("... {} ...", args)`, `(() -> message)` and both with an exception first. The state of each call site takes a few bytes, without locks, and the number of call sites is bounded by the code.
@@ -1162,6 +1164,20 @@ that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation. On Jav
 - The stack is walked only for a level the logger may have enabled: `LOG` first asks `ILogger.mayBeEnabled(level)`, so a level that is off for every class, such as `DEBUG` under `nanolog.level=INFO`, costs no walk. `LOG.isDebugEnabled()` follows the same rule. Once a level is on anywhere, even for one package (`nanolog.level.com.acme.db=TRACE`), every call at that level walks the stack, because only the class tells whether it is enabled. In hot paths pass the class explicitly: `LOG.debug(MyClass.class, ...)`.
 - Any class implementing `ILogger` is skipped, so a custom logger that logs through `LOG` must pass its source class explicitly.
 - If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the code runs entirely inside an `ILogger` class, or on Java 8 when the JVM records no stack traces (`-XX:-StackTraceInThrowable`). `Slf4jLogger` sends such entries to the `ROOT` logger.
+
+### Logging helpers
+
+A helper that logs for others, such as an `Audit.record(...)` method or a base class of tasks, would be the source of every entry it logs, and its callers would share one rate limit of `LOG.once()`. Name such helpers in `nanolog.caller.skip` (or `NANOLOG_CALLER_SKIP`), class or package names separated by commas:
+
+```properties
+nanolog.caller.skip=com.acme.Audit,com.acme.logging
+```
+
+- Their frames are skipped like those of `LOG`: the entry gets the source class, the call site and the rate limit of the code that called the helper.
+- A class covers its nested classes, and a package its classes and subpackages, by whole segments of the name: `com.acme.log` does not cover `com.acme.logging`. A nested class alone is written with `$`, `com.acme.Outer$Helper`.
+- A library that wraps `LOG` cannot rely on the settings of the application: it calls `LOG.skipCaller(Helper.class)` once, for example in a static initializer. These classes add up with the setting and stay skipped after `LOG.init()`.
+- `Slf4jLogger` passes the helper to a location-aware backend as the caller boundary, so `%file:%line` of Logback and `%l` of Log4j 2 point at the code that called the helper as well.
+- The match is found once per class and cached, so a skipped helper adds no string comparison to later calls. An invalid name, such as `com.acme.*`, prints a `[NANOLOG]` diagnostic and is left out; when every frame is skipped, the entry is logged without a source class, as above.
 
 ## Writing your own logger
 
@@ -1439,6 +1455,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Logging helpers: `nanolog.caller.skip=com.acme.Audit,com.acme.logging` and `LOG.skipCaller(Helper.class)` skip the frames of classes and packages that log for others, so an entry logged through `Audit.record(...)` gets the source class, call site and rate limit of the code that called the helper, and `Slf4jLogger` passes the helper to Logback and Log4j 2 as the caller boundary.
 - Strict mode reports two more mistakes, with the call site: an argument that repeats the message of the exception logged with it, `LOG.error("Failed: {}", e.getMessage(), e)`, and a call site seen with two templates, a template built from data such as `LOG.info("User " + id + " from {}", ip)`. Like the placeholder check, both reach `ILogger.onDiagnostic` and fail `MemoryLogger.assertNoDiagnostics()`; calls without arguments are not checked.
 - README: Related projects, a comparison with tinylog, jcabi-log, minlog, Timber, SLF4J with Logback, Log4j 2, java.util.logging, Flogger and JBoss Logging, with the calls that behave differently in tinylog.
 - Faster caller detection on Java 8: `Reflection.getCallerClass` gives the class of each frame and only the frames up to the caller are built, so a call without a class at a level enabled for some class costs about 5 µs instead of 20 near the top of the stack and 19 µs instead of 270 at 500 frames; the stack trace of a `Throwable` stays the fallback.

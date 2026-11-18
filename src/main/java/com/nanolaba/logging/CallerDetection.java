@@ -3,19 +3,162 @@ package com.nanolaba.logging;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_CALLER_SKIP;
+import static com.nanolaba.logging.DefaultLoggerCreator.getProperty;
+import static com.nanolaba.logging.DefaultLoggerCreator.printInvalid;
 
 /**
  * Finds the caller of {@link LOG}: the first stack frame outside Nanolog, that is outside {@code LOG},
- * {@code LogEntry}, this class and any {@code ILogger}. Its top-level class becomes the source class of the entry,
- * the frame itself the call site.
+ * {@code LogEntry}, this class and any {@code ILogger}, and outside the classes of {@code nanolog.caller.skip} and
+ * {@link LOG#skipCaller(Class[])}. Its top-level class becomes the source class of the entry, the frame itself the
+ * call site.
  */
 final class CallerDetection {
 
     private CallerDetection() {/**/}
+
+    // SKIPPED CLASSES
+
+    /**
+     * A class or package name: Java identifiers separated by dots, a nested class after a {@code $}.
+     */
+    private static final Pattern NAME =
+            Pattern.compile("\\p{javaJavaIdentifierStart}\\p{javaJavaIdentifierPart}*(\\.\\p{javaJavaIdentifierStart}\\p{javaJavaIdentifierPart}*)*");
+
+    /**
+     * The names of {@code nanolog.caller.skip}, read by {@link LOG#init()}.
+     */
+    private static Set<String> configured = Collections.emptySet();
+
+    /**
+     * The names of {@link LOG#skipCaller(Class[])}; {@link LOG#init()} keeps them.
+     */
+    private static final Set<String> ADDED = new HashSet<>();
+
+    private static volatile Skip skip = new Skip(Collections.<String>emptySet());
+
+    /**
+     * The classes and packages whose frames are skipped, with what was found per class. A rule covers its nested
+     * classes and, for a package, its classes and subpackages, by whole segments of the name, like the level rules.
+     */
+    private static final class Skip {
+
+        private final Set<String> names;
+        private final Map<Class, Boolean> resolved = new ConcurrentHashMap<>();
+
+        Skip(Set<String> names) {
+            this.names = names;
+        }
+
+        boolean matches(Class frameClass) {
+            return !names.isEmpty() && resolved.computeIfAbsent(frameClass, this::find);
+        }
+
+        /**
+         * Looks the name of the class up, then the names of its enclosing classes and packages from the innermost
+         * outwards.
+         */
+        private boolean find(Class frameClass) {
+            String name = frameClass.getName();
+            while (!names.contains(name)) {
+                int cut = Math.max(name.lastIndexOf('.'), name.lastIndexOf('$'));
+                if (cut == -1) {
+                    return false;
+                }
+                name = name.substring(0, cut);
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Reads {@code nanolog.caller.skip}: class and package names separated by commas. An invalid name prints a
+     * diagnostic and is left out; empty items are ignored.
+     */
+    static synchronized void configureSkip() {
+        String value = getProperty(PROPERTY_CALLER_SKIP);
+        Set<String> names = new HashSet<>();
+        if (value != null) {
+            for (String item : value.split(",")) {
+                String name = item.trim();
+                if (NAME.matcher(name).matches()) {
+                    names.add(name);
+                } else if (!name.isEmpty()) {
+                    printInvalid(PROPERTY_CALLER_SKIP, name, "expected class or package names separated by commas");
+                }
+            }
+        }
+        configured = names;
+        updateSkip();
+    }
+
+    /**
+     * Skips the frames of these classes from now on; {@code null}s are ignored.
+     */
+    static synchronized void skipClasses(Class<?>[] classes) {
+        if (classes != null) {
+            for (Class<?> skipped : classes) {
+                if (skipped != null) {
+                    ADDED.add(skipped.getName());
+                }
+            }
+        }
+        updateSkip();
+    }
+
+    /**
+     * Forgets the classes of {@link LOG#skipCaller(Class[])}; for tests.
+     */
+    static synchronized void forgetSkipped() {
+        ADDED.clear();
+        updateSkip();
+    }
+
+    private static void updateSkip() {
+        Set<String> names = new HashSet<>(configured);
+        names.addAll(ADDED);
+        skip = new Skip(names);
+    }
+
+    /**
+     * One walk down the stack: decides which frames are skipped, and remembers the class of a frame skipped by
+     * {@code nanolog.caller.skip} right before the caller, the boundary for a location-aware SLF4J backend.
+     */
+    static final class Walk {
+
+        private final Skip skipped = skip;
+        private String boundary;
+
+        /**
+         * Whether a frame is skipped: it belongs to Nanolog or to a skipped class.
+         */
+        boolean skips(Class frameClass, Class sourceClass) {
+            if (isNanolog(sourceClass)) {
+                boundary = null;
+                return true;
+            }
+            if (skipped.matches(frameClass)) {
+                boundary = frameClass.getName();
+                return true;
+            }
+            return false;
+        }
+
+        Caller caller(Class sourceClass, StackTraceElement frame) {
+            return new Caller(sourceClass, frame, boundary);
+        }
+    }
 
     /**
      * A detected caller. When no frame qualifies, it has neither a class nor a frame.
@@ -27,9 +170,27 @@ final class CallerDetection {
         final Class sourceClass;
         final StackTraceElement frame;
 
+        /**
+         * The class of the skipped frame right before the caller, or {@code null} when that frame is Nanolog's.
+         */
+        private final String boundary;
+
         Caller(Class sourceClass, StackTraceElement frame) {
+            this(sourceClass, frame, null);
+        }
+
+        Caller(Class sourceClass, StackTraceElement frame, String boundary) {
             this.sourceClass = sourceClass;
             this.frame = frame;
+            this.boundary = boundary;
+        }
+
+        /**
+         * The caller boundary of an entry, see {@link LogEntry#getCallerBoundary()}: the skipped class right before
+         * the caller, or the class of Nanolog that the call went through.
+         */
+        String boundaryOr(String nanologBoundary) {
+            return boundary != null ? boundary : nanologBoundary;
         }
     }
 
@@ -133,12 +294,14 @@ final class CallerDetection {
 
         private static Caller firstOutsideNanolog(Stream<?> frames) {
             try {
+                Walk walk = new Walk();
                 Iterator<?> iterator = frames.iterator();
                 while (iterator.hasNext()) {
                     Object frame = iterator.next();
-                    Class sourceClass = topLevel((Class) DECLARING_CLASS.invoke(frame));
-                    if (!isNanolog(sourceClass)) {
-                        return new Caller(sourceClass, (StackTraceElement) TO_STACK_TRACE_ELEMENT.invoke(frame));
+                    Class frameClass = (Class) DECLARING_CLASS.invoke(frame);
+                    Class sourceClass = topLevel(frameClass);
+                    if (!walk.skips(frameClass, sourceClass)) {
+                        return walk.caller(sourceClass, (StackTraceElement) TO_STACK_TRACE_ELEMENT.invoke(frame));
                     }
                 }
                 return Caller.NONE;
@@ -198,6 +361,7 @@ final class CallerDetection {
         public Caller find() {
             try {
                 Throwable stack = new Throwable();
+                Walk walk = new Walk();
                 // getCallerClass must be called right here: its depth counts from this frame, as the frames of stack do
                 for (int i = 0; ; i++) {
                     Class frameClass = (Class) CALLER_CLASS.invoke(i + 1);
@@ -209,8 +373,8 @@ final class CallerDetection {
                         return fallback.find();
                     }
                     Class sourceClass = topLevel(frameClass);
-                    if (!isNanolog(sourceClass)) {
-                        return new Caller(sourceClass, frame);
+                    if (!walk.skips(frameClass, sourceClass)) {
+                        return walk.caller(sourceClass, frame);
                     }
                 }
             } catch (Throwable t) {
@@ -237,6 +401,7 @@ final class CallerDetection {
 
         @Override
         public Caller find() {
+            Walk walk = new Walk();
             for (StackTraceElement element : stackTraceOf.apply(new Throwable())) {
                 Class frameClass = resolveClass(element.getClassName());
                 if (frameClass == null) {
@@ -244,12 +409,12 @@ final class CallerDetection {
                     continue;
                 }
                 Class sourceClass = topLevel(frameClass);
-                if (!isNanolog(sourceClass)) {
-                    return new Caller(sourceClass, element);
+                if (!walk.skips(frameClass, sourceClass)) {
+                    return walk.caller(sourceClass, element);
                 }
             }
-            // no frame qualifies (stack traces disabled, or the code runs entirely inside an ILogger): logging must
-            // not throw, so the entry goes out without a source class and call site, like LOG.log(level, null, ...)
+            // no frame qualifies (stack traces disabled, the code runs entirely inside an ILogger, or every class is
+            // skipped): logging must not throw, so the entry goes out without a source class and call site, like LOG.log(level, null, ...)
             return Caller.NONE;
         }
 

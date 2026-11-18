@@ -127,6 +127,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_REDACT = PROPERTY_PREFIX + "redact";
     /**
+     * Classes and packages whose frames caller detection skips like those of {@code LOG}, comma-separated: the logging
+     * helpers of an application, so an entry logged through one belongs to the code that called it.
+     */
+    public static final String PROPERTY_CALLER_SKIP = PROPERTY_PREFIX + "caller.skip";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
