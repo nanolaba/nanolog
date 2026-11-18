@@ -59,6 +59,8 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 - Versions come from `pom.xml` (`${pom.version}`, `${pom.properties.slf4j.version}`, ...). The only hand-maintained version is the `nanolog.stableVersion` property in `pom.xml`, read by both templates: bump it after every release.
 - `agent-guide.src.md` is a single-language template that uses two NRG "languages", `llms` and `skill`, as output variants: untagged lines go to both files, lines tagged `<!--llms-->` or `<!--skill-->` to one, and `nrg.fileNamePattern.<variant>` names the outputs. `nrg.noHeader=true` keeps the YAML front matter on the first line of `SKILL.md`; keep the `description:` value free of `": "`. It is English only, a cheat sheet rather than a second README: when a feature changes, update its rule there too. Mark features newer than the stable version with *X.Y+*.
 - Snapshot-only content (the "Using SNAPSHOT versions" section, the development entry of the changelog, the "version under development" clause) is guarded by `${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}` … `${widget:endIf}` or by the inline `${widget:if(cond='…', text='…')}`, so it disappears from the README of a release commit by itself.
+- A feature newer than the stable version is marked where it is introduced: its *Why Nanolog* bullet after the bold title and its section on the first line under the heading carry `${en:'*Since X.Y.*', ru:'*С версии X.Y.*'}`. The marker stays after the release as a "since" marker, as *X.Y+* does in `agent-guide.src.md`; never put it into a heading, which would change the anchor.
+- *Try it* near the top shows the dependency for `${stableVersion}`, a whole class imported from `examples/TryIt.java` and its output with the line numbers of the class as shown (the region starts at the `import`). The quick start also imports a whole class, its `import` included.
 - Collapsible content uses `${widget:details(summary='…')}` … `${widget:endDetails}`; the inner markdown and language markers keep working.
 - The English and Russian quick-start examples are chosen with the per-language properties `quickStartFile.en` / `quickStartFile.ru`.
 
@@ -256,7 +258,8 @@ Release checklist:
 1. Set the release version in `pom.xml` and the `nanolog.stableVersion` property to the same value, update the changelog section in `README.src.md`, run `mvn compile`, commit the regenerated README files, `llms.txt` and `SKILL.md` together with the sources.
 2. `mvn clean deploy` on JDK 11 or newer, so the jar gets its module descriptor (signs the artifacts and publishes them to Maven Central), then tag the release commit (`git tag -a vX.Y -m "Nanolog X.Y"`) and push the branch and the tag.
 3. **Create a GitHub release for the tag.** Every published version must have one: `gh release create vX.Y --verify-tag --title "vX.Y" --notes-file notes.md`. The notes are the `### X.Y` changelog section from `README.src.md` (English), grouped into "New" / "Fixes" / "Documentation and build", followed by the Maven coordinates and a `compare/vPREV...vX.Y` link; the `v1.1` release is the reference layout. Do not publish it as a draft or pre-release.
-4. Bump `pom.xml` to the next `-SNAPSHOT`, run `mvn compile`, commit the regenerated README files.
+4. Once the version is on Maven Central, paste *Try it* of the README into a new Maven project and a new Gradle Kotlin DSL project: it compiles, and `LOG.dbg` prints the expression text.
+5. Bump `pom.xml` to the next `-SNAPSHOT`, run `mvn compile`, commit the regenerated README files.
 
 ## Conventions
 

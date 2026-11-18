@@ -1,10 +1,10 @@
 package com.nanolaba.logging.examples;
 
+// nrg:begin:quickstart
 import com.nanolaba.logging.LOG;
 
 public class QuickStart {
 
-    // nrg:begin:quickstart
     public static void main(String[] args) {
         // No logger field: the source class is detected automatically
         LOG.info("Application started");
@@ -26,9 +26,9 @@ public class QuickStart {
             LOG.error(e, "Failed to parse \"{}\"", input);
         }
     }
-    // nrg:end:quickstart
 
     private static String buildReport() {
         return "...";
     }
 }
+// nrg:end:quickstart

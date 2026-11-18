@@ -19,14 +19,52 @@ needs a logger field. It prints to the console, writes JSON lines, captures entr
 in tests, and works on its own or on top of **SLF4J**, and therefore on top of
 Logback, Log4j 2, JBoss Logging and others.
 
+**Questions and feedback:** [Discussions](https://github.com/nanolaba/nanolog/discussions) · **bugs:** [Issues](https://github.com/nanolaba/nanolog/issues/new/choose) · English or Russian
+
 Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://github.com/PlatformLab/NanoLog), the nanosecond-scale logger for C++.
+
+## Try it
+
+```xml
+<dependency><groupId>com.nanolaba</groupId><artifactId>nanolog</artifactId><version>1.3</version></dependency>
+```
+
+```kotlin
+implementation("com.nanolaba:nanolog:1.3")
+```
+
+`LOG.dbg` is in the version under development, 1.4-SNAPSHOT; until its release take it from the snapshot repository, see [Using SNAPSHOT versions](#using-snapshot-versions).
+
+```java
+import com.nanolaba.logging.LOG;
+
+import java.math.BigDecimal;
+
+public class TryIt {
+
+    public static void main(String[] args) {
+        BigDecimal price = new BigDecimal("43.30");
+        int quantity = 3;
+        LOG.info("Checkout of {} items", quantity);
+        LOG.dbg(price.multiply(BigDecimal.valueOf(quantity)));
+    }
+}
+```
+
+```
+INFO 17.11.2026 10:15:02 [TryIt] Checkout of 3 items
+DBG 17.11.2026 10:15:02 [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 129.90 (BigDecimal)
+[NANOLOG] 1 LOG.dbg call ran in this JVM: TryIt.java:11
+```
+
+`LOG.dbg` prints the expression as written, its value and type, and the call site, and returns the value; the last line reminds you to remove the call. More in [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value) and [Quick start](#quick-start).
 
 ## Why Nanolog
 
-- **Print debugging that names its values.** `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
-- **Fewer tokens for coding agents.** When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: a failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
-- **A summary that survives truncation.** Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
-- **Wide events, one line per request.** `LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see [Wide events](#wide-events-one-line-per-request-canonical-log-lines).
+- **Print debugging that names its values.** *Since 1.4.* `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
+- **Fewer tokens for coding agents.** *Since 1.4.* When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: a failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
+- **A summary that survives truncation.** *Since 1.4.* Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
+- **Wide events, one line per request.** *Since 1.4.* `LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see [Wide events](#wide-events-one-line-per-request-canonical-log-lines).
 - **No logger fields.** `LOG.info("...")` works from any class; the caller is found by walking the stack.
 - **Zero dependencies.** No transitive libraries; `slf4j-api` is needed only if you use `Slf4jLogger`.
 - **SLF4J-style placeholders.** `{}` with escaping, array rendering and sane handling of missing or extra arguments.
@@ -41,7 +79,9 @@ How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related 
 
 The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
 
-## Table of contents
+<details>
+<summary>Table of contents</summary>
+
 - 1 [Installation](#installation)
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
@@ -100,6 +140,8 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 - 26 [License](#license)
 
 
+</details>
+
 ## Installation
 
 **Maven (pom.xml)**
@@ -136,25 +178,34 @@ The same jar serves Kotlin: CI compiles the calls of `LOG` in every shape from K
 No setup is needed: `ConsoleLogger` is active by default and prints every level, including `TRACE`; when a coding agent runs the program, the console is shorter, see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
 
 ```java
-public static void main(String[] args) {
-    // No logger field: the source class is detected automatically
-    LOG.info("Application started");
+import com.nanolaba.logging.LOG;
 
-    // SLF4J-style {} placeholders
-    LOG.debug("Loaded {} items in {} ms", 42, 17);
+public class QuickStart {
 
-    // Lazy message: the lambda runs only if DEBUG is enabled
-    LOG.debug(() -> "Expensive report: " + buildReport());
+    public static void main(String[] args) {
+        // No logger field: the source class is detected automatically
+        LOG.info("Application started");
 
-    // The source class can also be passed explicitly
-    LOG.warn(QuickStart.class, "Disk space is low");
+        // SLF4J-style {} placeholders
+        LOG.debug("Loaded {} items in {} ms", 42, 17);
 
-    String input = "not a number";
-    try {
-        Integer.parseInt(input);
-    } catch (NumberFormatException e) {
-        // Exception plus a parameterized message; the stack trace follows the message
-        LOG.error(e, "Failed to parse \"{}\"", input);
+        // Lazy message: the lambda runs only if DEBUG is enabled
+        LOG.debug(() -> "Expensive report: " + buildReport());
+
+        // The source class can also be passed explicitly
+        LOG.warn(QuickStart.class, "Disk space is low");
+
+        String input = "not a number";
+        try {
+            Integer.parseInt(input);
+        } catch (NumberFormatException e) {
+            // Exception plus a parameterized message; the stack trace follows the message
+            LOG.error(e, "Failed to parse \"{}\"", input);
+        }
+    }
+
+    private static String buildReport() {
+        return "...";
     }
 }
 ```
@@ -211,6 +262,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
 
 ## Print debugging: `LOG.dbg` prints the expression and its value
+
+*Since 1.4.*
 
 `LOG.dbg(...)` is the Java counterpart of Rust's `dbg!` and Python's icecream: it prints the expression as written in the source, its value and type, and the file and line of the call, and returns the value, so it wraps any expression in place. Since 1.4.
 
@@ -349,6 +402,8 @@ one short loop repeats many times: edit, run, read the output, edit again.
 
 ### Agent mode: Nanolog detects coding agents
 
+*Since 1.4.*
+
 Coding agents read program output through a narrow window: a long output is cut down to its head and tail or summarised, and agents rarely ask for the rest. When the environment names a coding agent, **Nanolog** keeps its own console short and writes the full log to a file. Since 1.4.
 
 A test that logs 200 orders and fails on order 150 prints this under Claude Code:
@@ -372,6 +427,8 @@ Without agent mode the same run printed 530 lines of **Nanolog** output: three l
 - **Only Nanolog's own output changes.** The defaults above apply to the default logger, `ConsoleLogger` or `JsonLogger`; a logger set with `LOG.init(logger)`, or another class named by `nanolog.logger`, keeps its settings, and nothing outside **Nanolog** is touched. A test that reads what the default logger prints to the console sees less under an agent: capture the entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM (`environmentVariables` of Surefire).
 
 ### Run summary: the part of the output that survives truncation
+
+*Since 1.4.*
 
 A coding agent often sees only the start and the end of a long output. Claude Code shows a failing command as an excerpt of its head and tail, about 10,000 characters ([tools reference](https://code.claude.com/docs/en/tools-reference)); Cursor cuts the output of a command at 20,000 characters ([forum](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); agents add `| tail -30` themselves and rarely ask for the rest ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). The error that matters is often in the part that was dropped. **Nanolog** prints a summary of the run last, where it survives. Since 1.4.
 
@@ -398,6 +455,8 @@ In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects
 - **A jar of your own.** `SummaryListener` is compiled against the JUnit Platform Launcher API, which a test run provides, so **Nanolog** still has no dependencies. A shaded jar that keeps `META-INF/services/org.junit.platform.launcher.TestExecutionListener` must keep `SummaryListener` too, or JUnit stops with a `ServiceConfigurationError`.
 
 ### Run log
+
+*Since 1.4.*
 
 With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a file at a predictable place. A coding agent reads the output of the last run there instead of running it again to filter it once more, and follows a server that runs in the background. Off by default, on in [agent mode](#agent-mode-nanolog-detects-coding-agents). Since 1.4.
 
@@ -429,6 +488,8 @@ Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the 
 
 ```markdown
 ## Fewer tokens: logs for AI coding agents
+
+*Since 1.4.*
 
 A coding agent pays for every token of output it reads, and a test run competes with the code for its context window. Agent mode keeps that cost low. The same runs of a small project printed this much through `mvn -q test`, first without agent mode, then as Claude Code runs them (`AI_AGENT=claude-code`):
 
@@ -465,6 +526,8 @@ are collected under the [`agents` label](https://github.com/nanolaba/nanolog/iss
 
 ## Wide events: one line per request (canonical log lines)
 
+*Since 1.4.*
+
 Dozens of scattered lines per request are hard to read, for people and for agents alike. The idea of [wide events](https://loggingsucks.com/) and of [canonical log lines](https://stripe.com/blog/canonical-log-lines) at Stripe is one rich line per request or job. `LOG.unit(name)` writes that line when the unit of work ends, next to the usual log, not instead of it:
 
 ```java
@@ -490,6 +553,8 @@ LOG.unit("import", () -> importFile(file)); // an exception fails the unit and i
 
 ## Timing a block
 
+*Since 1.4.*
+
 "Which step is slow?" usually means two `System.nanoTime()` calls and a subtraction, written again each time. `LOG.time(name)` writes one uniform line that a person or an agent can compare between runs:
 
 ```java
@@ -507,6 +572,8 @@ LOG.time(LogEntry.LogEntryLevel.DEBUG, "Parse").close();         // another leve
 - `LOG.timed(name, body)` writes `Count users failed after 12 ms` with the stack trace when the body throws, and throws the exception on; `close()` of a try-with-resources block cannot see an exception. For a request or a job with an outcome and fields, use a [unit of work](#wide-events-one-line-per-request-canonical-log-lines).
 
 ## Breadcrumbs: DEBUG only when something fails
+
+*Since 1.4.*
 
 With `DEBUG` off the log lacks the context of a failure, and with `DEBUG` on it drowns. `nanolog.buffer=DEBUG` keeps `DEBUG` and `TRACE` entries in memory and writes them only when an `ERROR` follows, before the error, as the log buffering of .NET, AWS Powertools and the breadcrumbs of Sentry do:
 
@@ -772,6 +839,8 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 
 ### FileLogger
 
+*Since 1.4.*
+
 Writes the entries to a file, for an application with no console to redirect, a desktop or an Android app, or a service that keeps a log of its own:
 
 ```properties
@@ -867,6 +936,8 @@ LOG.init(new CompositeLogger(memory, new ConsoleLogger()));
 
 ## Logs in tests: only the failing ones
 
+*Since 1.4.*
+
 The log of a passing test is noise; the log of a failing one is the evidence. A Spring Boot test suite can print thousands of lines per green run, and the agent, or the person, reading it cannot find the failure in them. `NanologExtension` holds back what each test writes and prints it only when the test fails. Since 1.4.
 
 ```java
@@ -916,6 +987,8 @@ LOG.error("Cause: {}", new IOException("timeout"));          // Cause: java.io.I
 - With `nanolog.dump=auto` (`NANOLOG_DUMP=auto`) an argument whose class has no `toString()` of its own is printed field by field, as in [`LOG.dbg`](#objects-without-tostring): `LOG.info("Added {}", line)` prints `Added Line{sku="A-1", qty=2}` instead of `Added Line@1e643faf`. Collections, maps, arrays and `Optional` are walked, so a list of such objects is printed the same way. Everything with a `toString()` of its own, strings included, prints as before, without quotes, limits or redaction. The setting is off by default because it changes existing output; `JsonLogger` puts the result into `message` and `args` as text. Since 1.4.
 
 ### Fields: named arguments
+
+*Since 1.4.*
 
 `LOG.kv(key, value)` names an argument, so that a script or an agent can select the entry by it instead of matching the text of the message:
 
@@ -1002,6 +1075,8 @@ void noPlaceholderMismatches() { // the test run sets -Dnanolog.strict=true
 
 ## Logging payloads safely
 
+*Since 1.4.*
+
 Prompts and responses of a language model, request bodies and documents are either not logged at all or logged raw, keys pasted into them included. `LOG.content(value)` is the middle ground: the text in development, a summary in production.
 
 ```java
@@ -1023,6 +1098,8 @@ LOG.info("Answer received", LOG.kv("answer", LOG.content(answer)), LOG.kv("token
 
 ## Masking secrets
 
+*Since 1.4.*
+
 Tokens and passwords reach the log through `{}` arguments, fields and the context, and the logs a coding agent reads are sent to its model provider. `LOG.secret(value)` marks a secret, and fields and context named like secrets are masked without it:
 
 ```java
@@ -1038,6 +1115,8 @@ LOG.info("Connected", LOG.kv("url", url), LOG.kv("password", password));
 - The text of messages is not scanned: scanning every message is slow and gives a false sense of safety. Payloads of [`LOG.content`](#logging-payloads-safely) have the known key formats masked when they are shown.
 
 ## Logging LLM calls
+
+*Since 1.4.*
 
 Spring AI and LangChain4j have switches that log requests and responses, but they print `toString()` dumps and pretty-printed JSON. A listener or an advisor of about twenty lines logs one line per call through Nanolog instead: the model, the tokens, the latency and the finish reason, under the field names of the [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) (the `gen_ai.client.inference` span, status Development in November 2026), with the prompt and the completion as [`LOG.content`](#logging-payloads-safely) and, at `DEBUG`, a short transcript.
 
@@ -1162,6 +1241,8 @@ INFO [NanologAdvisor] chat ok 812 ms parent=agent-turn gen_ai.request.model=gpt-
 
 ## Context: tag the lines of one request
 
+*Since 1.4.*
+
 `LOG.context(key, value)` adds a pair to every entry the current thread logs until the scope is closed, so the lines of one request, job or test are found together, with `grep requestId=r-17` or by an agent reading the log:
 
 ```java
@@ -1225,6 +1306,8 @@ LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item);
 
 ## Tags
 
+*Since 1.4.*
+
 Some entries belong to a concern rather than to a class: audit, security, SQL. `LOG.tag(name)` marks them, wherever they come from:
 
 ```java
@@ -1242,6 +1325,8 @@ WARN 18.11.2026 10:30:00 [UserService] [audit] User alice changed role to admin
 - A tag costs nothing over an ordinary call. A rule that enables a level for a tag, `sql=DEBUG` under `INFO`, makes the level possible, so every call at that level walks the stack, as a package rule does.
 
 ## Catching exceptions
+
+*Since 1.4.*
 
 Two patterns repeat in every code base: the `try { ... } catch (Exception e) { LOG.error(...) }` block that logs and carries on, and the exception that kills a background thread and is printed by the JVM as `Exception in thread "pool-1-thread-3"`, outside the log format, outside `JsonLogger` and out of sight of `MemoryLogger`:
 
@@ -1263,6 +1348,8 @@ int retries = LOG.catching(() -> Integer.parseInt(text), 3); // a default value 
 - The entry of an uncaught exception has the class and call site of the first frame of its stack trace outside the JDK, the code that failed, not the dispatch code of the JVM. The dying thread first writes its [breadcrumbs](#breadcrumbs-debug-only-when-something-fails), then the exception, then its units still open, as `interrupted`.
 
 ## System.out and System.err
+
+*Since 1.4.*
 
 Libraries and old code print with `System.out.println` and `e.printStackTrace()`. Their lines have no level and no source, miss `JsonLogger` and are not captured by `MemoryLogger`. `LOG.captureSystemStreams()`, or `nanolog.captureSystemStreams=true`, makes each such line an entry:
 
@@ -1290,6 +1377,8 @@ that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation. On Jav
 - If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the code runs entirely inside an `ILogger` class, or on Java 8 when the JVM records no stack traces (`-XX:-StackTraceInThrowable`). `Slf4jLogger` sends such entries to the `ROOT` logger.
 
 ### Logging helpers
+
+*Since 1.4.*
 
 A helper that logs for others, such as an `Audit.record(...)` method or a base class of tasks, would be the source of every entry it logs, and its callers would share one rate limit of `LOG.once()`. Name such helpers in `nanolog.caller.skip` (or `NANOLOG_CALLER_SKIP`), class or package names separated by commas:
 
@@ -1664,7 +1753,7 @@ First release.
 
 ## Contributing
 
-- Questions, bug reports and ideas: see [SUPPORT.md](SUPPORT.md).
+- **Questions and feedback:** [Discussions](https://github.com/nanolaba/nanolog/discussions) · **bugs:** [Issues](https://github.com/nanolaba/nanolog/issues/new/choose) · English or Russian; what to include is in [SUPPORT.md](SUPPORT.md).
 - Building, testing and changing the code or the docs: see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Vulnerabilities are reported privately: see [SECURITY.md](SECURITY.md).
 

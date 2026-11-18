@@ -1,10 +1,10 @@
 package com.nanolaba.logging.examples;
 
+// nrg:begin:quickstart
 import com.nanolaba.logging.LOG;
 
 public class QuickStartRu {
 
-    // nrg:begin:quickstart
     public static void main(String[] args) {
         // Поле логгера не нужно: класс-источник определяется автоматически
         LOG.info("Приложение запущено");
@@ -26,9 +26,9 @@ public class QuickStartRu {
             LOG.error(e, "Не удалось разобрать \"{}\"", input);
         }
     }
-    // nrg:end:quickstart
 
     private static String buildReport() {
         return "...";
     }
 }
+// nrg:end:quickstart

@@ -35,14 +35,40 @@ needs a logger field. It prints to the console, writes JSON lines, captures entr
 in tests, and works on its own or on top of **SLF4J**, and therefore on top of<!--en-->
 Logback, Log4j 2, JBoss Logging and others.<!--en-->
 
+**${en:'Questions and feedback', ru:'Вопросы и отзывы'}:** [Discussions](${repo}/discussions) · **${en:'bugs', ru:'ошибки'}:** [Issues](${repo}/issues/new/choose) · ${en:'English or Russian', ru:'на русском или английском'}
+
 ${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://github.com/PlatformLab/NanoLog), the nanosecond-scale logger for C++.', ru:'Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](https://github.com/PlatformLab/NanoLog), наносекундным логгером для C++.'}
+
+## ${en:'Try it', ru:'Попробовать'}
+
+```xml
+<dependency><groupId>${pom.groupId}</groupId><artifactId>${pom.artifactId}</artifactId><version>${stableVersion}</version></dependency>
+```
+
+```kotlin
+implementation("${coords}:${stableVersion}")
+```
+
+${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
+${en:'`LOG.dbg` is in the version under development,', ru:'`LOG.dbg` есть в версии в разработке,'} ${pom.version}${en:'; until its release take it from the snapshot repository, see', ru:'; до её релиза берите её из репозитория снапшотов, см.'} [${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}](#${en:'using-snapshot-versions', ru:'использование-snapshot-версий'}).
+${widget:endIf}
+
+${widget:import(path='${examples}/TryIt.java', region='tryit', wrap='true')}
+
+```
+INFO 17.11.2026 10:15:02 [TryIt] Checkout of 3 items
+DBG 17.11.2026 10:15:02 [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 129.90 (BigDecimal)
+[NANOLOG] 1 LOG.dbg call ran in this JVM: TryIt.java:11
+```
+
+${en:'`LOG.dbg` prints the expression as written, its value and type, and the call site, and returns the value; the last line reminds you to remove the call. More in', ru:'`LOG.dbg` печатает выражение так, как оно написано, его значение, тип и место вызова и возвращает значение; последняя строка напоминает убрать вызов. Подробнее —'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}) ${en:'and', ru:'и'} [${en:'Quick start', ru:'Быстрый старт'}](#${en:'quick-start', ru:'быстрый-старт'}).
 
 ## ${en:'Why Nanolog', ru:'Зачем нужен Nanolog'}
 
-- **${en:'Print debugging that names its values.', ru:'Отладочная печать, которая называет значения.'}** ${en:'`LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see', ru:'`LOG.dbg(order.total())` печатает `order.total() = 129.90 (BigDecimal)` с файлом и строкой вызова и возвращает значение, как `dbg!` в Rust и icecream в Python; объекты без `toString()` показываются поле за полем, а не как `Order@2f92e0f4`; см.'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}).
-- **${en:'Fewer tokens for coding agents.', ru:'Меньше токенов для кодовых агентов.'}** ${en:'When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: a failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see', ru:'Когда программу запускает Claude Code, Gemini CLI, Codex, Cursor CLI или другой агент, задающий `AI_AGENT`, консоль оставляет `WARN`, `ERROR` и `LOG.dbg`, а полный лог уходит в `target/nanolog/latest.log`: упавший тестовый запуск напечатал 1 022 токена вместо 13 577, вместе со сводкой запуска, а зелёный — 142 вместо 16 550 (o200k_base); см.'} [${en:'Fewer tokens', ru:'Меньше токенов'}](${en:'#fewer-tokens-logs-for-ai-coding-agents', ru:'#меньше-токенов-логи-для-ии-агентов'}).
-- **${en:'A summary that survives truncation.', ru:'Сводка, которая переживает обрезку.'}** ${en:'Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see', ru:'Агенты часто оставляют только начало и конец длинного вывода; в агентском режиме запуск заканчивается числом записей по уровням, каждым видом предупреждений и ошибок с местом вызова и трассировкой первой ошибки, напечатанными последними; см.'} [${en:'Run summary', ru:'Сводка запуска'}](#${en:'run-summary-the-part-of-the-output-that-survives-truncation', ru:'сводка-запуска-часть-вывода-которая-переживает-обрезку'}).
-- **${en:'Wide events, one line per request.', ru:'Wide events: одна строка на запрос.'}** ${en:'`LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see', ru:'`LOG.unit("checkout")` пишет одну каноническую строку лога на запрос или задание, когда оно заканчивается: исход, длительность, ваши поля и число предупреждений и ошибок внутри, `checkout ok 182 ms orderId=A-17 warn=1`; у неудачных единиц есть стабильный ключ ошибки; см.'} [${en:'Wide events', ru:'Wide events'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}).
+- **${en:'Print debugging that names its values.', ru:'Отладочная печать, которая называет значения.'}** ${en:'*Since 1.4.*', ru:'*С версии 1.4.*'} ${en:'`LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see', ru:'`LOG.dbg(order.total())` печатает `order.total() = 129.90 (BigDecimal)` с файлом и строкой вызова и возвращает значение, как `dbg!` в Rust и icecream в Python; объекты без `toString()` показываются поле за полем, а не как `Order@2f92e0f4`; см.'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}).
+- **${en:'Fewer tokens for coding agents.', ru:'Меньше токенов для кодовых агентов.'}** ${en:'*Since 1.4.*', ru:'*С версии 1.4.*'} ${en:'When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`: a failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see', ru:'Когда программу запускает Claude Code, Gemini CLI, Codex, Cursor CLI или другой агент, задающий `AI_AGENT`, консоль оставляет `WARN`, `ERROR` и `LOG.dbg`, а полный лог уходит в `target/nanolog/latest.log`: упавший тестовый запуск напечатал 1 022 токена вместо 13 577, вместе со сводкой запуска, а зелёный — 142 вместо 16 550 (o200k_base); см.'} [${en:'Fewer tokens', ru:'Меньше токенов'}](${en:'#fewer-tokens-logs-for-ai-coding-agents', ru:'#меньше-токенов-логи-для-ии-агентов'}).
+- **${en:'A summary that survives truncation.', ru:'Сводка, которая переживает обрезку.'}** ${en:'*Since 1.4.*', ru:'*С версии 1.4.*'} ${en:'Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error, printed last; see', ru:'Агенты часто оставляют только начало и конец длинного вывода; в агентском режиме запуск заканчивается числом записей по уровням, каждым видом предупреждений и ошибок с местом вызова и трассировкой первой ошибки, напечатанными последними; см.'} [${en:'Run summary', ru:'Сводка запуска'}](#${en:'run-summary-the-part-of-the-output-that-survives-truncation', ru:'сводка-запуска-часть-вывода-которая-переживает-обрезку'}).
+- **${en:'Wide events, one line per request.', ru:'Wide events: одна строка на запрос.'}** ${en:'*Since 1.4.*', ru:'*С версии 1.4.*'} ${en:'`LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see', ru:'`LOG.unit("checkout")` пишет одну каноническую строку лога на запрос или задание, когда оно заканчивается: исход, длительность, ваши поля и число предупреждений и ошибок внутри, `checkout ok 182 ms orderId=A-17 warn=1`; у неудачных единиц есть стабильный ключ ошибки; см.'} [${en:'Wide events', ru:'Wide events'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}).
 - **${en:'No logger fields.', ru:'Нет полей логгера.'}** `LOG.info("...")` ${en:'works from any class; the caller is found by walking the stack', ru:'работает из любого класса, вызывающий определяется по стеку'}.
 - **${en:'Zero dependencies.', ru:'Ноль зависимостей.'}** ${en:'No transitive libraries;', ru:'Никаких транзитивных библиотек;'} `slf4j-api` ${en:'is needed only if you use', ru:'нужен, только если вы используете'} `Slf4jLogger`.
 - **${en:'SLF4J-style placeholders.', ru:'Подстановка в стиле SLF4J.'}** `{}` ${en:'with escaping, array rendering and sane handling of missing or extra arguments', ru:'с экранированием, выводом массивов и разумной обработкой лишних и недостающих аргументов'}.
@@ -58,7 +84,9 @@ How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related 
 
 ${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
 
-${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true", numbering-style = "dotted", max-depth = "3")}
+${widget:details(summary="${en:'Table of contents', ru:'Содержание'}")}
+${widget:tableOfContents(title = "", ordered = "true", numbering-style = "dotted", max-depth = "3")}
+${widget:endDetails}
 
 ## ${en:'Installation', ru:'Установка'}
 
@@ -152,6 +180,8 @@ ${en:'Every level has the same set of overloads;', ru:'У каждого уро�
 ${en:'Every class and method is documented in the', ru:'Каждый класс и метод описан в'} [Javadoc](${javadoc}/${stableVersion}), ${en:'which IDEs also show from the sources jar.', ru:'который IDE показывают и из jar с исходниками.'}
 
 ## ${en:'Print debugging: `LOG.dbg` prints the expression and its value', ru:'Отладочная печать: `LOG.dbg` печатает выражение и его значение'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 `LOG.dbg(...)` is the Java counterpart of Rust's `dbg!` and Python's icecream: it prints the expression as written in the source, its value and type, and the file and line of the call, and returns the value, so it wraps any expression in place. Since 1.4.<!--en-->
 `LOG.dbg(...)` — аналог `dbg!` из Rust и icecream из Python для Java: печатает выражение так, как оно записано в исходнике, его значение и тип, файл и строку вызова и возвращает значение, поэтому им можно обернуть любое выражение прямо на месте. Начиная с 1.4.<!--ru-->
@@ -297,6 +327,8 @@ ${name} делает каждый шаг этого цикла дешёвым.<!
 
 ### ${en:'Agent mode: Nanolog detects coding agents', ru:'Агентский режим: Nanolog распознаёт кодовых агентов'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 Coding agents read program output through a narrow window: a long output is cut down to its head and tail or summarised, and agents rarely ask for the rest. When the environment names a coding agent, ${name} keeps its own console short and writes the full log to a file. Since 1.4.<!--en-->
 Кодовые агенты читают вывод программы через узкое окно: длинный вывод урезается до начала и конца или пересказывается, а остальное агенты запрашивают редко. Когда окружение называет кодового агента, ${name} делает свою консоль короткой, а полный лог пишет в файл. Начиная с 1.4.<!--ru-->
 
@@ -331,6 +363,8 @@ Without agent mode the same run printed 530 lines of ${name} output: three lines
 
 ### ${en:'Run summary: the part of the output that survives truncation', ru:'Сводка запуска: часть вывода, которая переживает обрезку'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 A coding agent often sees only the start and the end of a long output. Claude Code shows a failing command as an excerpt of its head and tail, about 10,000 characters ([tools reference](https://code.claude.com/docs/en/tools-reference)); Cursor cuts the output of a command at 20,000 characters ([forum](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); agents add `| tail -30` themselves and rarely ask for the rest ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). The error that matters is often in the part that was dropped. ${name} prints a summary of the run last, where it survives. Since 1.4.<!--en-->
 Кодовый агент часто видит только начало и конец длинного вывода. Claude Code показывает упавшую команду фрагментом из её начала и конца, около 10 000 символов ([справочник инструментов](https://code.claude.com/docs/en/tools-reference)); Cursor обрезает вывод команды на 20 000 символах ([форум](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); агенты сами дописывают `| tail -30` и редко просят остальное ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). Нужная ошибка часто оказывается в отброшенной части. ${name} печатает сводку запуска последней, там, где она сохраняется. Начиная с 1.4.<!--ru-->
 
@@ -362,6 +396,8 @@ In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects
 - **Собственный jar.** `SummaryListener` скомпилирован против API JUnit Platform Launcher, который предоставляет тестовый запуск, поэтому у ${name} по-прежнему нет зависимостей. Shaded-jar, сохраняющий `META-INF/services/org.junit.platform.launcher.TestExecutionListener`, должен сохранить и `SummaryListener`, иначе JUnit остановится с `ServiceConfigurationError`.<!--ru-->
 
 ### ${en:'Run log', ru:'Журнал запуска'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a file at a predictable place. A coding agent reads the output of the last run there instead of running it again to filter it once more, and follows a server that runs in the background. Off by default, on in [agent mode](#agent-mode-nanolog-detects-coding-agents). Since 1.4.<!--en-->
 С `nanolog.run=on` (`NANOLOG_RUN=on`) каждая запись запуска попадает ещё и в файл в предсказуемом месте. Кодовый агент читает там вывод последнего запуска, а не запускает его снова, чтобы ещё раз отфильтровать, и следит за сервером, работающим в фоне. По умолчанию выключено, в [агентском режиме](#агентский-режим-nanolog-распознаёт-кодовых-агентов) включено. Начиная с 1.4.<!--ru-->
@@ -401,6 +437,8 @@ Without installing anything, a few lines in `AGENTS.md` (or `CLAUDE.md`) of the 
 
 ```markdown
 ## ${en:'Fewer tokens: logs for AI coding agents', ru:'Меньше токенов: логи для ИИ-агентов'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 A coding agent pays for every token of output it reads, and a test run competes with the code for its context window. Agent mode keeps that cost low. The same runs of a small project printed this much through `mvn -q test`, first without agent mode, then as Claude Code runs them (`AI_AGENT=claude-code`):<!--en-->
 Кодовый агент платит за каждый токен вывода, который читает, а тестовый запуск отнимает место в окне контекста у кода. Агентский режим держит эту цену низкой. Одни и те же запуски небольшого проекта напечатали через `mvn -q test` вот сколько: сначала без агентского режима, затем так, как их запускает Claude Code (`AI_AGENT=claude-code`):<!--ru-->
@@ -442,6 +480,8 @@ are collected under the [`agents` label](${repo}/issues?q=is%3Aissue+label%3Aage
 
 ## ${en:'Wide events: one line per request (canonical log lines)', ru:'Wide events: одна строка на запрос (canonical log lines)'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'Dozens of scattered lines per request are hard to read, for people and for agents alike. The idea of', ru:'Десятки разрозненных строк на запрос трудно читать и людям, и агентам. Идея'} [wide events](https://loggingsucks.com/) ${en:'and of', ru:'и'} [canonical log lines](https://stripe.com/blog/canonical-log-lines) ${en:'at Stripe is one rich line per request or job. `LOG.unit(name)` writes that line when the unit of work ends, next to the usual log, not instead of it:', ru:'Stripe — одна насыщенная строка на запрос или задание. `LOG.unit(name)` пишет такую строку, когда единица работы заканчивается, рядом с обычным логом, а не вместо него:'}
 
 ${widget:import(path='${examples}/WideEvents.java', region='unit', wrap='true')}
@@ -457,6 +497,8 @@ ${widget:import(path='${examples}/WideEvents.java', region='unit', wrap='true')}
 - ${en:'**Cost.** A unit costs one stack walk, to find where it was opened, and one line. Code outside units pays nothing beyond the `ThreadLocal` read of the context.', ru:'**Цена.** Единица стоит одного обхода стека, чтобы найти место открытия, и одной строки. Код вне единиц не платит ничего сверх чтения `ThreadLocal` для контекста.'}
 
 ## ${en:'Timing a block', ru:'Замер времени блока'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'"Which step is slow?" usually means two `System.nanoTime()` calls and a subtraction, written again each time. `LOG.time(name)` writes one uniform line that a person or an agent can compare between runs:', ru:'«Какой шаг медленный?» обычно означает два вызова `System.nanoTime()` и вычитание, каждый раз заново. `LOG.time(name)` пишет одну единообразную строку, которую человек или агент может сравнить между запусками:'}
 
@@ -475,6 +517,8 @@ LOG.time(LogEntry.LogEntryLevel.DEBUG, "Parse").close();         // another leve
 - ${en:'`LOG.timed(name, body)` writes `Count users failed after 12 ms` with the stack trace when the body throws, and throws the exception on; `close()` of a try-with-resources block cannot see an exception. For a request or a job with an outcome and fields, use a', ru:'`LOG.timed(name, body)`, если тело бросает исключение, пишет `Count users failed after 12 ms` со стеком и пробрасывает исключение дальше; `close()` блока try-with-resources исключения не видит. Для запроса или задания с исходом и полями используйте'} [${en:'unit of work', ru:'единицу работы'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}).
 
 ## ${en:'Breadcrumbs: DEBUG only when something fails', ru:'Breadcrumbs: DEBUG, только когда что-то сломалось'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'With `DEBUG` off the log lacks the context of a failure, and with `DEBUG` on it drowns. `nanolog.buffer=DEBUG` keeps `DEBUG` and `TRACE` entries in memory and writes them only when an `ERROR` follows, before the error, as the log buffering of .NET, AWS Powertools and the breadcrumbs of Sentry do:', ru:'С выключенным `DEBUG` логу не хватает контекста сбоя, а с включённым он тонет в деталях. `nanolog.buffer=DEBUG` держит записи `DEBUG` и `TRACE` в памяти и пишет их, только когда следует `ERROR`, перед ошибкой, как это делают буферизация логов в .NET, AWS Powertools и breadcrumbs в Sentry:'}
 
@@ -728,6 +772,8 @@ ${en:'One JSON object per line, for `jq`, log collectors and scripts. It needs n
 
 ### FileLogger
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'Writes the entries to a file, for an application with no console to redirect, a desktop or an Android app, or a service that keeps a log of its own:', ru:'Пишет записи в файл: для приложения, у которого нет консоли для перенаправления, например настольного или Android-приложения, или для сервиса, который ведёт собственный лог:'}
 
 ```properties
@@ -800,6 +846,8 @@ ${widget:import(path='${examples}/CapturingLogs.java', region='composite', wrap=
 
 ## ${en:'Logs in tests: only the failing ones', ru:'Логи в тестах: только упавших'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 The log of a passing test is noise; the log of a failing one is the evidence. A Spring Boot test suite can print thousands of lines per green run, and the agent, or the person, reading it cannot find the failure in them. `NanologExtension` holds back what each test writes and prints it only when the test fails. Since 1.4.<!--en-->
 Лог прошедшего теста — шум, лог упавшего — улика. Набор тестов Spring Boot может печатать тысячи строк за зелёный прогон, и агент или человек, который его читает, не находит в них ошибку. `NanologExtension` придерживает то, что пишет каждый тест, и печатает это, только если тест упал. Начиная с 1.4.<!--ru-->
 
@@ -845,6 +893,8 @@ ${widget:import(path='${examples}/Formatting.java', region='formatting', wrap='t
 - С `nanolog.dump=auto` (`NANOLOG_DUMP=auto`) аргумент, у класса которого нет собственного `toString()`, печатается поле за полем, как в [`LOG.dbg`](#объекты-без-tostring): `LOG.info("Added {}", line)` печатает `Added Line{sku="A-1", qty=2}` вместо `Added Line@1e643faf`. Коллекции, словари, массивы и `Optional` обходятся, поэтому список таких объектов печатается так же. Всё, у чего есть собственный `toString()`, включая строки, печатается как раньше, без кавычек, ограничений и скрытия секретов. По умолчанию настройка выключена, потому что меняет привычный вывод; `JsonLogger` кладёт результат в `message` и `args` как текст. Начиная с 1.4.<!--ru-->
 
 ### ${en:'Fields: named arguments', ru:'Поля: именованные аргументы'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'`LOG.kv(key, value)` names an argument, so that a script or an agent can select the entry by it instead of matching the text of the message:', ru:'`LOG.kv(key, value)` даёт аргументу имя, чтобы скрипт или агент выбирали запись по нему, а не по тексту сообщения:'}
 
@@ -917,6 +967,8 @@ ${widget:import(path='${examples}/CapturingLogs.java', region='diagnostics', wra
 
 ## ${en:'Logging payloads safely', ru:'Безопасное логирование содержимого'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'Prompts and responses of a language model, request bodies and documents are either not logged at all or logged raw, keys pasted into them included. `LOG.content(value)` is the middle ground: the text in development, a summary in production.', ru:'Промпты и ответы языковой модели, тела запросов и документы либо не логируются вовсе, либо логируются как есть, вместе с вставленными в них ключами. `LOG.content(value)` — середина: текст при разработке, сводка в продакшене.'}
 
 ${widget:import(path='${examples}/Payloads.java', region='content', wrap='true')}
@@ -929,6 +981,8 @@ ${widget:import(path='${examples}/Payloads.java', region='content', wrap='true')
 - ${en:'**Known keys are masked.** A shown or truncated payload has keys of model providers (`sk-...`), AWS access keys (`AKIA...`), bearer tokens and JSON web tokens replaced by `sk-***`, `AKIA***`, `Bearer ***` and `eyJ***`. Other secrets inside it, such as a password in plain words, are written as they are; only payloads are scanned, never the text of messages.', ru:'**Известные ключи маскируются.** В показанном или обрезанном содержимом ключи поставщиков моделей (`sk-...`), ключи доступа AWS (`AKIA...`), bearer-токены и JSON web tokens заменяются на `sk-***`, `AKIA***`, `Bearer ***` и `eyJ***`. Другие секреты внутри, например пароль обычными словами, пишутся как есть; сканируется только содержимое, никогда текст сообщений.'}
 
 ## ${en:'Masking secrets', ru:'Маскирование секретов'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'Tokens and passwords reach the log through `{}` arguments, fields and the context, and the logs a coding agent reads are sent to its model provider. `LOG.secret(value)` marks a secret, and fields and context named like secrets are masked without it:', ru:'Токены и пароли попадают в лог через аргументы `{}`, поля и контекст, а логи, которые читает кодовый агент, уходят его поставщику модели. `LOG.secret(value)` помечает секрет, а поля и контекст с именами секретов маскируются и без него:'}
 
@@ -945,6 +999,8 @@ LOG.info("Connected", LOG.kv("url", url), LOG.kv("password", password));
 - ${en:'The text of messages is not scanned: scanning every message is slow and gives a false sense of safety. Payloads of', ru:'Текст сообщений не сканируется: сканировать каждое сообщение медленно, и это даёт ложное чувство безопасности. В содержимом'} [`LOG.content`](#${en:'logging-payloads-safely', ru:'безопасное-логирование-содержимого'}) ${en:'have the known key formats masked when they are shown.', ru:'известные форматы ключей маскируются, когда оно показывается.'}
 
 ## ${en:'Logging LLM calls', ru:'Логирование вызовов LLM'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'Spring AI and LangChain4j have switches that log requests and responses, but they print `toString()` dumps and pretty-printed JSON. A listener or an advisor of about twenty lines logs one line per call through Nanolog instead: the model, the tokens, the latency and the finish reason, under the field names of the', ru:'У Spring AI и LangChain4j есть переключатели, которые логируют запросы и ответы, но печатают они дампы `toString()` и форматированный JSON. Слушатель или advisor примерно на двадцать строк логирует вместо этого одну строку на вызов через Nanolog: модель, токены, задержку и причину завершения, под именами полей из'} [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) (${en:'the `gen_ai.client.inference` span, status Development in November 2026', ru:'span `gen_ai.client.inference`, статус Development на ноябрь 2026 года'}), ${en:'with the prompt and the completion as', ru:'а промпт и ответ — как'} [`LOG.content`](#${en:'logging-payloads-safely', ru:'безопасное-логирование-содержимого'}) ${en:'and, at `DEBUG`, a short transcript.', ru:'и, на уровне `DEBUG`, короткую стенограмму.'}
 
@@ -1068,6 +1124,8 @@ INFO [NanologAdvisor] chat ok 812 ms parent=agent-turn gen_ai.request.model=gpt-
 
 ## ${en:'Context: tag the lines of one request', ru:'Контекст: метка для строк одного запроса'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'`LOG.context(key, value)` adds a pair to every entry the current thread logs until the scope is closed, so the lines of one request, job or test are found together, with `grep requestId=r-17` or by an agent reading the log:', ru:'`LOG.context(key, value)` добавляет пару ко всем записям текущего потока, пока область не закрыта, поэтому строки одного запроса, задания или теста находятся вместе: через `grep requestId=r-17` или агентом, который читает лог:'}
 
 ${widget:import(path='${examples}/RequestContext.java', region='context', wrap='true')}
@@ -1118,6 +1176,8 @@ ${widget:import(path='${examples}/RateLimiting.java', region='limits', wrap='tru
 
 ## ${en:'Tags', ru:'Теги'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'Some entries belong to a concern rather than to a class: audit, security, SQL. `LOG.tag(name)` marks them, wherever they come from:', ru:'Некоторые записи относятся к теме, а не к классу: аудит, безопасность, SQL. `LOG.tag(name)` помечает их, откуда бы они ни шли:'}
 
 ```java
@@ -1136,6 +1196,8 @@ WARN 18.11.2026 10:30:00 [UserService] [audit] User alice changed role to admin
 
 ## ${en:'Catching exceptions', ru:'Перехват исключений'}
 
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
+
 ${en:'Two patterns repeat in every code base: the `try { ... } catch (Exception e) { LOG.error(...) }` block that logs and carries on, and the exception that kills a background thread and is printed by the JVM as `Exception in thread "pool-1-thread-3"`, outside the log format, outside `JsonLogger` and out of sight of `MemoryLogger`:', ru:'Два шаблона повторяются в каждом проекте: блок `try { ... } catch (Exception e) { LOG.error(...) }`, который логирует и продолжает работу, и исключение, которое убивает фоновый поток и печатается JVM как `Exception in thread "pool-1-thread-3"`, вне формата лога, вне `JsonLogger` и вне поля зрения `MemoryLogger`:'}
 
 ${widget:import(path='${examples}/Catching.java', region='catching', wrap='true')}
@@ -1146,6 +1208,8 @@ ${widget:import(path='${examples}/Catching.java', region='catching', wrap='true'
 - ${en:'The entry of an uncaught exception has the class and call site of the first frame of its stack trace outside the JDK, the code that failed, not the dispatch code of the JVM. The dying thread first writes its', ru:'У записи о необработанном исключении класс и место вызова первого кадра его стека вне JDK — кода, который упал, а не кода JVM, который его доставил. Умирающий поток сначала пишет свои'} [breadcrumbs](#${en:'breadcrumbs-debug-only-when-something-fails', ru:'breadcrumbs-debug-только-когда-что-то-сломалось'}), ${en:'then the exception, then its units still open, as `interrupted`.', ru:'затем исключение, затем свои ещё открытые единицы работы с исходом `interrupted`.'}
 
 ## ${en:'System.out and System.err', ru:'System.out и System.err'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'Libraries and old code print with `System.out.println` and `e.printStackTrace()`. Their lines have no level and no source, miss `JsonLogger` and are not captured by `MemoryLogger`. `LOG.captureSystemStreams()`, or `nanolog.captureSystemStreams=true`, makes each such line an entry:', ru:'Библиотеки и старый код печатают через `System.out.println` и `e.printStackTrace()`. У их строк нет уровня и источника, они проходят мимо `JsonLogger` и не попадают в `MemoryLogger`. `LOG.captureSystemStreams()` или `nanolog.captureSystemStreams=true` превращают каждую такую строку в запись:'}
 
@@ -1176,6 +1240,8 @@ that does not belong to `LOG`, `LogEntry` or an `ILogger` implementation. On Jav
 - ${en:'If no frame qualifies, the entry is still logged, without a source class and a call site, as with `LOG.log(level, null, ...)`. That happens when the code runs entirely inside an `ILogger` class, or on Java 8 when the JVM records no stack traces (`-XX:-StackTraceInThrowable`). `Slf4jLogger` sends such entries to the `ROOT` logger.', ru:'Если подходящего кадра нет, запись всё равно попадает в лог, но без класса-источника и места вызова, как при `LOG.log(level, null, ...)`. Так бывает, когда код целиком выполняется внутри класса, реализующего `ILogger`, или на Java 8, когда JVM не записывает стек (`-XX:-StackTraceInThrowable`). `Slf4jLogger` отправляет такие записи в логгер `ROOT`.'}
 
 ### ${en:'Logging helpers', ru:'Обёртки над LOG'}
+
+${en:'*Since 1.4.*', ru:'*С версии 1.4.*'}
 
 ${en:'A helper that logs for others, such as an `Audit.record(...)` method or a base class of tasks, would be the source of every entry it logs, and its callers would share one rate limit of `LOG.once()`. Name such helpers in `nanolog.caller.skip` (or `NANOLOG_CALLER_SKIP`), class or package names separated by commas:', ru:'Вспомогательный код, который пишет в лог за других, например метод `Audit.record(...)` или базовый класс задач, оказался бы источником каждой своей записи, а все его вызывающие делили бы одно ограничение `LOG.once()`. Такие обёртки перечисляются в `nanolog.caller.skip` (или `NANOLOG_CALLER_SKIP`) — имена классов или пакетов через запятую:'}
 
@@ -1592,7 +1658,7 @@ ${en:'First release.', ru:'Первый выпуск.'}
 
 ## ${en:'Contributing', ru:'Участие в разработке'}
 
-- ${en:'Questions, bug reports and ideas: see', ru:'Вопросы, ошибки и идеи: см.'} [SUPPORT.md](${en:'SUPPORT.md', ru:'SUPPORT.ru.md'}).
+- **${en:'Questions and feedback', ru:'Вопросы и отзывы'}:** [Discussions](${repo}/discussions) · **${en:'bugs', ru:'ошибки'}:** [Issues](${repo}/issues/new/choose) · ${en:'English or Russian; what to include is in', ru:'на русском или английском; что приложить, описано в'} [SUPPORT.md](${en:'SUPPORT.md', ru:'SUPPORT.ru.md'}).
 - ${en:'Building, testing and changing the code or the docs: see', ru:'Сборка, тесты и изменения кода или документации: см.'} [CONTRIBUTING.md](${en:'CONTRIBUTING.md', ru:'CONTRIBUTING.ru.md'}).
 - ${en:'Vulnerabilities are reported privately: see', ru:'Об уязвимостях сообщайте приватно: см.'} [SECURITY.md](${en:'SECURITY.md', ru:'SECURITY.ru.md'}).
 
