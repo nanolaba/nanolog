@@ -32,7 +32,7 @@ final class Settings {
             PROPERTY_SOURCES, PROPERTY_DUMP, PROPERTY_DBG, PROPERTY_AGENT, PROPERTY_SUMMARY, PROPERTY_JUNIT_OUTPUT, PROPERTY_DIAGNOSTICS,
             PROPERTY_RUN, PROPERTY_RUN_DIR, PROPERTY_RUN_FORMAT, PROPERTY_RUN_KEEP, PROPERTY_RUN_MAX_SIZE,
             PROPERTY_UNIT_SAMPLE, PROPERTY_UNIT_SLOW_MS, PROPERTY_BUFFER, PROPERTY_BUFFER_SIZE, PROPERTY_CONTENT, PROPERTY_REDACT,
-            PROPERTY_CALLER_SKIP,
+            PROPERTY_CALLER_SKIP, PROPERTY_CONTEXT_PROVIDER,
             ConsoleLogger.PROPERTY_SHOW_LEVEL, ConsoleLogger.PROPERTY_SHOW_DATE, ConsoleLogger.PROPERTY_SHOW_SOURCE,
             ConsoleLogger.PROPERTY_SHOW_SOURCE_FULL_NAME, ConsoleLogger.PROPERTY_SHOW_LOCATION,
             ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_SHOW_CONTEXT, ConsoleLogger.PROPERTY_SHOW_SOURCE_LINE,
@@ -45,7 +45,7 @@ final class Settings {
     /**
      * The namespaces whose every key belongs to Nanolog.
      */
-    private static final List<String> NAMESPACES = Arrays.asList("buffer", "caller", "console", "content", "exception", "junit", "level", "run", "unit");
+    private static final List<String> NAMESPACES = Arrays.asList("buffer", "caller", "console", "content", "context", "exception", "junit", "level", "run", "unit");
 
     private static final String LEVEL = "level";
     private static final String LEVEL_RULE = PROPERTY_LEVEL + ".";

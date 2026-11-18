@@ -74,6 +74,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 13.1 [LangChain4j](#langchain4j)
 	- 13.2 [Spring AI](#spring-ai)
 - 14 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
+	- 14.1 [Context providers](#context-providers)
 - 15 [Rate limiting](#rate-limiting)
 - 16 [Catching exceptions](#catching-exceptions)
 - 17 [Caller detection](#caller-detection)
@@ -193,6 +194,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `try (LOG.Unit u = LOG.unit("checkout"))` | one line when the unit closes: name, outcome, duration, fields and the counts of warnings and errors inside, see [Wide events](#wide-events-one-line-per-request-canonical-log-lines) |
 | `LOG.unit("import", () -> importer.run())` | the same for a lambda: a thrown exception fails the unit and is thrown on |
 | `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
+| `LOG.addContextProvider(() -> ids)` | adds the keys of a context of its own, such as the trace ID of OpenTelemetry, to every entry, see [Context providers](#context-providers) |
 | `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
 | `LOG.catching(() -> connection.close())` | run an action, log an exception at `ERROR` and carry on; `LOG.catching(() -> parse(s), -1)` returns a default, see [Catching exceptions](#catching-exceptions) |
 | `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
@@ -553,6 +555,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 | `nanolog.dump` | `auto` prints `{}` arguments whose class has no `toString()` of its own field by field, see [Message formatting](#message-formatting) | `off` |
 | `nanolog.diagnostics` | how often a `[NANOLOG]` diagnostic is printed: `once` per JVM, `all` every time or `off`; `ILogger.onDiagnostic` still gets the findings of strict mode | `once` |
 | `nanolog.caller.skip` | classes and packages, comma-separated, whose frames caller detection skips like those of `LOG`, see [Logging helpers](#logging-helpers) | — |
+| `nanolog.context.provider` | classes of context providers, comma-separated, see [Context providers](#context-providers) | — |
 | `nanolog.strict` | report calls whose `{}` placeholders and arguments do not match, whose argument repeats the message of the exception or whose template is built from data, see [Message formatting](#message-formatting) | `false` |
 
 If the class named in `nanolog.logger` cannot be instantiated, **Nanolog** prints a
@@ -566,7 +569,7 @@ A setting that **Nanolog** does not know is reported, not ignored without a word
 [NANOLOG] "level" in file:/app/classes/nanolog.properties is ignored: keys must start with "nanolog." (did you mean "nanolog.level"?)
 ```
 
-`nanolog.buffer.*`, `nanolog.caller.*`, `nanolog.console.*`, `nanolog.content.*`, `nanolog.exception.*`, `nanolog.junit.*`, `nanolog.level.*`, `nanolog.run.*`, `nanolog.unit.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
+`nanolog.buffer.*`, `nanolog.caller.*`, `nanolog.console.*`, `nanolog.content.*`, `nanolog.context.*`, `nanolog.exception.*`, `nanolog.junit.*`, `nanolog.level.*`, `nanolog.run.*`, `nanolog.unit.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
 
 > [!IMPORTANT]
 > `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code.
@@ -1114,6 +1117,29 @@ try (LOG.Context c = LOG.context("requestId", requestId)) {
 - As with `ExecutorService.submit`, a lambda that returns a value, `() -> list.add(item)`, is a `Callable` to the compiler; write `() -> { list.add(item); }` where a `Runnable` is needed.
 - Every entry reads one `ThreadLocal`. A thread without a context keeps nothing in it, virtual threads included.
 
+### Context providers
+
+The trace ID of OpenTelemetry, of New Relic or of a request scope lives in a context of its own, not in `LOG.context`. A context provider adds such keys to every entry, without a dependency of Nanolog on that library:
+
+```java
+LOG.addContextProvider(() -> {
+    SpanContext span = Span.current().getSpanContext();
+    if (!span.isValid()) {
+        return null;
+    }
+    Map<String, Object> ids = new LinkedHashMap<>();
+    ids.put("traceId", span.getTraceId());
+    ids.put("spanId", span.getSpanId());
+    return ids;
+});
+```
+
+- A provider is asked when an entry is created, in the thread that logs: only for an enabled level and once per entry, so keep it cheap. It may return `null` or an empty map; a `null` key is ignored.
+- Its keys come after the pairs of `LOG.context`, which win over them, and a provider added earlier wins over a later one. They reach the loggers like the other pairs: `ConsoleLogger` prints `traceId=4bf92f35...` after the message, `JsonLogger` writes them into `"context"`, `Slf4jLogger` puts them into the MDC for `%X{traceId}`, and keys named like secrets are masked.
+- A provider that throws is reported once with a `[NANOLOG]` line, and the entry is logged without its keys. An entry that a provider logs itself gets no keys from the providers.
+- In the configuration, `nanolog.context.provider=com.acme.TraceIdProvider` names a class that implements `Supplier<Map<String, ?>>` and has a public no-argument constructor; several are separated by commas and come before the providers of `addContextProvider`. A class that cannot be created is reported and left out.
+- Providers apply to the whole JVM and stay after `LOG.init()`; `LOG.removeContextProvider(provider)` removes one. A task of `LOG.wrap(task)` asks them in the thread that runs it, where OpenTelemetry has carried its own context.
+
 ## Rate limiting
 
 A retry loop, a full queue or a deprecated option can print the same line thousands of times, and the line that matters scrolls away. `LOG.once()` and `LOG.atMostEvery(...)` limit one statement:
@@ -1455,6 +1481,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Context providers: `LOG.addContextProvider(() -> ids)` and `nanolog.context.provider=com.acme.TraceIdProvider` add the keys of a context of their own, such as the trace ID of OpenTelemetry, to every entry, after the pairs of `LOG.context`, which win. A provider is asked only for an enabled entry; one that throws is reported once and the entry is logged without its keys.
 - Logging helpers: `nanolog.caller.skip=com.acme.Audit,com.acme.logging` and `LOG.skipCaller(Helper.class)` skip the frames of classes and packages that log for others, so an entry logged through `Audit.record(...)` gets the source class, call site and rate limit of the code that called the helper, and `Slf4jLogger` passes the helper to Logback and Log4j 2 as the caller boundary.
 - Strict mode reports two more mistakes, with the call site: an argument that repeats the message of the exception logged with it, `LOG.error("Failed: {}", e.getMessage(), e)`, and a call site seen with two templates, a template built from data such as `LOG.info("User " + id + " from {}", ip)`. Like the placeholder check, both reach `ILogger.onDiagnostic` and fail `MemoryLogger.assertNoDiagnostics()`; calls without arguments are not checked.
 - README: Related projects, a comparison with tinylog, jcabi-log, minlog, Timber, SLF4J with Logback, Log4j 2, java.util.logging, Flogger and JBoss Logging, with the calls that behave differently in tinylog.

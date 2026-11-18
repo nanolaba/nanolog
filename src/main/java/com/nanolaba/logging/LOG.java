@@ -79,8 +79,8 @@ public class LOG {
     /**
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
      * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
-     * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*}, {@code nanolog.redact} and
-     * {@code nanolog.caller.skip}. Called once when the class initialises.
+     * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*}, {@code nanolog.redact},
+     * {@code nanolog.caller.skip} and {@code nanolog.context.provider}. Called once when the class initialises.
      */
     public static void init() {
         flushRepeats(LOG.logger);
@@ -98,6 +98,7 @@ public class LOG {
         Contents.configure();
         Redaction.configure();
         CallerDetection.configureSkip();
+        Contexts.configureProviders();
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
@@ -1304,6 +1305,32 @@ public class LOG {
      */
     public static <T> Callable<T> wrap(Callable<T> task) {
         return Contexts.wrap(task);
+    }
+
+    /**
+     * Adds the keys of a context of its own to every entry, such as the trace ID of OpenTelemetry or the tenant of a
+     * request scope: {@code LOG.addContextProvider(() -> Collections.singletonMap("traceId", currentTraceId()))}.
+     * <p>
+     * The provider is asked when an entry is created, in the thread that logs, so only for an enabled level; keep it
+     * cheap. Its keys come after the pairs of {@link #context(String, Object)}, which win over them, and after the keys of
+     * the providers added before it, which win as well. A provider that throws is reported once, and the entry is logged
+     * without its keys; an entry logged by a provider gets no keys from the providers. Adding a provider again changes
+     * nothing. Providers apply to the whole JVM and stay after {@link #init()}; {@code nanolog.context.provider} names
+     * provider classes in the configuration.
+     *
+     * @param provider the provider of keys and values; {@code null} is ignored, and so is a {@code null} map or key
+     */
+    public static void addContextProvider(Supplier<? extends Map<String, ?>> provider) {
+        Contexts.addProvider(provider);
+    }
+
+    /**
+     * Removes a provider of {@link #addContextProvider(Supplier)}.
+     *
+     * @param provider the provider added before; another one changes nothing
+     */
+    public static void removeContextProvider(Supplier<? extends Map<String, ?>> provider) {
+        Contexts.removeProvider(provider);
     }
 
     // FIELDS

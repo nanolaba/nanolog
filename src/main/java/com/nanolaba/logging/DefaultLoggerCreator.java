@@ -132,6 +132,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_CALLER_SKIP = PROPERTY_PREFIX + "caller.skip";
     /**
+     * Context providers, comma-separated class names: each class implements {@code Supplier<Map<String, ?>>}, has a
+     * public no-argument constructor, and adds its keys to every entry, see {@link LOG#addContextProvider}.
+     */
+    public static final String PROPERTY_CONTEXT_PROVIDER = PROPERTY_PREFIX + "context.provider";
+    /**
      * The directory of the run log, relative to the working directory; without it {@code target/nanolog} in a Maven
      * module, {@code build/nanolog} in a Gradle one and {@code .nanolog} otherwise.
      */
