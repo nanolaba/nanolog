@@ -38,3 +38,9 @@ jobs:
         # slf4j-api and slf4j-simple 1.7.36, JUnit only; compiling against 1.7 fails on an API that only 2.x has
         if: matrix.java == 8
         run: mvn -B --no-transfer-progress -P slf4j-1.7 clean test-compile surefire:test
+
+      - name: Calls from Kotlin
+        # compiles src/test/kotlin, the calls of LOG as Kotlin code writes them: an overload that makes one of them
+        # ambiguous for Kotlin fails here, although Java compiles it
+        if: matrix.java == 17
+        run: mvn -B --no-transfer-progress -P kotlin test-compile surefire:test -Dtest=KotlinCallersTest

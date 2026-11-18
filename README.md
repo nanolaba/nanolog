@@ -127,6 +127,8 @@ Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nan
 
 Requirements: Java 8+. The jar declares `Automatic-Module-Name: com.nanolaba.nanolog` for modular applications.
 
+The same jar serves Kotlin: CI compiles the calls of `LOG` in every shape from Kotlin, `LOG.info { "lazy" }` among them, so no overload is ambiguous there. A block given to `LOG.timed` or `LOG.unit` takes the overload that returns nothing; for the value of the block write `val n = LOG.timed("Count users", Supplier { repo.count() })`.
+
 ## Quick start
 
 No setup is needed: `ConsoleLogger` is active by default and prints every level, including `TRACE`; when a coding agent runs the program, the console is shorter, see [Agent mode](#agent-mode-nanolog-detects-coding-agents).
@@ -1514,6 +1516,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- Calls from Kotlin are checked: CI compiles the calls of `LOG` in every shape from Kotlin, so an overload that is ambiguous for Kotlin, as in tinylog, fails the build.
 - `Slf4jLogger` is tested against SLF4J 1.7 as well as 2.x: CI runs the tests once more with slf4j-api and slf4j-simple 1.7.36.
 - A library that replaces the logger of the application is reported: when code of another organization (the first two segments of the package) replaces a logger installed with `LOG.init(logger)`, a `[NANOLOG]` line names both call sites. `LOG.lock()` and `nanolog.logger.lock=true` keep the installed logger and turn later `LOG.init` calls into no-ops with such a line; `MemoryLogger.install()` still works under the lock.
 - Documentation: a `nanolog.properties` in `src/test/resources` replaces the one in `src/main/resources` in tests, as a whole file, not merged.

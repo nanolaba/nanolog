@@ -29,6 +29,8 @@
         <junit5.version>5.10.2</junit5.version>
         <junit-platform.version>1.10.2</junit-platform.version>
         <slf4j.version>2.0.12</slf4j.version>
+        <!-- the profile kotlin compiles its tests elsewhere, so a build without it never meets the Kotlin classes -->
+        <test.output.directory>${project.build.directory}/test-classes</test.output.directory>
         <commons-lang3.version>3.17.0</commons-lang3.version>
 
         <!-- Maven plugins -->
@@ -120,6 +122,7 @@
     </dependencies>
 
     <build>
+        <testOutputDirectory>${test.output.directory}</testOutputDirectory>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -280,6 +283,52 @@
     </build>
 
     <profiles>
+        <!--
+            Calls of LOG from Kotlin: compiles src/test/kotlin, so an overload that makes a call ambiguous for Kotlin
+            fails the build, and KotlinCallersTest runs the calls once. CI runs
+            mvn -P kotlin test-compile surefire:test -Dtest=KotlinCallersTest on JDK 17. The test classes of this profile
+            go to target/kotlin-test-classes, so a build without it, pitest included, never meets the Kotlin classes
+            without the Kotlin library. Test scope only: the published jar and its dependencies do not change.
+        -->
+        <profile>
+            <id>kotlin</id>
+            <properties>
+                <kotlin.version>2.4.21</kotlin.version>
+                <test.output.directory>${project.build.directory}/kotlin-test-classes</test.output.directory>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>kotlin-stdlib</artifactId>
+                    <version>${kotlin.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-maven-plugin</artifactId>
+                        <version>${kotlin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>test-compile</id>
+                                <phase>test-compile</phase>
+                                <goals>
+                                    <goal>test-compile</goal>
+                                </goals>
+                                <configuration>
+                                    <sourceDirs>
+                                        <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
+                                    </sourceDirs>
+                                    <jvmTarget>1.8</jvmTarget>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!--
             SLF4J 1.7 instead of 2.x, to test Slf4jLogger against the older API many applications still run:
             mvn -P slf4j-1.7 clean test-compile surefire:test -Dtest=... (CI runs it on JDK 8, JUnit only). The README
