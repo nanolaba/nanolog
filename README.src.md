@@ -137,13 +137,12 @@ INFO 10.11.2026 21:30:00 [QuickStart] Application started<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...<!--en-->
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low<!--en-->
-ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number"<!--en-->
+ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.NumberFormatException: For input string: "not a number"<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...<!--ru-->
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске<!--ru-->
-ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number"<!--ru-->
-java.lang.NumberFormatException: For input string: "not a number"
+ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number" java.lang.NumberFormatException: For input string: "not a number"<!--ru-->
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
 ```

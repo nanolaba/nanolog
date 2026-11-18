@@ -225,8 +225,7 @@ INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске
-ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number"
-java.lang.NumberFormatException: For input string: "not a number"
+ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
 ```

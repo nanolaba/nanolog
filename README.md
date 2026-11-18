@@ -225,8 +225,7 @@ INFO 10.11.2026 21:30:00 [QuickStart] Application started
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low
-ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number"
-java.lang.NumberFormatException: For input string: "not a number"
+ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
 ```
