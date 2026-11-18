@@ -481,21 +481,21 @@ class RunLogTest extends AbstractLoggerTest {
     public void testInvalidSettingsAreReportedAndGiveTheDefaults() {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "yes");
         assertFalse(DefaultLoggerCreator.readChoice(DefaultLoggerCreator.PROPERTY_RUN, "off", "on").equals("on"));
-        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.run\": expected off or on" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.run\": expected off or on; set as a system property" + NL, getErrAndClear());
 
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_FORMAT, "xml");
         assertEquals("text", DefaultLoggerCreator.readChoice(DefaultLoggerCreator.PROPERTY_RUN_FORMAT, "text", "json"));
-        assertEquals("[NANOLOG] Invalid value \"xml\" of \"nanolog.run.format\": expected text or json" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"xml\" of \"nanolog.run.format\": expected text or json; set as a system property" + NL, getErrAndClear());
         assertEquals("on", DefaultLoggerCreator.readChoice("nanolog.test.choice", "on", "off", "fail"));
         System.setProperty("nanolog.test.choice", "x");
         assertEquals("on", DefaultLoggerCreator.readChoice("nanolog.test.choice", "on", "off", "fail"));
-        assertEquals("[NANOLOG] Invalid value \"x\" of \"nanolog.test.choice\": expected on, off or fail" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"x\" of \"nanolog.test.choice\": expected on, off or fail; set as a system property" + NL, getErrAndClear());
         System.clearProperty("nanolog.test.choice");
 
         for (String value : new String[]{"0", "-1", "ten", ""}) {
             System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_KEEP, value);
             assertEquals(10, DefaultLoggerCreator.readPositive(DefaultLoggerCreator.PROPERTY_RUN_KEEP, 10));
-            assertEquals("[NANOLOG] Invalid value \"" + value + "\" of \"nanolog.run.keep\": expected a positive number" + NL,
+            assertEquals("[NANOLOG] Invalid value \"" + value + "\" of \"nanolog.run.keep\": expected a positive number; set as a system property" + NL,
                          getErrAndClear());
         }
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_KEEP, " 3 ");

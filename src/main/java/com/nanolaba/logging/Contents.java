@@ -87,7 +87,7 @@ final class Contents {
                 // reported below
             }
         }
-        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected hide, show or truncate:<characters>");
+        DefaultLoggerCreator.printInvalid(property, value, "expected hide, show or truncate:<characters>");
         return null;
     }
 

@@ -222,7 +222,7 @@ final class RunLog extends ConsoleLogger {
                                readPositive(PROPERTY_RUN_KEEP, 10), readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB,
                                id(System.currentTimeMillis(), pid()));
                 if (!agent) {
-                    printDiagnostic("Run log: " + current.shownFile.toAbsolutePath() + "; WARN and ERROR also in " +
+                    DefaultLoggerCreator.printNotice("Run log: " + current.shownFile.toAbsolutePath() + "; WARN and ERROR also in " +
                                     current.shownErrorsFile.toAbsolutePath());
                 }
             } catch (IOException | RuntimeException e) {

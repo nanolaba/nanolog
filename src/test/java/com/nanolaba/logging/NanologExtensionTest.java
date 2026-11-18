@@ -163,7 +163,7 @@ class NanologExtensionTest extends AbstractLoggerTest {
         run(Outcomes.class);
         run(Outcomes.class);
 
-        assertEquals("[NANOLOG] Invalid value \"some\" of \"nanolog.junit.output\": expected failed, all or none" + NL,
+        assertEquals("[NANOLOG] Invalid value \"some\" of \"nanolog.junit.output\": expected failed, all or none; set as a system property" + NL,
                      getErrAndClear());
         assertTrue(getOutAndClear().contains("--- log of Outcomes.fails ---"));
     }

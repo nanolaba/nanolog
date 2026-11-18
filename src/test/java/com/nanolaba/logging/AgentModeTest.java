@@ -134,7 +134,7 @@ class AgentModeTest extends AbstractLoggerTest {
         System.setProperty(PROPERTY_AGENT, "yes");
 
         assertEquals("CLAUDECODE=1", Agent.detect());
-        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.agent\": expected auto, on or off" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.agent\": expected auto, on or off; set as a system property" + NL, getErrAndClear());
     }
 
     // THE CONSOLE
@@ -332,7 +332,7 @@ class AgentModeTest extends AbstractLoggerTest {
         getErrAndClear();
         LOG.init();
         assertFalse(Dbg.ignoreLevels);
-        assertEquals("[NANOLOG] Invalid value \"maybe\" of \"nanolog.agent\": expected auto, on or off" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"maybe\" of \"nanolog.agent\": expected auto, on or off; set as a system property" + NL, getErrAndClear());
     }
 
     // THE DEFAULT LOGGER

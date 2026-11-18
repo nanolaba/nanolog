@@ -285,7 +285,7 @@ class ShortStackTraceTest extends AbstractLoggerTest {
             System.setProperty(ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES, invalid);
 
             assertEquals(0, new ConsoleLogger().getExceptionMaxFrames());
-            assertEquals("[NANOLOG] Invalid value \"" + invalid + "\" of \"nanolog.exception.maxFrames\": expected a number of frames, 0 for no limit" + N,
+            assertEquals("[NANOLOG] Invalid value \"" + invalid + "\" of \"nanolog.exception.maxFrames\": expected a number of frames, 0 for no limit; set as a system property" + N,
                          getErrAndClear());
         }
     }

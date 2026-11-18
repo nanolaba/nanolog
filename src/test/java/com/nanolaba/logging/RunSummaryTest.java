@@ -134,7 +134,7 @@ class RunSummaryTest extends AbstractLoggerTest {
         System.setProperty(PROPERTY_SUMMARY, "always");
         LOG.init();
         assertSame(Summary.Mode.OFF, Summary.mode);
-        assertEquals("[NANOLOG] Invalid value \"always\" of \"nanolog.summary\": expected off, on or errors" + NL,
+        assertEquals("[NANOLOG] Invalid value \"always\" of \"nanolog.summary\": expected off, on or errors; set as a system property" + NL,
                      getErrAndClear());
     }
 

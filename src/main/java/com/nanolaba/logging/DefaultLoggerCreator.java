@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -88,6 +89,12 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_JUNIT_OUTPUT = PROPERTY_PREFIX + "junit.output";
     /**
+     * How often a {@code [NANOLOG]} diagnostic is printed to {@code System.err}: {@code once}, the default, each
+     * distinct one once per JVM; {@code all} every time; {@code off} never. {@link ILogger#onDiagnostic} gets the
+     * findings of strict mode and of {@code nanolog.dbg=fail} whatever the setting.
+     */
+    public static final String PROPERTY_DIAGNOSTICS = PROPERTY_PREFIX + "diagnostics";
+    /**
      * The breadcrumbs: entries at this level and below ({@code TRACE}, {@code DEBUG}, {@code INFO} or {@code WARN})
      * are held back and written only when an {@code ERROR} follows; {@code off}, the default, holds nothing back.
      */
@@ -153,6 +160,34 @@ public class DefaultLoggerCreator {
      */
     private static final ThreadLocal<Boolean> QUIET = new ThreadLocal<>();
 
+    /**
+     * The values of {@value #PROPERTY_DIAGNOSTICS}.
+     */
+    enum Diagnostics {
+        ONCE, ALL, OFF
+    }
+
+    /**
+     * Read when the default logger is created; {@code volatile}, since any thread may print a diagnostic.
+     */
+    static volatile Diagnostics diagnostics = Diagnostics.ONCE;
+
+    /**
+     * The diagnostics printed so far, for {@code once}.
+     */
+    private static final Set<String> PRINTED = ConcurrentHashMap.newKeySet();
+
+    /**
+     * The most diagnostics remembered; past it, a new one is printed without being remembered. Tests lower it.
+     */
+    static int maxRemembered = 10_000;
+
+    /**
+     * The keys copied from {@code nanolog.properties} into the system properties, with their value and the location of
+     * the file, to name where an invalid value came from.
+     */
+    private static final Map<String, String[]> FROM_FILE = new ConcurrentHashMap<>();
+
     private DefaultLoggerCreator() {
     }
 
@@ -186,7 +221,7 @@ public class DefaultLoggerCreator {
         } else if ("false".equalsIgnoreCase(value.trim())) {
             return false;
         }
-        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected true or false");
+        printInvalid(property, value, "expected true or false");
         return defaultValue;
     }
 
@@ -201,7 +236,7 @@ public class DefaultLoggerCreator {
         } else if ("auto".equalsIgnoreCase(value.trim())) {
             return true;
         }
-        printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DUMP + "\": expected auto or off");
+        printInvalid(PROPERTY_DUMP, value, "expected auto or off");
         return false;
     }
 
@@ -217,7 +252,7 @@ public class DefaultLoggerCreator {
                     return mode;
                 }
             }
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_DBG + "\": expected on, off or fail");
+            printInvalid(PROPERTY_DBG, value, "expected on, off or fail");
         }
         return Dbg.Mode.ON;
     }
@@ -249,7 +284,7 @@ public class DefaultLoggerCreator {
             }
             String expected = String.join(", ", Arrays.asList(choices).subList(0, choices.length - 1)) + " or " +
                               choices[choices.length - 1];
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected " + expected);
+            printInvalid(property, value, "expected " + expected);
         }
         return choices[0];
     }
@@ -269,7 +304,7 @@ public class DefaultLoggerCreator {
             } catch (NumberFormatException e) {
                 // reported below
             }
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected a positive number");
+            printInvalid(property, value, "expected a positive number");
         }
         return defaultValue;
     }
@@ -294,10 +329,70 @@ public class DefaultLoggerCreator {
      * an exception message, a template. Control characters and the Unicode line separators are printed as
      * {@code \}{@code u000a} escapes, so a diagnostic is always one line and no value can forge a line of its own.
      */
-    static void printDiagnostic(String message) {
-        if (QUIET.get() == null) {
+    static boolean printDiagnostic(String message) {
+        if (QUIET.get() == null && isPrinted(message)) {
             System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+            return true;
         }
+        return false;
+    }
+
+    /**
+     * Whether {@value #PROPERTY_DIAGNOSTICS} lets a diagnostic through: under {@code once}, if it was not printed
+     * before.
+     */
+    private static boolean isPrinted(String message) {
+        Diagnostics mode = diagnostics;
+        if (mode == Diagnostics.OFF) {
+            return false;
+        } else if (mode == Diagnostics.ALL) {
+            return true;
+        }
+        return PRINTED.size() < maxRemembered ? PRINTED.add(message) : !PRINTED.contains(message);
+    }
+
+    /**
+     * Prints a {@code [NANOLOG]} line that reports what Nanolog does, not a problem: the run summary, the line of agent
+     * mode, the run log. {@value #PROPERTY_DIAGNOSTICS} does not apply; those features have switches of their own.
+     */
+    static void printNotice(String message) {
+        System.err.println("[NANOLOG] " + escapeControlCharacters(message));
+    }
+
+    /**
+     * Prints that a setting has an invalid value, and where the value came from.
+     *
+     * @param expected what was expected, such as {@code expected true or false}
+     */
+    static void printInvalid(String property, String value, String expected) {
+        printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": " + expected + "; " + origin(property));
+    }
+
+    /**
+     * Where the value of a setting came from: {@code set as a system property}, {@code set by the environment variable
+     * NANOLOG_LEVEL} or {@code set in file:/.../nanolog.properties}.
+     */
+    static String origin(String property) {
+        String value = System.getProperty(property);
+        if (value == null) {
+            return "set by the environment variable " + toEnvironmentName(property);
+        }
+        String[] file = FROM_FILE.get(property);
+        return file != null && file[0].equals(value) ? "set in " + file[1] : "set as a system property";
+    }
+
+    /**
+     * Forgets the diagnostics printed so far, so {@code once} prints them again; for tests.
+     */
+    static void forgetDiagnostics() {
+        PRINTED.clear();
+    }
+
+    /**
+     * Reads {@value #PROPERTY_DIAGNOSTICS}.
+     */
+    private static void readDiagnostics() {
+        diagnostics = Diagnostics.valueOf(readChoice(PROPERTY_DIAGNOSTICS, "once", "all", "off").toUpperCase(Locale.ROOT));
     }
 
     private static String escapeControlCharacters(String text) {
@@ -324,6 +419,8 @@ public class DefaultLoggerCreator {
      * @return the new logger
      */
     public static ILogger createDefaultLogger() {
+        // before the file, so the diagnostics about the file follow -D and the environment
+        readDiagnostics();
         loadPropertiesFromFile();
         String agent = Agent.detect();
         ILogger logger = createConfiguredLogger();
@@ -342,8 +439,10 @@ public class DefaultLoggerCreator {
                 Class<?> loggerClass = Class.forName(logger);
                 return (ILogger) loggerClass.getConstructor().newInstance();
             } catch (Throwable e) {
-                System.err.printf("[NANOLOG] Property \"%s\" has been defined, but an object of class \"%s\" cannot be created %n", PROPERTY_LOGGER_CLASS, logger);
-                e.printStackTrace(System.err);
+                if (printDiagnostic("Property \"" + PROPERTY_LOGGER_CLASS + "\" has been defined, but an object of class \"" + logger +
+                                    "\" cannot be created: " + e + "; " + origin(PROPERTY_LOGGER_CLASS))) {
+                    e.printStackTrace(System.err);
+                }
             }
         }
 
@@ -370,14 +469,18 @@ public class DefaultLoggerCreator {
                     // a key already set through -D or the environment wins over the file
                     if (key.startsWith(PROPERTY_PREFIX) && getProperty(key) == null) {
                         System.setProperty(key, (String) value);
+                        FROM_FILE.put(key, new String[]{(String) value, String.valueOf(resource)});
                     }
                 });
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } else if (!config.equals(DEFAULT_CONFIGURATION_FILE)) {
-            System.err.printf("[NANOLOG] Property \"%s\" has been defined, but the file \"%s\" cannot be found %n", PROPERTY_LOGGER_CONFIG_FILE, config);
+            printDiagnostic("Property \"" + PROPERTY_LOGGER_CONFIG_FILE + "\" has been defined, but the file \"" + config +
+                            "\" cannot be found; " + origin(PROPERTY_LOGGER_CONFIG_FILE));
         }
+        // the file may set it too, and its own keys are reported next
+        readDiagnostics();
         reportUnknownSettings(props, String.valueOf(resource));
     }
 

@@ -270,6 +270,10 @@ class SettingsTest extends AbstractLoggerTest {
         assertEquals(expected, getErrAndClear());
 
         LOG.init();
+        assertEquals("", getErrAndClear(), "once: the same findings are not printed again");
+
+        DefaultLoggerCreator.forgetDiagnostics();
+        LOG.init();
         assertEquals(expected, getErrAndClear(), "the key copied into system properties by the first init is not reported as a system property");
     }
 
@@ -281,7 +285,7 @@ class SettingsTest extends AbstractLoggerTest {
 
         LOG.init();
 
-        assertEquals("[NANOLOG] Property \"nanolog.config\" has been defined, but the file \"missing.properties\" cannot be found " + NL +
+        assertEquals("[NANOLOG] Property \"nanolog.config\" has been defined, but the file \"missing.properties\" cannot be found; set as a system property" + NL +
                      "[NANOLOG] Unknown setting \"nanolog.levle\" (system property); did you mean \"nanolog.level\"?" + NL,
                      getErrAndClear());
     }

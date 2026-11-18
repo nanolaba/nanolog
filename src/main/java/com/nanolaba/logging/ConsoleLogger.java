@@ -248,7 +248,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         if (value != null) {
             int threshold = parseStream(value);
             if (threshold == NO_RULE) {
-                printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_STREAM + "\": expected " + EXPECTED_STREAMS);
+                DefaultLoggerCreator.printInvalid(PROPERTY_STREAM, value, "expected " + EXPECTED_STREAMS);
             } else {
                 errThreshold = threshold;
             }
@@ -283,7 +283,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             try {
                 dateFormat = new SimpleDateFormat(pattern);
             } catch (IllegalArgumentException e) {
-                printDiagnostic("Invalid value \"" + pattern + "\" of \"" + PROPERTY_DATE_FORMAT + "\": " + e.getMessage());
+                DefaultLoggerCreator.printInvalid(PROPERTY_DATE_FORMAT, pattern, e.getMessage());
             }
         }
     }
@@ -299,7 +299,8 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 }
                 int separator = rule.indexOf('=');
                 if (separator <= 0) {
-                    printDiagnostic("Invalid item \"" + rule + "\" of \"" + PROPERTY_LEVELS + "\": expected <package or class>=<level>");
+                    printDiagnostic("Invalid item \"" + rule + "\" of \"" + PROPERTY_LEVELS + "\": expected <package or class>=<level>; " +
+                                    DefaultLoggerCreator.origin(PROPERTY_LEVELS));
                     continue;
                 }
                 addLevelRule(levelRules, rule.substring(0, separator).trim(), PROPERTY_LEVELS, rule.substring(separator + 1));
@@ -324,7 +325,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private static int parseThreshold(String property, String value) {
         int threshold = thresholdNamed(value);
         if (threshold == NO_RULE) {
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + property + "\": expected " + EXPECTED_LEVELS);
+            DefaultLoggerCreator.printInvalid(property, value, "expected " + EXPECTED_LEVELS);
         }
         return threshold;
     }
@@ -887,8 +888,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 // reported below, like a negative number
             }
             if (frames < 0) {
-                printDiagnostic("Invalid value \"" + maxFrames + "\" of \"" + PROPERTY_EXCEPTION_MAX_FRAMES +
-                                "\": expected a number of frames, 0 for no limit");
+                DefaultLoggerCreator.printInvalid(PROPERTY_EXCEPTION_MAX_FRAMES, maxFrames, "expected a number of frames, 0 for no limit");
             } else {
                 exceptionMaxFrames = frames;
             }

@@ -514,7 +514,7 @@ class DumpTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_DUMP, "always");
         LOG.init();
         assertFalse(Dump.auto);
-        assertEquals("[NANOLOG] Invalid value \"always\" of \"nanolog.dump\": expected auto or off" + System.lineSeparator(),
+        assertEquals("[NANOLOG] Invalid value \"always\" of \"nanolog.dump\": expected auto or off; set as a system property" + System.lineSeparator(),
                 getErrAndClear());
     }
 }

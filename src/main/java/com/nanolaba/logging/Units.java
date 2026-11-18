@@ -90,7 +90,7 @@ final class Units {
             } catch (NumberFormatException e) {
                 // reported below
             }
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_UNIT_SAMPLE + "\": expected a fraction from 0 to 1");
+            DefaultLoggerCreator.printInvalid(PROPERTY_UNIT_SAMPLE, value, "expected a fraction from 0 to 1");
         }
         return 1;
     }
@@ -106,7 +106,7 @@ final class Units {
             } catch (NumberFormatException e) {
                 // reported below
             }
-            printDiagnostic("Invalid value \"" + value + "\" of \"" + PROPERTY_UNIT_SLOW_MS + "\": expected a number of milliseconds");
+            DefaultLoggerCreator.printInvalid(PROPERTY_UNIT_SLOW_MS, value, "expected a number of milliseconds");
         }
         return Long.MAX_VALUE;
     }

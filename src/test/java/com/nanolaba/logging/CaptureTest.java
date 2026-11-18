@@ -33,7 +33,7 @@ class CaptureTest extends AbstractLoggerTest {
         Summary.reset();
         DbgSource.clearCache();
         LOG.clearLimits();
-        LOG.clearReportedTemplates();
+        DefaultLoggerCreator.forgetDiagnostics();
         global = new MemoryLogger();
         LOG.init(global);
     }
@@ -44,7 +44,7 @@ class CaptureTest extends AbstractLoggerTest {
         Summary.reset();
         Summary.shutdownHooks = originalHooks;
         LOG.clearLimits();
-        LOG.clearReportedTemplates();
+        DefaultLoggerCreator.forgetDiagnostics();
         LOG.init();
     }
 

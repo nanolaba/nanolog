@@ -201,7 +201,7 @@ class DbgLifecycleTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_DBG, "yes");
 
         assertEquals(Dbg.Mode.ON, DefaultLoggerCreator.readDbgMode());
-        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.dbg\": expected on, off or fail" + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.dbg\": expected on, off or fail; set as a system property" + NL, getErrAndClear());
     }
 
     @Test

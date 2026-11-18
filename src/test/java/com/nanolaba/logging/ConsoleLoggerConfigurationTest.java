@@ -88,7 +88,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         ConsoleLogger logger = new ConsoleLogger();
 
         assertLevels(logger, true, true, true, true, true);
-        assertEquals("[NANOLOG] Invalid value \"LOUD\" of \"nanolog.level\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF" +
+        assertEquals("[NANOLOG] Invalid value \"LOUD\" of \"nanolog.level\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF; set as a system property" +
                      System.lineSeparator(), getErrAndClear());
     }
 
@@ -131,10 +131,10 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         assertEquals("err@ERROR", logger.getStream());
         assertEquals("dd.MM.yyyy HH:mm:ss", logger.getDateFormat().toPattern());
         String err = getErrAndClear();
-        assertTrue(err.contains("[NANOLOG] Invalid value \"yes\" of \"nanolog.console.showDate\": expected true or false"), err);
-        assertTrue(err.contains("[NANOLOG] Invalid value \"both\" of \"nanolog.console.stream\": expected out, err or err@<level>"), err);
-        assertTrue(err.contains("[NANOLOG] Invalid value \"maybe\" of \"nanolog.console.showThread\": expected true or false"), err);
-        assertTrue(err.contains("[NANOLOG] Invalid value \"qqq\" of \"nanolog.console.dateFormat\": Illegal pattern character 'q'"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"yes\" of \"nanolog.console.showDate\": expected true or false; set as a system property"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"both\" of \"nanolog.console.stream\": expected out, err or err@<level>; set as a system property"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"maybe\" of \"nanolog.console.showThread\": expected true or false; set as a system property"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"qqq\" of \"nanolog.console.dateFormat\": Illegal pattern character 'q'; set as a system property"), err);
     }
 
     @Test
@@ -261,7 +261,7 @@ class ConsoleLoggerConfigurationTest extends AbstractLoggerTest {
         String err = getErrAndClear();
         assertTrue(err.contains("[NANOLOG] Invalid item \"broken\" of \"nanolog.levels\": expected <package or class>=<level>"), err);
         assertTrue(err.contains("[NANOLOG] Invalid item \"=INFO\" of \"nanolog.levels\": expected <package or class>=<level>"), err);
-        assertTrue(err.contains("[NANOLOG] Invalid value \"LOUD\" of \"nanolog.levels\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF"), err);
+        assertTrue(err.contains("[NANOLOG] Invalid value \"LOUD\" of \"nanolog.levels\": expected TRACE, DEBUG, INFO, WARN, ERROR or OFF; set as a system property"), err);
         assertTrue(err.contains("[NANOLOG] Invalid value \"QUIET\" of \"nanolog.level.com.nanolaba.logging.ConsoleLogger\""), err);
     }
 

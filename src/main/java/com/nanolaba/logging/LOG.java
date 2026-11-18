@@ -69,18 +69,6 @@ public class LOG {
      */
     static CallerDetection.Locator callerLocator = CallerDetection.best();
 
-    private static final int REPORTED_TEMPLATES_LIMIT = 1000;
-
-    /**
-     * Templates already reported in strict mode, so a loop does not flood the output; the oldest are forgotten
-     * beyond the limit.
-     */
-    private static final Map<String, Boolean> REPORTED_TEMPLATES = Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-            return size() > REPORTED_TEMPLATES_LIMIT;
-        }
-    });
 
     static {
         init();
@@ -274,18 +262,11 @@ public class LOG {
         if (current instanceof ILevelControl) {
             return (ILevelControl) current;
         }
-        if (WITHOUT_LEVEL_CONTROL.add(current.getClass())) {
+        if (WITHOUT_LEVEL_CONTROL.add(current.getClass()) || DefaultLoggerCreator.diagnostics == DefaultLoggerCreator.Diagnostics.ALL) {
             DefaultLoggerCreator.printDiagnostic("Logger " + current.getClass().getName() + " does not implement ILevelControl; " +
                                                  "LOG.setLevel, clearLevel, resetLevels and withLevel change nothing");
         }
         return null;
-    }
-
-    /**
-     * Forgets the templates reported in strict mode; for tests.
-     */
-    static void clearReportedTemplates() {
-        REPORTED_TEMPLATES.clear();
     }
 
     /**
@@ -1214,9 +1195,9 @@ public class LOG {
      * {@code nanolog.dbg=fail}, reports the call first.
      */
     private static void writeDbgEntry(ILogger current, LogEntry entry) {
-        boolean first = Dbg.ran(entry.getCaller());
+        Dbg.ran(entry.getCaller());
         if (Dbg.mode == Dbg.Mode.FAIL) {
-            diagnose(current, describeSource(entry) + ": LOG.dbg call left in the code (nanolog.dbg=fail)", first);
+            diagnose(current, describeSource(entry) + ": LOG.dbg call left in the code (nanolog.dbg=fail)");
         }
         write(current, entry);
     }
@@ -2220,10 +2201,10 @@ public class LOG {
 
     /**
      * Prints one {@code [NANOLOG]} line the first time a logger of a given class throws; later failures of the same
-     * class are silent. Also used by {@link CompositeLogger} for its delegates.
+     * class are silent, unless {@code nanolog.diagnostics=all}. Also used by {@link CompositeLogger} for its delegates.
      */
     static void reportLoggerFailure(ILogger failed, Throwable t, String consequence) {
-        if (FAILED_LOGGERS.add(failed.getClass())) {
+        if (FAILED_LOGGERS.add(failed.getClass()) || DefaultLoggerCreator.diagnostics == DefaultLoggerCreator.Diagnostics.ALL) {
             DefaultLoggerCreator.printDiagnostic("Logger " + failed.getClass().getName() + " threw " + LogEntry.safeToString(t) +
                                                  "; " + consequence);
         }
@@ -2235,6 +2216,7 @@ public class LOG {
     static void clearReportedLoggerFailures() {
         FAILED_LOGGERS.clear();
         WITHOUT_LEVEL_CONTROL.clear();
+        DefaultLoggerCreator.forgetDiagnostics();
     }
 
     /**
@@ -2283,18 +2265,16 @@ public class LOG {
         if (placeholders != args.length) {
             String diagnostic = describeSource(entry) + ": " + count(placeholders, "placeholder") + ", " +
                                 count(args.length, "argument") + " in \"" + template + "\"";
-            diagnose(current, diagnostic, REPORTED_TEMPLATES.put(template, Boolean.TRUE) == null);
+            diagnose(current, diagnostic);
         }
     }
 
     /**
-     * Reports a finding: to {@code System.err} the first time only, so a loop does not flood it, and to the logger
-     * every time, since a test must see a finding that an earlier test already printed.
+     * Reports a finding: to {@code System.err} as {@code nanolog.diagnostics} says, once by default, so a loop does not
+     * flood it, and to the logger every time, since a test must see a finding that an earlier test already printed.
      */
-    private static void diagnose(ILogger current, String diagnostic, boolean first) {
-        if (first) {
-            DefaultLoggerCreator.printDiagnostic(diagnostic);
-        }
+    private static void diagnose(ILogger current, String diagnostic) {
+        DefaultLoggerCreator.printDiagnostic(diagnostic);
         List<MemoryLogger> captures = captures();
         if (captures != null) {
             for (MemoryLogger capture : captures) {

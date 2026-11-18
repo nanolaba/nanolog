@@ -288,7 +288,7 @@ class ColorTest extends AbstractLoggerTest {
 
         System.setProperty(ConsoleLogger.PROPERTY_COLOR, "rainbow");
         assertEquals("auto", new ConsoleLogger().getColor());
-        assertEquals("[NANOLOG] Invalid value \"rainbow\" of \"nanolog.console.color\": expected auto, always or never" + NL,
+        assertEquals("[NANOLOG] Invalid value \"rainbow\" of \"nanolog.console.color\": expected auto, always or never; set as a system property" + NL,
                      getErrAndClear());
 
         ConsoleLogger logger = new ConsoleLogger().setShowDate(false).setShowSource(false);

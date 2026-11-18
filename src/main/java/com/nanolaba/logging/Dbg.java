@@ -62,11 +62,10 @@ final class Dbg {
      * makes sure that the end is printed.
      *
      * @param frame the frame of the call; {@code null} if unknown
-     * @return {@code true} the first time the call site runs
      */
-    static boolean ran(StackTraceElement frame) {
+    static void ran(StackTraceElement frame) {
         Summary.registerHook();
-        return CALLS.add(site(frame));
+        CALLS.add(site(frame));
     }
 
     /**
@@ -103,7 +102,7 @@ final class Dbg {
     static void printCalls() {
         String calls = callsLine();
         if (calls != null) {
-            DefaultLoggerCreator.printDiagnostic(calls);
+            DefaultLoggerCreator.printNotice(calls);
         }
     }
 

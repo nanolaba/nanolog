@@ -15,6 +15,8 @@ public abstract class AbstractLoggerTest {
 
     @BeforeEach
     public void setUpStreams() {
+        // nanolog.diagnostics=once remembers what earlier tests printed
+        DefaultLoggerCreator.forgetDiagnostics();
         System.setOut(new PrintStream(outContent));
         System.setErr(new PrintStream(errContent));
     }

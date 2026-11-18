@@ -112,7 +112,7 @@ final class Agent {
                       runLog.shownErrorsFile().toAbsolutePath());
         }
         parts.add(OFF_HINT);
-        printDiagnostic("Agent mode (" + trigger + "): " + String.join("; ", parts));
+        DefaultLoggerCreator.printNotice("Agent mode (" + trigger + "): " + String.join("; ", parts));
     }
 
     /**

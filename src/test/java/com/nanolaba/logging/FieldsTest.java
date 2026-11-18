@@ -48,7 +48,7 @@ class FieldsTest extends AbstractLoggerTest {
         System.clearProperty(DefaultLoggerCreator.PROPERTY_STRICT);
         Contexts.CURRENT.remove();
         LOG.init();
-        LOG.clearReportedTemplates();
+        DefaultLoggerCreator.forgetDiagnostics();
     }
 
     private static Map<String, Object> map(Object... pairs) {

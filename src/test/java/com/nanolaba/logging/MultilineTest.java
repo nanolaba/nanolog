@@ -129,7 +129,7 @@ class MultilineTest extends AbstractLoggerTest {
 
         System.setProperty(ConsoleLogger.PROPERTY_MULTILINE, "wrap");
         assertEquals("keep", new ConsoleLogger().getMultiline());
-        assertEquals("[NANOLOG] Invalid value \"wrap\" of \"nanolog.console.multiline\": expected keep, indent or escape" + NL,
+        assertEquals("[NANOLOG] Invalid value \"wrap\" of \"nanolog.console.multiline\": expected keep, indent or escape; set as a system property" + NL,
                      getErrAndClear());
 
         ConsoleLogger logger = new ConsoleLogger();

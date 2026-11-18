@@ -267,7 +267,7 @@ final class Summary {
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
             if (current == Mode.ON || current == Mode.ERRORS && warned) {
                 for (String line : lines()) {
-                    DefaultLoggerCreator.printDiagnostic(line);
+                    DefaultLoggerCreator.printNotice(line);
                 }
             } else {
                 Dbg.printCalls();

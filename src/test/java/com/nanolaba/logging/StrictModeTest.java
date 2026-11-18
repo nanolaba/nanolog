@@ -28,7 +28,7 @@ class StrictModeTest extends AbstractLoggerTest {
     @BeforeEach
     public void setUp() {
         DefaultLoggerCreator.environment = environment::get;
-        LOG.clearReportedTemplates();
+        DefaultLoggerCreator.forgetDiagnostics();
     }
 
     @AfterEach
@@ -36,7 +36,7 @@ class StrictModeTest extends AbstractLoggerTest {
         DefaultLoggerCreator.environment = System::getenv;
         System.clearProperty(DefaultLoggerCreator.PROPERTY_STRICT);
         LOG.init();
-        LOG.clearReportedTemplates();
+        DefaultLoggerCreator.forgetDiagnostics();
     }
 
     private void enableStrictMode(String value) {
@@ -172,7 +172,7 @@ class StrictModeTest extends AbstractLoggerTest {
         assertEquals("", getErrAndClear());
 
         enableStrictMode("yes");
-        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.strict\": expected true or false" + System.lineSeparator(), getErrAndClear());
+        assertEquals("[NANOLOG] Invalid value \"yes\" of \"nanolog.strict\": expected true or false; set as a system property" + System.lineSeparator(), getErrAndClear());
         LOG.info("invalid {} {}", 1);
         assertEquals("", getErrAndClear(), "an invalid value leaves the check off");
 
@@ -185,23 +185,19 @@ class StrictModeTest extends AbstractLoggerTest {
     }
 
     @Test
-    public void testReportedTemplatesAreBounded() {
+    public void testEachFindingIsPrintedOncePerCallSite() {
         enableStrictMode("true");
-        int limit = 1000;
 
-        for (int i = 0; i < limit; i++) {
-            LOG.info("t" + i + " {} {}", 1);
+        for (int i = 0; i < 3; i++) {
+            LOG.info("t {} {}", 1);
         }
-        assertEquals(limit, getErrAndClear().split(System.lineSeparator()).length);
+        assertEquals(1, getErrAndClear().split(System.lineSeparator()).length, "a loop prints its finding once");
 
-        LOG.info("t0 {} {}", 1);
-        assertEquals("", getErrAndClear(), "the oldest template is still remembered while the limit is not exceeded");
-
-        LOG.info("t" + limit + " {} {}", 1);
-        assertTrue(getErrAndClear().contains("t" + limit));
-
-        LOG.info("t0 {} {}", 1);
-        assertTrue(getErrAndClear().contains("t0 {} {}"), "beyond the limit the oldest template is forgotten and reported again");
+        LOG.info("t {} {}", 1);
+        String other = getErrAndClear();
+        assertTrue(other.contains("StrictModeTest.java:") && other.contains("2 placeholders, 1 argument in \"t {} {}\""),
+                   "the same template at another call site is another finding: " + other);
+        assertEquals(4, memory.getDiagnostics().size(), "the logger gets every occurrence");
     }
 
     private void mismatched(int value) {

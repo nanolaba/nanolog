@@ -41,6 +41,7 @@ class RuntimeLevelsTest extends AbstractLoggerTest {
 
     @AfterEach
     public void cleanUp() {
+        DefaultLoggerCreator.diagnostics = DefaultLoggerCreator.Diagnostics.ONCE;
         DefaultLoggerCreator.environment = System::getenv;
         for (String key : System.getProperties().stringPropertyNames()) {
             if (key.startsWith(DefaultLoggerCreator.PROPERTY_PREFIX)) {
@@ -392,6 +393,8 @@ class RuntimeLevelsTest extends AbstractLoggerTest {
 
     @Test
     public void testCompositeForwardsLevelsAsStrings() {
+        // all: a diagnostic printed by each delegate would show twice
+        DefaultLoggerCreator.diagnostics = DefaultLoggerCreator.Diagnostics.ALL;
         ConsoleLogger first = new ConsoleLogger();
         ConsoleLogger second = new ConsoleLogger();
         CompositeLogger composite = new CompositeLogger(first, second);
@@ -479,6 +482,7 @@ class RuntimeLevelsTest extends AbstractLoggerTest {
 
     @Test
     public void testCompositeChecksTheArgumentsOnce() {
+        DefaultLoggerCreator.diagnostics = DefaultLoggerCreator.Diagnostics.ALL;
         ConsoleLogger first = new ConsoleLogger();
         CompositeLogger composite = new CompositeLogger(first, new ConsoleLogger());
 
