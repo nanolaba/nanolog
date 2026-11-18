@@ -50,7 +50,7 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 
 ### README generation
 
-`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, and `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`. Never edit the generated files.
+`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`, and `SUPPORT`, `CONTRIBUTING` and `SECURITY` (`.md` and `.ru.md`) from their `*.src.md`. Never edit the generated files.
 
 - Edit `README.src.md`, run `mvn compile`, review both outputs, commit all three files together.
 - *Related projects* compares Nanolog with the versions named in its table headers, on the date in its first paragraph. A changed cell is checked against the current release of that project (its docs, sources or a run), and the version and the date are updated with it; a new feature of Nanolog that one of its rows covers changes the Nanolog column. Every ➖ has a footnote.

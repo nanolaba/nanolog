@@ -212,6 +212,9 @@
                     <file>
                         <item>README.src.md</item>
                         <item>agent-guide.src.md</item>
+                        <item>SUPPORT.src.md</item>
+                        <item>CONTRIBUTING.src.md</item>
+                        <item>SECURITY.src.md</item>
                     </file>
                 </configuration>
                 <executions>

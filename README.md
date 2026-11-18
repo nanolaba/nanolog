@@ -1664,13 +1664,9 @@ First release.
 
 ## Contributing
 
-> [!WARNING]
-> `README.md` and `README.ru.md` are generated from `README.src.md` by the readme-generator Maven plugin. Edit `README.src.md` and run `mvn compile`; CI fails when the generated files are stale.
-
-- Build and test: `mvn verify -Dgpg.skip=true`. The `test` phase runs JUnit and then pitest with a 100% mutation threshold, so every change to production code needs tests that kill the corresponding mutants.
-- The library targets Java 8; do not use newer APIs.
-- The code samples in this file are imported from `src/test/java/com/nanolaba/logging/examples` and compiled with the tests, so they cannot go stale.
-- Questions, bug reports and feature requests: [https://github.com/nanolaba/nanolog/issues](https://github.com/nanolaba/nanolog/issues).
+- Questions, bug reports and ideas: see [SUPPORT.md](SUPPORT.md).
+- Building, testing and changing the code or the docs: see [CONTRIBUTING.md](CONTRIBUTING.md).
+- Vulnerabilities are reported privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 

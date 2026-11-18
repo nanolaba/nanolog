@@ -1664,13 +1664,9 @@ tinylog — ближайший аналог. Одни и те же вызовы,
 
 ## Участие в разработке
 
-> [!WARNING]
-> `README.md` и `README.ru.md` генерируются из `README.src.md` Maven-плагином readme-generator. Правьте `README.src.md` и запускайте `mvn compile`; CI падает, если сгенерированные файлы устарели.
-
-- Сборка и тесты: `mvn verify -Dgpg.skip=true`. Фаза `test` запускает JUnit, а затем pitest с порогом 100% убитых мутантов, поэтому любое изменение кода библиотеки нужно сопровождать тестами, убивающими соответствующие мутанты.
-- Библиотека собирается под Java 8; не используйте более новые API.
-- Примеры кода в этом файле импортируются из `src/test/java/com/nanolaba/logging/examples` и компилируются вместе с тестами, поэтому не устаревают.
-- Вопросы, ошибки и пожелания: [https://github.com/nanolaba/nanolog/issues](https://github.com/nanolaba/nanolog/issues).
+- Вопросы, ошибки и идеи: см. [SUPPORT.md](SUPPORT.ru.md).
+- Сборка, тесты и изменения кода или документации: см. [CONTRIBUTING.md](CONTRIBUTING.ru.md).
+- Об уязвимостях сообщайте приватно: см. [SECURITY.md](SECURITY.ru.md).
 
 ## Лицензия
 

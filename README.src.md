@@ -1592,12 +1592,9 @@ ${en:'First release.', ru:'Первый выпуск.'}
 
 ## ${en:'Contributing', ru:'Участие в разработке'}
 
-${widget:alert(type='warning', text="${en:'`README.md` and `README.ru.md` are generated from `README.src.md` by the readme-generator Maven plugin. Edit `README.src.md` and run `mvn compile`; CI fails when the generated files are stale.', ru:'`README.md` и `README.ru.md` генерируются из `README.src.md` Maven-плагином readme-generator. Правьте `README.src.md` и запускайте `mvn compile`; CI падает, если сгенерированные файлы устарели.'}")}
-
-- ${en:'Build and test:', ru:'Сборка и тесты:'} `mvn verify -Dgpg.skip=true`. ${en:'The', ru:'Фаза'} `test` ${en:'phase runs JUnit and then pitest with a 100% mutation threshold, so every change to production code needs tests that kill the corresponding mutants.', ru:'запускает JUnit, а затем pitest с порогом 100% убитых мутантов, поэтому любое изменение кода библиотеки нужно сопровождать тестами, убивающими соответствующие мутанты.'}
-- ${en:'The library targets Java', ru:'Библиотека собирается под Java'} ${pom.properties.maven.compiler.release}; ${en:'do not use newer APIs.', ru:'не используйте более новые API.'}
-- ${en:'The code samples in this file are imported from', ru:'Примеры кода в этом файле импортируются из'} `${examples}` ${en:'and compiled with the tests, so they cannot go stale.', ru:'и компилируются вместе с тестами, поэтому не устаревают.'}
-- ${en:'Questions, bug reports and feature requests:', ru:'Вопросы, ошибки и пожелания:'} [${repo}/issues](${repo}/issues).
+- ${en:'Questions, bug reports and ideas: see', ru:'Вопросы, ошибки и идеи: см.'} [SUPPORT.md](${en:'SUPPORT.md', ru:'SUPPORT.ru.md'}).
+- ${en:'Building, testing and changing the code or the docs: see', ru:'Сборка, тесты и изменения кода или документации: см.'} [CONTRIBUTING.md](${en:'CONTRIBUTING.md', ru:'CONTRIBUTING.ru.md'}).
+- ${en:'Vulnerabilities are reported privately: see', ru:'Об уязвимостях сообщайте приватно: см.'} [SECURITY.md](${en:'SECURITY.md', ru:'SECURITY.ru.md'}).
 
 ## ${en:'License', ru:'Лицензия'}
 
