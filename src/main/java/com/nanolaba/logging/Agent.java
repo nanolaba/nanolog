@@ -82,7 +82,8 @@ final class Agent {
      * @return what the console shows, for the line of {@link #announce}; {@code null} for another logger
      */
     static String shorten(ILogger logger) {
-        if (!(logger instanceof ConsoleLogger)) {
+        // a file keeps every entry; only a console is shortened
+        if (!(logger instanceof ConsoleLogger) || logger instanceof FileLogger) {
             return null;
         }
         return ((ConsoleLogger) logger).useAgentDefaults()

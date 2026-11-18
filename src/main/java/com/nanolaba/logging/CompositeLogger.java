@@ -75,6 +75,21 @@ public class CompositeLogger implements ILogger, ILevelControl {
     }
 
     /**
+     * Flushes every delegate. A delegate that throws is reported once per class and skipped; the others are still
+     * flushed.
+     */
+    @Override
+    public void flush() {
+        for (ILogger logger : loggers) {
+            try {
+                logger.flush();
+            } catch (Throwable t) {
+                LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
+            }
+        }
+    }
+
+    /**
      * Passes a finding of strict mode or of {@code nanolog.dbg=fail} to every delegate. A delegate that throws is reported once per class and
      * skipped; the others still receive the finding.
      *

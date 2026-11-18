@@ -40,12 +40,14 @@ final class Settings {
             ConsoleLogger.PROPERTY_DATE_FORMAT, ConsoleLogger.PROPERTY_TIME_ZONE, ConsoleLogger.PROPERTY_SOURCE_LENGTH,
             ConsoleLogger.PROPERTY_MULTILINE, ConsoleLogger.PROPERTY_REPEATS,
             ConsoleLogger.PROPERTY_COLOR,
-            ConsoleLogger.PROPERTY_EXCEPTION_EXCLUDE, ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES));
+            ConsoleLogger.PROPERTY_EXCEPTION_EXCLUDE, ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES,
+            FileLogger.PROPERTY_FILE, FileLogger.PROPERTY_APPEND, FileLogger.PROPERTY_MAX_SIZE, FileLogger.PROPERTY_BACKUPS,
+            FileLogger.PROPERTY_FLUSH, FileLogger.PROPERTY_FORMAT));
 
     /**
      * The namespaces whose every key belongs to Nanolog.
      */
-    private static final List<String> NAMESPACES = Arrays.asList("buffer", "caller", "console", "content", "context", "exception", "junit", "level", "run", "unit");
+    private static final List<String> NAMESPACES = Arrays.asList("buffer", "caller", "console", "content", "context", "exception", "file", "junit", "level", "run", "unit");
 
     private static final String LEVEL = "level";
     private static final String LEVEL_RULE = PROPERTY_LEVEL + ".";

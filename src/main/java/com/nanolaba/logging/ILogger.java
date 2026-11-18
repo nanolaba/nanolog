@@ -66,6 +66,13 @@ public interface ILogger {
     }
 
     /**
+     * Writes what the logger holds in a buffer, for {@link LOG#flush()}: {@link FileLogger} in the {@code buffer} mode
+     * writes its buffer to the file, {@link CompositeLogger} flushes its delegates. The default does nothing.
+     */
+    default void flush() {
+    }
+
+    /**
      * Receives a finding about the entry this logger is about to receive: with {@code nanolog.strict=true}, a call
      * whose {@code {}} placeholders and arguments do not match; with {@code nanolog.dbg=fail}, a {@code LOG.dbg} call.
      * {@code LOG} prints such a finding to {@code System.err} once per template or call site; this method gets every

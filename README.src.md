@@ -647,6 +647,12 @@ ${en:'The constructor of `ConsoleLogger` reads these settings from system proper
 | `nanolog.console.timeZone` | `NANOLOG_CONSOLE_TIMEZONE` | ${en:'a time zone ID such as `UTC`, `Europe/Berlin` or `GMT+03:00`, like the setter; an ID that Java does not know is reported instead of being taken for GMT', ru:'идентификатор часового пояса, например `UTC`, `Europe/Berlin` или `GMT+03:00`, как одноимённый сеттер; о неизвестном Java идентификаторе сообщается, а не подставляется GMT'} |
 | `nanolog.exception.exclude` | `NANOLOG_EXCEPTION_EXCLUDE` | ${en:'package or class prefixes whose stack frames are collapsed, comma-separated', ru:'префиксы пакетов или классов, чьи кадры стека сворачиваются, через запятую'} |
 | `nanolog.exception.maxFrames` | `NANOLOG_EXCEPTION_MAXFRAMES` | ${en:'the most stack frames per throwable;', ru:'наибольшее число кадров стека на исключение;'} `0` ${en:'(default) for no limit', ru:'(по умолчанию) — без ограничения'} |
+| `nanolog.file` | `NANOLOG_FILE` | ${en:'the file of', ru:'файл'} [FileLogger](#filelogger), `nanolog.log` ${en:'by default', ru:'по умолчанию'} |
+| `nanolog.file.append` | `NANOLOG_FILE_APPEND` | `true` (${en:'default', ru:'по умолчанию'}) ${en:'or', ru:'или'} `false`, ${en:'which empties the file when it opens', ru:'что очищает файл при открытии'} |
+| `nanolog.file.maxSize` | `NANOLOG_FILE_MAXSIZE` | ${en:'the size at which the file rolls over, such as', ru:'размер, при котором файл переносится в резервный, например'} `10MB`; `0` ${en:'(default) for none', ru:'(по умолчанию) — без переноса'} |
+| `nanolog.file.backups` | `NANOLOG_FILE_BACKUPS` | ${en:'how many rolled-over files are kept,', ru:'сколько перенесённых файлов хранится,'} `3` ${en:'by default', ru:'по умолчанию'} |
+| `nanolog.file.flush` | `NANOLOG_FILE_FLUSH` | `entry` (${en:'default, each entry at once', ru:'по умолчанию, каждая запись сразу'}) ${en:'or', ru:'или'} `buffer` |
+| `nanolog.file.format` | `NANOLOG_FILE_FORMAT` | `text` (${en:'default', ru:'по умолчанию'}) ${en:'or', ru:'или'} `json` |
 
 ```
 java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
@@ -719,6 +725,24 @@ ${en:'One JSON object per line, for `jq`, log collectors and scripts. It needs n
 - ${en:'Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.', ru:'Переводы строк и управляющие символы экранируются, поэтому одна запись — всегда ровно одна строка, вместе с трассировкой стека.'}
 - `JsonLogger` ${en:'extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err` by default). The display options do not apply.', ru:'наследует `ConsoleLogger`: те же уровни, те же свойства уровней и те же потоки (по умолчанию `ERROR` в `System.err`). Настройки отображения на него не действуют.'}
 - ${en:'In a pipe only standard output reaches the next program, so `java -jar app.jar | jq` would lose every `ERROR` entry. `-Dnanolog.console.stream=out` writes them to standard output with the rest, in the order they were logged.', ru:'В конвейер попадает только стандартный вывод, поэтому `java -jar app.jar | jq` потерял бы все записи `ERROR`. `-Dnanolog.console.stream=out` пишет их в стандартный вывод вместе с остальными, в том порядке, в каком они попали в лог.'}
+
+### FileLogger
+
+${en:'Writes the entries to a file, for an application with no console to redirect, a desktop or an Android app, or a service that keeps a log of its own:', ru:'Пишет записи в файл: для приложения, у которого нет консоли для перенаправления, например настольного или Android-приложения, или для сервиса, который ведёт собственный лог:'}
+
+```properties
+nanolog.logger=com.nanolaba.logging.FileLogger
+nanolog.file=logs/app.log
+nanolog.file.maxSize=10MB
+nanolog.file.backups=3
+```
+
+- ${en:'The file is appended to, and its directory created, when the first entry comes; `nanolog.file.append=false` empties it then. Without `nanolog.file` it is `nanolog.log` in the working directory.', ru:'Файл дописывается, а его каталог создаётся, когда приходит первая запись; `nanolog.file.append=false` в этот момент очищает файл. Без `nanolog.file` это `nanolog.log` в рабочем каталоге.'}
+- ${en:'Each entry is written through at once, so a crash loses nothing that was logged. `nanolog.file.flush=buffer` keeps entries in memory until `LOG.flush()`, a full buffer of 8 KB or the exit of the JVM, for a program that logs a lot.', ru:'Каждая запись пишется в файл сразу, поэтому при падении ничего из залогированного не теряется. `nanolog.file.flush=buffer` держит записи в памяти до `LOG.flush()`, заполнения буфера в 8 КБ или завершения JVM — для программы, которая пишет много.'}
+- ${en:'`nanolog.file.maxSize` rolls the file over: `app.log` becomes `app.log.1`, the older files move one up, and the oldest beyond `nanolog.file.backups` is deleted. There is no rolling by date, no compression and no asynchronous writing.', ru:'`nanolog.file.maxSize` включает перенос: `app.log` становится `app.log.1`, более старые файлы сдвигаются на один номер, а самый старый сверх `nanolog.file.backups` удаляется. Переноса по дате, сжатия и асинхронной записи нет.'}
+- ${en:'The lines have the layout of `ConsoleLogger` and follow its settings, levels included; `nanolog.file.format=json` writes the lines of `JsonLogger` instead. Repeats are not collapsed, there are no colours, and agent mode leaves the file as it is.', ru:'Строки имеют формат `ConsoleLogger` и следуют его настройкам, включая уровни; `nanolog.file.format=json` пишет вместо них строки `JsonLogger`. Повторы не сворачиваются, цветов нет, а агентский режим файл не меняет.'}
+- ${en:'A file that cannot be written is reported once with a `[NANOLOG]` line, and its entries go to `System.err`; a rollover that fails is reported too, and the file keeps growing. Nothing is thrown.', ru:'О файле, в который нельзя писать, один раз сообщает строка `[NANOLOG]`, и его записи идут в `System.err`; о неудачном переносе тоже сообщается, и файл продолжает расти. Исключения не бросаются.'}
+- ${en:'The console and a file together, in code: `LOG.init(new CompositeLogger(new ConsoleLogger(), new FileLogger(Paths.get("logs/app.log"))))`. The setters `setAppend`, `setMaxSize`, `setBackups`, `setFlush` and `setFormat` change the settings, and `close()` closes the file until the next entry.', ru:'Консоль и файл вместе, в коде: `LOG.init(new CompositeLogger(new ConsoleLogger(), new FileLogger(Paths.get("logs/app.log"))))`. Сеттеры `setAppend`, `setMaxSize`, `setBackups`, `setFlush` и `setFormat` меняют настройки, а `close()` закрывает файл до следующей записи.'}
 
 ### Slf4jLogger
 
@@ -1273,7 +1297,7 @@ The direct analogues: a static call without a logger field.<!--en-->
 | [${en:'Key-value fields of one call', ru:'Поля ключ-значение одного вызова'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | [${en:'Capturing entries in tests', ru:'Захват записей в тестах'}](#${en:'memorylogger-and-compositelogger', ru:'memorylogger-и-compositelogger'}) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | [${en:'Placeholders checked against the arguments', ru:'Проверка плейсхолдеров по аргументам'}](#${en:'checking-placeholders-in-tests', ru:'проверка-плейсхолдеров-в-тестах'}) | ✅¹⁶ | ❌ | ➖¹⁷ | ❌ | ✅¹⁸ |
-| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#${en:'run-log', ru:'журнал-запуска'}) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
+| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#filelogger) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
 | ${en:'Asynchronous output', ru:'Асинхронный вывод'} | ❌ | ✅ | ➖⁵ | ❌ | ❌ |
 | [${en:'Markers or tags', ru:'Маркеры или теги'}](#${en:'tags', ru:'теги'}) | ✅ | ✅ | ❌ | ➖²⁰ | ✅ |
 | [${en:'Forwarding to SLF4J or another backend', ru:'Передача в SLF4J или другой бэкенд'}](#slf4jlogger) | ✅ | ➖²¹ | ✅ | ➖²² | ✅ |
@@ -1317,8 +1341,8 @@ The direct analogues: a static call without a logger field.<!--en-->
 ¹⁷ jcabi-log: всегда включена; несовпадение бросает исключение из вызова логирования.<br><!--ru-->
 ¹⁸ Timber: the bundled Android Lint checks, at build time.<br><!--en-->
 ¹⁸ Timber: встроенные проверки Android Lint, при сборке.<br><!--ru-->
-¹⁹ Nanolog: only the run log of a development run, a file per run, the last 10 kept, 100 MB at most; no rolling of a production log.<br><!--en-->
-¹⁹ Nanolog: только журнал запуска при разработке, файл на запуск, хранятся последние 10, не больше 100 МБ; ротации продакшен-лога нет.<br><!--ru-->
+¹⁹ Nanolog: `FileLogger` rolls over by size only, with backups; no rolling by date, no compression, no asynchronous writing.<br><!--en-->
+¹⁹ Nanolog: `FileLogger` переносит файл только по размеру, с резервными копиями; переноса по дате, сжатия и асинхронной записи нет.<br><!--ru-->
 ²⁰ minlog: a category string in each call.<br><!--en-->
 ²⁰ minlog: строка категории в каждом вызове.<br><!--ru-->
 ²¹ tinylog 2: to java.util.logging and JBoss Logging, and a writer to Logcat; not to SLF4J (`slf4j-tinylog` goes the other way).<br><!--en-->
@@ -1357,7 +1381,7 @@ The loggers most Java code already uses, and Flogger, which limits the rate per 
 | [${en:'Key-value fields of one call', ru:'Поля ключ-значение одного вызова'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}) | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | [${en:'Capturing entries in tests', ru:'Захват записей в тестах'}](#${en:'memorylogger-and-compositelogger', ru:'memorylogger-и-compositelogger'}) | ✅ | ✅ | ➖⁴⁸ | ❌ | ❌ | ❌ |
 | [${en:'Placeholders checked against the arguments', ru:'Проверка плейсхолдеров по аргументам'}](#${en:'checking-placeholders-in-tests', ru:'проверка-плейсхолдеров-в-тестах'}) | ✅¹⁶ | ➖⁴⁹ | ➖⁵⁰ | ❌ | ✅ | ➖⁵¹ |
-| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#${en:'run-log', ru:'журнал-запуска'}) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
+| [${en:'Files with rolling', ru:'Файлы с ротацией'}](#filelogger) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
 | ${en:'Asynchronous output', ru:'Асинхронный вывод'} | ❌ | ✅ | ✅ | ❌ | ❌ | ➖⁴⁵ |
 | [${en:'Markers or tags', ru:'Маркеры или теги'}](#${en:'tags', ru:'теги'}) | ✅ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
 | [${en:'Forwarding to SLF4J or another backend', ru:'Передача в SLF4J или другой бэкенд'}](#slf4jlogger) | ✅ | ✅ | ✅ | ➖⁵⁴ | ✅ | ✅ |
@@ -1446,8 +1470,8 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 
 ### ${en:'When another logger fits better', ru:'Когда лучше подойдёт другой логгер'}
 
-- **Log files in production.** Rolling by size and time, compression and retention: Logback, Log4j 2, tinylog. Nanolog writes files only for the run log of a development run.<!--en-->
-- **Лог-файлы в продакшене.** Ротация по размеру и времени, сжатие и хранение: Logback, Log4j 2, tinylog. Nanolog пишет файлы только для журнала запуска при разработке.<!--ru-->
+- **Log files in production with rolling by date.** Rolling by time, compression and retention by age: Logback, Log4j 2, tinylog. `FileLogger` of Nanolog rolls over by size only.<!--en-->
+- **Лог-файлы в продакшене с ротацией по дате.** Ротация по времени, сжатие и хранение по возрасту: Logback, Log4j 2, tinylog. `FileLogger` в Nanolog переносит файл только по размеру.<!--ru-->
 - **Asynchronous output and high throughput.** The asynchronous appenders and loggers of Logback and Log4j 2, the writing thread of tinylog.<!--en-->
 - **Асинхронный вывод и высокая нагрузка.** Асинхронные аппендеры и логгеры Logback и Log4j 2, пишущий поток tinylog.<!--ru-->
 - **An ecosystem.** Appenders for syslog, databases, message queues and log services, markers and filters, the configuration of Spring Boot: SLF4J with Logback or Log4j 2. Nanolog can write through them with [`Slf4jLogger`](#slf4jlogger).<!--en-->
@@ -1483,6 +1507,7 @@ ${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
 - ${en:'`NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.', ru:'`NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.'}
 - ${en:'`nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.', ru:'`nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.'}
 - ${en:'Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.', ru:'Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.'}
+- ${en:'`FileLogger`: `nanolog.logger=com.nanolaba.logging.FileLogger` with `nanolog.file=logs/app.log` writes the entries to a file, appended, each written through at once or with `nanolog.file.flush=buffer` kept until `LOG.flush()`, rolled over by `nanolog.file.maxSize` with `nanolog.file.backups`, in the text of `ConsoleLogger` or the JSON lines of `JsonLogger`. `LOG.flush()` and `ILogger.flush()` are new.', ru:'`FileLogger`: `nanolog.logger=com.nanolaba.logging.FileLogger` с `nanolog.file=logs/app.log` пишет записи в файл: дописывает его, пишет каждую запись сразу или с `nanolog.file.flush=buffer` держит до `LOG.flush()`, переносит по `nanolog.file.maxSize` с `nanolog.file.backups`, в текстовом формате `ConsoleLogger` или строками JSON `JsonLogger`. Добавлены `LOG.flush()` и `ILogger.flush()`.'}
 - ${en:'A real module descriptor: on Java 9+ the jar is the module `com.nanolaba.nanolog`, from `META-INF/versions/9/module-info.class` of a multi-release jar, so `jlink` accepts it; the module needs only `java.base`. The run log no longer needs `java.management` for the id of the process, which a runtime image of `java.base` alone left out with a `NoClassDefFoundError` from the first logging call.', ru:'Настоящий дескриптор модуля: на Java 9+ jar является модулем `com.nanolaba.nanolog` из `META-INF/versions/9/module-info.class` многорелизного jar, поэтому `jlink` его принимает; модулю нужен только `java.base`. Журналу запуска больше не нужен `java.management` для номера процесса: в образе только с `java.base` его отсутствие давало `NoClassDefFoundError` уже при первом вызове лога.'}
 - ${en:'`LOG.captureSystemStreams()` and `nanolog.captureSystemStreams=true` turn the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries with the source and call site of the code that printed, `e.printStackTrace()` included, without a loop through the console.', ru:'`LOG.captureSystemStreams()` и `nanolog.captureSystemStreams=true` превращают строки, напечатанные в `System.out` и `System.err`, в записи `INFO` и `ERROR` с источником и местом вызова того кода, который печатал, в том числе `e.printStackTrace()`, без петли через консоль.'}
 - ${en:'Calls from Kotlin are checked: CI compiles the calls of `LOG` in every shape from Kotlin, so an overload that is ambiguous for Kotlin, as in tinylog, fails the build.', ru:'Вызовы из Kotlin проверяются: CI компилирует из Kotlin вызовы `LOG` всех форм, поэтому перегрузка, неоднозначная для Kotlin, как в tinylog, роняет сборку.'}

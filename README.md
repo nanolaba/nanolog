@@ -62,8 +62,9 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 8.3 [Changing levels at run time](#changing-levels-at-run-time)
 	- 8.4 [Shorter stack traces](#shorter-stack-traces)
 	- 8.5 [JsonLogger](#jsonlogger)
-	- 8.6 [Slf4jLogger](#slf4jlogger)
-	- 8.7 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
+	- 8.6 [FileLogger](#filelogger)
+	- 8.7 [Slf4jLogger](#slf4jlogger)
+	- 8.8 [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger)
 - 9 [Logs in tests: only the failing ones](#logs-in-tests-only-the-failing-ones)
 - 10 [Message formatting](#message-formatting)
 	- 10.1 [Fields: named arguments](#fields-named-arguments)
@@ -680,6 +681,12 @@ The constructor of `ConsoleLogger` reads these settings from system properties, 
 | `nanolog.console.timeZone` | `NANOLOG_CONSOLE_TIMEZONE` | a time zone ID such as `UTC`, `Europe/Berlin` or `GMT+03:00`, like the setter; an ID that Java does not know is reported instead of being taken for GMT |
 | `nanolog.exception.exclude` | `NANOLOG_EXCEPTION_EXCLUDE` | package or class prefixes whose stack frames are collapsed, comma-separated |
 | `nanolog.exception.maxFrames` | `NANOLOG_EXCEPTION_MAXFRAMES` | the most stack frames per throwable; `0` (default) for no limit |
+| `nanolog.file` | `NANOLOG_FILE` | the file of [FileLogger](#filelogger), `nanolog.log` by default |
+| `nanolog.file.append` | `NANOLOG_FILE_APPEND` | `true` (default) or `false`, which empties the file when it opens |
+| `nanolog.file.maxSize` | `NANOLOG_FILE_MAXSIZE` | the size at which the file rolls over, such as `10MB`; `0` (default) for none |
+| `nanolog.file.backups` | `NANOLOG_FILE_BACKUPS` | how many rolled-over files are kept, `3` by default |
+| `nanolog.file.flush` | `NANOLOG_FILE_FLUSH` | `entry` (default, each entry at once) or `buffer` |
+| `nanolog.file.format` | `NANOLOG_FILE_FORMAT` | `text` (default) or `json` |
 
 ```
 java -Dnanolog.level=WARN -Dnanolog.level.com.acme.payments=DEBUG -jar app.jar
@@ -762,6 +769,24 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 - Line breaks and control characters are escaped, so one entry is always exactly one line, stack trace included.
 - `JsonLogger` extends `ConsoleLogger`: the same levels, the same level properties and the same streams (`ERROR` to `System.err` by default). The display options do not apply.
 - In a pipe only standard output reaches the next program, so `java -jar app.jar | jq` would lose every `ERROR` entry. `-Dnanolog.console.stream=out` writes them to standard output with the rest, in the order they were logged.
+
+### FileLogger
+
+Writes the entries to a file, for an application with no console to redirect, a desktop or an Android app, or a service that keeps a log of its own:
+
+```properties
+nanolog.logger=com.nanolaba.logging.FileLogger
+nanolog.file=logs/app.log
+nanolog.file.maxSize=10MB
+nanolog.file.backups=3
+```
+
+- The file is appended to, and its directory created, when the first entry comes; `nanolog.file.append=false` empties it then. Without `nanolog.file` it is `nanolog.log` in the working directory.
+- Each entry is written through at once, so a crash loses nothing that was logged. `nanolog.file.flush=buffer` keeps entries in memory until `LOG.flush()`, a full buffer of 8 KB or the exit of the JVM, for a program that logs a lot.
+- `nanolog.file.maxSize` rolls the file over: `app.log` becomes `app.log.1`, the older files move one up, and the oldest beyond `nanolog.file.backups` is deleted. There is no rolling by date, no compression and no asynchronous writing.
+- The lines have the layout of `ConsoleLogger` and follow its settings, levels included; `nanolog.file.format=json` writes the lines of `JsonLogger` instead. Repeats are not collapsed, there are no colours, and agent mode leaves the file as it is.
+- A file that cannot be written is reported once with a `[NANOLOG]` line, and its entries go to `System.err`; a rollover that fails is reported too, and the file keeps growing. Nothing is thrown.
+- The console and a file together, in code: `LOG.init(new CompositeLogger(new ConsoleLogger(), new FileLogger(Paths.get("logs/app.log"))))`. The setters `setAppend`, `setMaxSize`, `setBackups`, `setFlush` and `setFormat` change the settings, and `close()` closes the file until the next entry.
 
 ### Slf4jLogger
 
@@ -1408,7 +1433,7 @@ The direct analogues: a static call without a logger field.
 | [Key-value fields of one call](#fields-named-arguments) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | [Capturing entries in tests](#memorylogger-and-compositelogger) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ❌ | ➖¹⁷ | ❌ | ✅¹⁸ |
-| [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
+| [Files with rolling](#filelogger) | ➖¹⁹ | ✅ | ➖⁵ | ❌ | ❌ |
 | Asynchronous output | ❌ | ✅ | ➖⁵ | ❌ | ❌ |
 | [Markers or tags](#tags) | ✅ | ✅ | ❌ | ➖²⁰ | ✅ |
 | [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ➖²¹ | ✅ | ➖²² | ✅ |
@@ -1434,7 +1459,7 @@ The direct analogues: a static call without a logger field.
 ¹⁶ Nanolog: at run time with `nanolog.strict` and in tests, not at build time.<br>
 ¹⁷ jcabi-log: always on; a mismatch throws out of the logging call.<br>
 ¹⁸ Timber: the bundled Android Lint checks, at build time.<br>
-¹⁹ Nanolog: only the run log of a development run, a file per run, the last 10 kept, 100 MB at most; no rolling of a production log.<br>
+¹⁹ Nanolog: `FileLogger` rolls over by size only, with backups; no rolling by date, no compression, no asynchronous writing.<br>
 ²⁰ minlog: a category string in each call.<br>
 ²¹ tinylog 2: to java.util.logging and JBoss Logging, and a writer to Logcat; not to SLF4J (`slf4j-tinylog` goes the other way).<br>
 ²² minlog: a subclass of `Log.Logger`, set with `Log.setLogger`.<br>
@@ -1466,7 +1491,7 @@ The loggers most Java code already uses, and Flogger, which limits the rate per 
 | [Key-value fields of one call](#fields-named-arguments) | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | [Capturing entries in tests](#memorylogger-and-compositelogger) | ✅ | ✅ | ➖⁴⁸ | ❌ | ❌ | ❌ |
 | [Placeholders checked against the arguments](#checking-placeholders-in-tests) | ✅¹⁶ | ➖⁴⁹ | ➖⁵⁰ | ❌ | ✅ | ➖⁵¹ |
-| [Files with rolling](#run-log) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
+| [Files with rolling](#filelogger) | ➖¹⁹ | ✅ | ✅ | ➖⁵² | ➖⁵² | ➖⁴⁵ |
 | Asynchronous output | ❌ | ✅ | ✅ | ❌ | ❌ | ➖⁴⁵ |
 | [Markers or tags](#tags) | ✅ | ✅ | ✅ | ❌ | ➖⁵³ | ❌ |
 | [Forwarding to SLF4J or another backend](#slf4jlogger) | ✅ | ✅ | ✅ | ➖⁵⁴ | ✅ | ✅ |
@@ -1523,7 +1548,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 
 ### When another logger fits better
 
-- **Log files in production.** Rolling by size and time, compression and retention: Logback, Log4j 2, tinylog. Nanolog writes files only for the run log of a development run.
+- **Log files in production with rolling by date.** Rolling by time, compression and retention by age: Logback, Log4j 2, tinylog. `FileLogger` of Nanolog rolls over by size only.
 - **Asynchronous output and high throughput.** The asynchronous appenders and loggers of Logback and Log4j 2, the writing thread of tinylog.
 - **An ecosystem.** Appenders for syslog, databases, message queues and log services, markers and filters, the configuration of Spring Boot: SLF4J with Logback or Log4j 2. Nanolog can write through them with [`Slf4jLogger`](#slf4jlogger).
 - **Android.** Timber writes to Logcat and checks its format strings with Android Lint. Nanolog is not tested on Android.
@@ -1555,6 +1580,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `FileLogger`: `nanolog.logger=com.nanolaba.logging.FileLogger` with `nanolog.file=logs/app.log` writes the entries to a file, appended, each written through at once or with `nanolog.file.flush=buffer` kept until `LOG.flush()`, rolled over by `nanolog.file.maxSize` with `nanolog.file.backups`, in the text of `ConsoleLogger` or the JSON lines of `JsonLogger`. `LOG.flush()` and `ILogger.flush()` are new.
 - A real module descriptor: on Java 9+ the jar is the module `com.nanolaba.nanolog`, from `META-INF/versions/9/module-info.class` of a multi-release jar, so `jlink` accepts it; the module needs only `java.base`. The run log no longer needs `java.management` for the id of the process, which a runtime image of `java.base` alone left out with a `NoClassDefFoundError` from the first logging call.
 - `LOG.captureSystemStreams()` and `nanolog.captureSystemStreams=true` turn the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries with the source and call site of the code that printed, `e.printStackTrace()` included, without a loop through the console.
 - Calls from Kotlin are checked: CI compiles the calls of `LOG` in every shape from Kotlin, so an overload that is ambiguous for Kotlin, as in tinylog, fails the build.

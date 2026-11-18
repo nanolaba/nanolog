@@ -172,6 +172,25 @@ public class LOG {
         locked = false;
     }
 
+    /**
+     * Writes what the installed logger holds in a buffer: the buffer of a {@link FileLogger} in the {@code buffer}
+     * mode, for one. A logger that throws is reported once; nothing is thrown.
+     */
+    public static void flush() {
+        flush(logger);
+    }
+
+    /**
+     * Flushes a logger, reporting a failure once instead of throwing it; also the exit hook of {@link FileLogger}.
+     */
+    static void flush(ILogger target) {
+        try {
+            target.flush();
+        } catch (Throwable t) {
+            reportLoggerFailure(target, t, "what it holds may not be written");
+        }
+    }
+
     // SYSTEM STREAMS
 
     /**

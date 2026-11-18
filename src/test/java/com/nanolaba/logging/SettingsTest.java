@@ -86,7 +86,7 @@ class SettingsTest extends AbstractLoggerTest {
     @Test
     public void testEveryPropertyConstantIsKnown() throws IllegalAccessException {
         Set<String> constants = new HashSet<>();
-        for (Class<?> type : new Class<?>[]{DefaultLoggerCreator.class, ConsoleLogger.class}) {
+        for (Class<?> type : new Class<?>[]{DefaultLoggerCreator.class, ConsoleLogger.class, FileLogger.class}) {
             for (Field field : type.getDeclaredFields()) {
                 if (field.getName().startsWith("PROPERTY_") && !field.getName().equals("PROPERTY_PREFIX") &&
                     Modifier.isStatic(field.getModifiers())) {
