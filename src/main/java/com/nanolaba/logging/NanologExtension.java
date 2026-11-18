@@ -7,6 +7,8 @@ import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A JUnit 5 extension that prints the log of a test only when the test fails, for a test run read by a person or a
@@ -27,8 +29,11 @@ import java.util.List;
  */
 public final class NanologExtension implements BeforeEachCallback, AfterEachCallback, TestWatcher {
 
-    private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create(NanologExtension.class);
-    private static final String BUFFER = "buffer";
+    /**
+     * The held-back log of each running test, by its unique ID. Not in the store of the test: JUnit 5.13 and newer close
+     * that store before the {@code TestWatcher} callbacks, which then cannot take the log out of it.
+     */
+    private static final Map<String, MemoryLogger> BUFFERS = new ConcurrentHashMap<>();
 
     /**
      * {@code nanolog.junit.output}, read once per JVM.
@@ -66,7 +71,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
     @Override
     public void beforeEach(ExtensionContext context) {
         if (!"all".equals(output())) {
-            context.getStore(NAMESPACE).put(BUFFER, MemoryLogger.buffer());
+            BUFFERS.put(context.getUniqueId(), MemoryLogger.buffer());
         }
     }
 
@@ -77,7 +82,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
      */
     @Override
     public void afterEach(ExtensionContext context) {
-        MemoryLogger buffer = context.getStore(NAMESPACE).get(BUFFER, MemoryLogger.class);
+        MemoryLogger buffer = BUFFERS.get(context.getUniqueId());
         if (buffer != null) {
             buffer.close();
         }
@@ -91,7 +96,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
      */
     @Override
     public void testFailed(ExtensionContext context, Throwable cause) {
-        MemoryLogger buffer = context.getStore(NAMESPACE).remove(BUFFER, MemoryLogger.class);
+        MemoryLogger buffer = BUFFERS.remove(context.getUniqueId());
         if (buffer == null) {
             return;
         }
@@ -135,7 +140,7 @@ public final class NanologExtension implements BeforeEachCallback, AfterEachCall
     }
 
     private static void dropLog(ExtensionContext context) {
-        MemoryLogger buffer = context.getStore(NAMESPACE).remove(BUFFER, MemoryLogger.class);
+        MemoryLogger buffer = BUFFERS.remove(context.getUniqueId());
         if (buffer != null) {
             RunLog.replay(buffer.keptFrom, buffer.getEntries());
         }
