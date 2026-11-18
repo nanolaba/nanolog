@@ -27,6 +27,7 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     private final Deque<String> diagnostics = new ArrayDeque<>();
 
     private ILogger previous;
+    private LOG.Origin previousOrigin;
     private boolean installed;
 
     /**
@@ -135,8 +136,10 @@ public class MemoryLogger implements ILogger, AutoCloseable {
 
     private void installInstead(ILogger replacement) {
         previous = LOG.getLogger();
+        previousOrigin = LOG.installedBy();
         installed = true;
-        LOG.init(replacement);
+        // past the lock of LOG.lock() and without its diagnostics: a test must be able to capture
+        LOG.install(replacement, null);
     }
 
     /**
@@ -371,7 +374,7 @@ public class MemoryLogger implements ILogger, AutoCloseable {
     @Override
     public void close() {
         if (installed) {
-            LOG.init(previous);
+            LOG.install(previous, previousOrigin);
         }
         if (capture != null) {
             LOG.endCapture(this);

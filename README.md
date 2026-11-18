@@ -539,6 +539,7 @@ A no-argument `LOG.init()` re-reads the property and the file.
 
 | Property | Meaning | Default |
 |---|---|---|
+| `nanolog.logger.lock` | `true` keeps the logger of the configuration: later `LOG.init` calls are ignored with a `[NANOLOG]` line, as after `LOG.lock()` | `false` |
 | `nanolog.logger` | class name of the `ILogger` implementation | `com.nanolaba.logging.ConsoleLogger` |
 | `nanolog.config` | classpath resource with the configuration | `nanolog.properties` |
 | `nanolog.sources` | source directories that `LOG.dbg` reads the text of its arguments from, comma-separated; empty turns the reading off | derived from the class location |
@@ -579,7 +580,9 @@ A setting that **Nanolog** does not know is reported, not ignored without a word
 `nanolog.buffer.*`, `nanolog.caller.*`, `nanolog.console.*`, `nanolog.content.*`, `nanolog.context.*`, `nanolog.exception.*`, `nanolog.junit.*`, `nanolog.level.*`, `nanolog.run.*`, `nanolog.unit.*` and the keys directly under `nanolog.` belong to **Nanolog**. A custom logger keeps settings of its own under a namespace of its own, such as `nanolog.mylogger.url`; such a key is reported only when it differs from a known one by a typo or two. Since 1.4.
 
 > [!IMPORTANT]
-> `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code.
+> `LOG.init` replaces the logger for the whole JVM. Call it once at application startup, before other threads start logging. Any library on the classpath can call it as well, so do not call it from library code. When code of another organization replaces a logger installed with `LOG.init(logger)`, a `[NANOLOG]` line names both call sites: `Logger replaced: ConsoleLogger (installed at com.app.Main.main(Main.java:12)) -> com.vendor.SdkLogger (installed at com.vendor.Sdk.init(Sdk.java:40))`. `LOG.lock()` after your own `LOG.init`, or `nanolog.logger.lock=true` for the logger of the configuration, makes later `LOG.init` calls no-ops with such a line; `MemoryLogger.install()` still works in tests.
+
+- The organization is the first two segments of the package of the calling class, `com.acme` for `com.acme.billing.Main`: the application and its tests may install their own loggers from anywhere without a line, and so may anybody install the same logger again. The logger of the configuration, installed when `LOG` starts or by `LOG.init()`, may be replaced without a line as well.
 
 ### ConsoleLogger
 
@@ -1511,6 +1514,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- A library that replaces the logger of the application is reported: when code of another organization (the first two segments of the package) replaces a logger installed with `LOG.init(logger)`, a `[NANOLOG]` line names both call sites. `LOG.lock()` and `nanolog.logger.lock=true` keep the installed logger and turn later `LOG.init` calls into no-ops with such a line; `MemoryLogger.install()` still works under the lock.
 - Documentation: a `nanolog.properties` in `src/test/resources` replaces the one in `src/main/resources` in tests, as a whole file, not merged.
 - Several `nanolog.properties` on the classpath, one of them in a jar, are reported with one `[NANOLOG]` line that lists them and names the one that was read: a library that ships its own file no longer wins over the file of the application without a word. Two directories, such as the main and the test resources, stay quiet.
 - Tags: `LOG.tag("audit").warn(...)` marks the entries of a concern rather than of a class, and `nanolog.tags=audit=WARN,sql=DEBUG` sets levels per tag, which decide over the levels of the class. `ConsoleLogger` writes `[audit]`, `JsonLogger` `"tags":["audit"]`, `Slf4jLogger` passes an SLF4J `Marker`; `LogEntry.getTags()` and `ILogger.isEnabled(level, sourceClass, tag)` are new.

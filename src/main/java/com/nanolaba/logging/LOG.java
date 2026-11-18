@@ -71,7 +71,7 @@ public class LOG {
 
 
     static {
-        init();
+        configure();
     }
 
     private LOG() {/**/}
@@ -80,11 +80,32 @@ public class LOG {
      * Installs the default logger again, re-reading {@code nanolog.logger}, {@code nanolog.config} with its file,
      * {@code nanolog.strict}, {@code nanolog.dump}, {@code nanolog.dbg}, {@code nanolog.agent},
      * {@code nanolog.unit.*}, {@code nanolog.buffer.*}, {@code nanolog.content.*}, {@code nanolog.redact},
-     * {@code nanolog.caller.skip} and {@code nanolog.context.provider}. Called once when the class initialises.
+     * {@code nanolog.caller.skip}, {@code nanolog.context.provider} and {@code nanolog.logger.lock}. Called once when
+     * the class initialises.
+     * <p>
+     * The logger it installs is the logger of the configuration, which {@link #init(ILogger)} may replace without a
+     * diagnostic. When it replaces a logger that code of another organization installed with {@link #init(ILogger)},
+     * it prints one; after {@link #lock()} it is ignored, with a diagnostic.
      */
     public static void init() {
+        Origin origin = Origin.ofCaller();
+        if (locked) {
+            refuse("LOG.init()", origin);
+            return;
+        }
+        ILogger previous = LOG.logger;
+        Origin previousOrigin = installedBy;
+        configure();
+        reportReplacement(previous, previousOrigin, LOG.logger, origin);
+    }
+
+    /**
+     * Installs the logger of the configuration and reads the settings, for the class initialiser and {@link #init()}.
+     */
+    private static void configure() {
         flushRepeats(LOG.logger);
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
+        LOG.installedBy = null;
         // after the logger: creating it loads nanolog.properties, which may set the other settings
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
         Dump.auto = DefaultLoggerCreator.readDumpAuto();
@@ -102,18 +123,135 @@ public class LOG {
         if (Summary.mode != Summary.Mode.OFF) {
             Summary.registerHook();
         }
+        LOG.locked = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_LOGGER_LOCK, false);
     }
 
     /**
      * Installs a logger for the whole JVM. Call it once at application startup, before other threads log, and never
      * from library code: any library could replace the application's choice.
+     * <p>
+     * The call site is kept. A logger installed here and replaced later by code of another organization, by this
+     * method or by {@link #init()}, is reported with both call sites, so a library that replaces the logger of the
+     * application is found. The organization is the first two segments of the package of the calling class,
+     * {@code com.acme} for {@code com.acme.billing.Main}, so the code of the application and its tests may replace
+     * their own logger without a word, and so may the same logger again. After {@link #lock()} or with
+     * {@code nanolog.logger.lock=true} the call is ignored, with a diagnostic. Nothing is thrown.
      *
      * @param logger the logger that receives every entry from now on, for example a lambda:
      *               {@code LOG.init(entry -> System.out.println(entry.getFormattedMessage()))}
      */
     public static void init(ILogger logger) {
+        Origin origin = Origin.ofCaller();
+        if (locked) {
+            refuse("LOG.init(" + className(logger) + ")", origin);
+            return;
+        }
+        ILogger previous = LOG.logger;
+        Origin previousOrigin = installedBy;
+        install(logger, origin);
+        reportReplacement(previous, previousOrigin, logger, origin);
+    }
+
+    /**
+     * Keeps the installed logger: every later {@link #init(ILogger)} and {@link #init()} is ignored, with a
+     * diagnostic that names the call site, so no library can replace the logger the application chose. Call it at
+     * startup, after the application installed its logger; {@code nanolog.logger.lock=true} does the same for the
+     * logger of the configuration. {@link MemoryLogger#install()} still installs and restores a logger in tests.
+     */
+    public static void lock() {
+        locked = true;
+    }
+
+    /**
+     * Undoes {@link #lock()}; for tests.
+     */
+    static void unlock() {
+        locked = false;
+    }
+
+    // THE INSTALLED LOGGER
+
+    /**
+     * Who installed the installed logger with {@link #init(ILogger)}. {@code null} for the logger of the configuration
+     * and for one of {@link MemoryLogger}, whose replacement is not reported.
+     */
+    private static volatile Origin installedBy;
+
+    /**
+     * Set by {@link #lock()} and {@code nanolog.logger.lock}: {@code init} calls are ignored.
+     */
+    private static volatile boolean locked;
+
+    /**
+     * The call site of an {@code init} call and the organization of its class.
+     */
+    static final class Origin {
+
+        private static final String UNKNOWN_PLACE = "an unknown place";
+
+        final String site;
+        final String organization;
+
+        private Origin(String site, String organization) {
+            this.site = site;
+            this.organization = organization;
+        }
+
+        /**
+         * The caller of {@code LOG}, found by the {@code Throwable} walk: an {@code init} call is rare, and walking
+         * through {@link #callerLocator} would count as a walk of a logging call.
+         */
+        static Origin ofCaller() {
+            StackTraceElement frame = CallerDetection.ThrowableWalk.INSTANCE.find().frame;
+            return frame == null ? new Origin(UNKNOWN_PLACE, UNKNOWN_PLACE) : new Origin(frame.toString(), organizationOf(frame.getClassName()));
+        }
+
+        /**
+         * The first two segments of the package of a class, {@code com.acme} for {@code com.acme.billing.Main}; the
+         * whole package when it has fewer.
+         */
+        static String organizationOf(String className) {
+            String packageName = className.substring(0, Math.max(0, className.lastIndexOf('.')));
+            int second = packageName.indexOf('.', packageName.indexOf('.') + 1);
+            return second == -1 ? packageName : packageName.substring(0, second);
+        }
+    }
+
+    /**
+     * Installs a logger with the origin it is reported by; for {@link MemoryLogger}, which installs and restores
+     * loggers under the lock and without a diagnostic.
+     */
+    static void install(ILogger logger, Origin origin) {
         flushRepeats(LOG.logger);
         LOG.logger = logger;
+        LOG.installedBy = origin;
+    }
+
+    /**
+     * Who installed the installed logger, for {@link MemoryLogger} to restore it with.
+     */
+    static Origin installedBy() {
+        return installedBy;
+    }
+
+    private static void reportReplacement(ILogger previous, Origin previousOrigin, ILogger next, Origin origin) {
+        if (previousOrigin != null && !previousOrigin.organization.equals(origin.organization) && previous != next) {
+            DefaultLoggerCreator.printDiagnostic("Logger replaced: " + describeInstall(previous, previousOrigin) + " -> " + className(next) +
+                                                 " (installed at " + origin.site + ")");
+        }
+    }
+
+    private static void refuse(String call, Origin origin) {
+        DefaultLoggerCreator.printDiagnostic("Logger locked: " + describeInstall(logger, installedBy) + " stays; " + call + " at " +
+                                             origin.site + " is ignored");
+    }
+
+    private static String describeInstall(ILogger installed, Origin origin) {
+        return className(installed) + (origin == null ? " (from the configuration)" : " (installed at " + origin.site + ")");
+    }
+
+    private static String className(ILogger installed) {
+        return installed == null ? "null" : installed.getClass().getName();
     }
 
     /**

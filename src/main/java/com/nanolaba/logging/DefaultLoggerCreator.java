@@ -35,6 +35,11 @@ public class DefaultLoggerCreator {
      */
     public static final String PROPERTY_LOGGER_CLASS = PROPERTY_PREFIX + "logger";
     /**
+     * {@code true} keeps the logger of the configuration: {@code LOG.init} calls are ignored, with a diagnostic, as
+     * after {@code LOG.lock()}.
+     */
+    public static final String PROPERTY_LOGGER_LOCK = PROPERTY_LOGGER_CLASS + ".lock";
+    /**
      * The classpath resource with the settings, {@value #DEFAULT_CONFIGURATION_FILE} by default.
      */
     public static final String PROPERTY_LOGGER_CONFIG_FILE = PROPERTY_PREFIX + "config";
