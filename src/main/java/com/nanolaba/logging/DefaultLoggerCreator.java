@@ -3,8 +3,11 @@ package com.nanolaba.logging;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -503,7 +506,43 @@ public class DefaultLoggerCreator {
         }
         // the file may set it too, and its own keys are reported next
         readDiagnostics();
+        if (resource != null) {
+            reportSeveralFiles(classLoader, config, resource);
+        }
         reportUnknownSettings(props, String.valueOf(resource));
+    }
+
+    /**
+     * Reports a configuration file that is on the classpath more than once with a copy in a jar: a library that ships
+     * its own file may win over the file of the application, by the order of the classpath. Two directories, such as
+     * the main and the test resources, are a deliberate override and stay quiet. A class loader that cannot list the
+     * files skips the check.
+     *
+     * @param read the file that was read
+     */
+    private static void reportSeveralFiles(ClassLoader classLoader, String config, URL read) {
+        List<String> ignored = new ArrayList<>();
+        // compared as text: URL.equals may resolve host names
+        String readName = String.valueOf(read);
+        boolean inJar = false;
+        try {
+            Enumeration<URL> files = classLoader.getResources(config);
+            while (files.hasMoreElements()) {
+                URL file = files.nextElement();
+                inJar |= "jar".equals(file.getProtocol());
+                String name = String.valueOf(file);
+                if (!name.equals(readName)) {
+                    ignored.add(name);
+                }
+            }
+        } catch (IOException e) {
+            return;
+        }
+        if (inJar && !ignored.isEmpty()) {
+            printDiagnostic("Several files \"" + config + "\" are on the classpath, one in a jar at least; read: " + read + "; ignored: " +
+                            String.join(", ", ignored) + ". The order of the classpath decides which one is read: a library should " +
+                            "not ship this file, and " + PROPERTY_LOGGER_CONFIG_FILE + " names another one");
+        }
     }
 
     /**
