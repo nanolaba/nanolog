@@ -263,6 +263,7 @@ final class Summary {
         if (PRINTED.compareAndSet(false, true)) {
             // the lines of the open units come first, so the summary counts them
             Units.interruptOpen();
+            LOG.flushRepeats();
             Mode current = mode;
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
             if (current == Mode.ON || current == Mode.ERRORS && warned) {

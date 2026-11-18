@@ -37,7 +37,7 @@ final class Settings {
             ConsoleLogger.PROPERTY_SHOW_THREAD, ConsoleLogger.PROPERTY_SHOW_CONTEXT, ConsoleLogger.PROPERTY_SHOW_SOURCE_LINE,
             ConsoleLogger.PROPERTY_STREAM,
             ConsoleLogger.PROPERTY_DATE_FORMAT,
-            ConsoleLogger.PROPERTY_MULTILINE,
+            ConsoleLogger.PROPERTY_MULTILINE, ConsoleLogger.PROPERTY_REPEATS,
             ConsoleLogger.PROPERTY_COLOR,
             ConsoleLogger.PROPERTY_EXCEPTION_EXCLUDE, ConsoleLogger.PROPERTY_EXCEPTION_MAX_FRAMES));
 

@@ -9,11 +9,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LEVEL;
@@ -100,6 +102,19 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      * Property for {@link #setShowSourceLine(boolean)}: {@code true} or {@code false}.
      */
     public static final String PROPERTY_SHOW_SOURCE_LINE = "nanolog.console.showSourceLine";
+    /**
+     * Property for {@link #setRepeats(String)}: {@code keep} or {@code collapse}.
+     */
+    public static final String PROPERTY_REPEATS = "nanolog.console.repeats";
+
+    private static final String COLLAPSE = "collapse";
+    private static final String[] REPEATS_MODES = {"keep", COLLAPSE};
+    private static final String EXPECTED_REPEATS = "keep or collapse";
+
+    /**
+     * How long a run of repeats goes on before its count so far is written.
+     */
+    static final long REPEATS_PERIOD_NANOS = TimeUnit.SECONDS.toNanos(10);
 
     /**
      * What starts a source line under an entry or a stack frame.
@@ -147,6 +162,17 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     private static final String EXPECTED_COLOR = "auto, always or never";
 
     private String color = Colors.AUTO;
+
+    private volatile String repeats = REPEATS_MODES[0];
+
+    /**
+     * Guards the state of {@code collapse}: the last entry written in full, the repeats counted since and when.
+     */
+    private final Object repeatsLock = new Object();
+    private LogEntry last;
+    private long runStart;
+    private long lastRepeat;
+    private int repeatCount;
     private boolean colored;
 
     /**
@@ -190,6 +216,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         applyStream();
         multiline = readChoice(PROPERTY_MULTILINE, MULTILINE_MODES);
         applyColor(readChoice(PROPERTY_COLOR, COLOR_MODES));
+        repeats = readChoice(PROPERTY_REPEATS, REPEATS_MODES);
         applyExceptionSettings(Collections.<String>emptyList(), 0);
         applyDateFormat();
         rules = new Rules(readLevelRules());
@@ -212,6 +239,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             showDate = readBoolean(PROPERTY_SHOW_DATE, false);
             multiline = readChoice(PROPERTY_MULTILINE, ESCAPE, KEEP, INDENT);
             applyColor(readChoice(PROPERTY_COLOR, Colors.NEVER, Colors.AUTO, Colors.ALWAYS));
+            repeats = readChoice(PROPERTY_REPEATS, COLLAPSE, REPEATS_MODES[0]);
             applyExceptionSettings(Agent.EXCLUDE, Agent.MAX_FRAMES);
             applyThreshold(defaultThreshold);
             return applyGlobalLevel();
@@ -410,8 +438,103 @@ public class ConsoleLogger implements ILogger, ILevelControl {
      */
     @Override
     public void log(LogEntry entry) {
-        String text = createLogString(entry);
+        if (collapsesRepeats()) {
+            logCollapsing(entry);
+        } else {
+            print(entry, createLogString(entry));
+        }
+    }
+
+    private void print(LogEntry entry, String text) {
         getOutputStream(entry).println(colored ? colorLevel(text, entry) : text);
+    }
+
+    /**
+     * Whether consecutive repeats are collapsed: {@code collapse}, for a logger whose lines are read by people and
+     * agents; {@link JsonLogger} answers {@code false}.
+     */
+    boolean collapsesRepeats() {
+        return COLLAPSE.equals(repeats);
+    }
+
+    /**
+     * Writes an entry in full, or counts it if it repeats the last one; a run of repeats that has gone on for
+     * {@link #REPEATS_PERIOD_NANOS} writes its count so far.
+     */
+    private void logCollapsing(LogEntry entry) {
+        synchronized (repeatsLock) {
+            long now = LOG.nanoClock.getAsLong();
+            if (last != null && isRepeat(last, entry)) {
+                repeatCount++;
+                lastRepeat = now;
+                // the count left at the end of the run is written when the run ends
+                Summary.registerHook();
+                if (now - runStart > REPEATS_PERIOD_NANOS) {
+                    printRepeats();
+                    runStart = now;
+                }
+                return;
+            }
+            printRepeats();
+            print(entry, createLogString(entry));
+            last = entry;
+            runStart = now;
+            lastRepeat = now;
+        }
+    }
+
+    /**
+     * Writes the count of the repeats of the last entry, if there are any: its line without the stack trace and
+     * {@code (repeated 41 more times in 20.3 s)}. The caller holds the lock.
+     */
+    private void printRepeats() {
+        if (repeatCount > 0) {
+            StringWriter out = new StringWriter();
+            writeHead(out, last);
+            out.append(" (repeated ").append(String.valueOf(repeatCount)).append(repeatCount == 1 ? " more time" : " more times")
+               .append(" in ").append(duration(lastRepeat - runStart)).append(')');
+            print(last, applyMultiline(out.toString()));
+            repeatCount = 0;
+        }
+    }
+
+    private static String duration(long nanos) {
+        long millis = TimeUnit.NANOSECONDS.toMillis(nanos);
+        return millis < 1000 ? millis + " ms" : String.format(Locale.ROOT, "%.1f s", millis / 1000.0);
+    }
+
+    /**
+     * Writes the count of repeats left and forgets the last entry, so the next one is written in full: when the
+     * logger is replaced and when the run ends.
+     */
+    void flushRepeats() {
+        synchronized (repeatsLock) {
+            printRepeats();
+            last = null;
+        }
+    }
+
+    /**
+     * Whether an entry repeats another: the same level, kind, source class, call site, message, skipped count,
+     * fields the message does not show and context, and an exception of the same class and message or none. A
+     * comparison that throws, such as a value with a broken {@code equals}, is no repeat.
+     */
+    static boolean isRepeat(LogEntry a, LogEntry b) {
+        try {
+            return a.getLevel() == b.getLevel() && a.isDbg() == b.isDbg() && a.getSourceClass() == b.getSourceClass() &&
+                   Objects.equals(a.getCaller(), b.getCaller()) && a.getFormattedMessage().equals(b.getFormattedMessage()) &&
+                   a.getSkippedCount() == b.getSkippedCount() && sameThrowable(a.getThrowable(), b.getThrowable()) &&
+                   a.getTrailingFields().equals(b.getTrailingFields()) && a.getContext().equals(b.getContext());
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean sameThrowable(Throwable a, Throwable b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.getClass() == b.getClass() && Objects.equals(a.getMessage(), b.getMessage());
     }
 
     /**
@@ -692,6 +815,17 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     protected String createLogString(LogEntry entry) {
 
         StringWriter out = new StringWriter();
+        writeHead(out, entry);
+        writeSourceLine(out, entry);
+        writeThrowable(out, entry);
+
+        return applyMultiline(out.toString());
+    }
+
+    /**
+     * The parts of an entry up to its context: the line without the source line and the stack trace.
+     */
+    private void writeHead(StringWriter out, LogEntry entry) {
         writeLevel(out, entry);
         writeDate(out, entry);
         writeThread(out, entry);
@@ -700,10 +834,6 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSkipped(out, entry);
         writeFields(out, entry);
         writeContext(out, entry);
-        writeSourceLine(out, entry);
-        writeThrowable(out, entry);
-
-        return applyMultiline(out.toString());
     }
 
     /**
@@ -1367,6 +1497,39 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             applyColor(mode);
         }
         return this;
+    }
+
+    /**
+     * Collapses consecutive repeats of an entry, for a console read by people and agents: {@code collapse} writes the
+     * first entry in full and counts the ones that repeat it, the same level, source, call site, message, fields,
+     * context and exception, and writes the count when another entry comes, the logger is replaced or the run ends,
+     * as the line again without its stack trace and with {@code (repeated 41 more times in 20.3 s)}. A run of repeats
+     * that goes on writes its count every ten seconds. {@code keep}, the default, writes every entry; agent mode uses
+     * {@code collapse}. Also set by {@code nanolog.console.repeats}. {@link JsonLogger} never collapses: a tool counts
+     * the lines itself.
+     *
+     * @param repeats {@code keep} or {@code collapse}, ignoring case; anything else prints a diagnostic and changes
+     *                nothing
+     * @return this logger, for chaining
+     */
+    public ConsoleLogger setRepeats(String repeats) {
+        String mode = named(REPEATS_MODES, repeats);
+        if (mode == null) {
+            printDiagnostic("Invalid value " + (repeats == null ? "null" : "\"" + repeats + "\"") +
+                            " in setRepeats: expected " + EXPECTED_REPEATS + "; nothing changed");
+        } else {
+            this.repeats = mode;
+        }
+        return this;
+    }
+
+    /**
+     * Returns what happens to consecutive repeats of an entry: {@code keep} or {@code collapse}.
+     *
+     * @return the mode; {@code keep} by default, {@code collapse} in agent mode
+     */
+    public String getRepeats() {
+        return repeats;
     }
 
     private void applyColor(String mode) {

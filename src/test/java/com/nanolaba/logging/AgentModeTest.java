@@ -155,6 +155,29 @@ class AgentModeTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testAgentModeCollapsesRepeatsUnlessSet() {
+        try {
+            ConsoleLogger console = new ConsoleLogger();
+            console.useAgentDefaults();
+            assertEquals("collapse", console.getRepeats());
+
+            System.setProperty(ConsoleLogger.PROPERTY_REPEATS, "keep");
+            console = new ConsoleLogger();
+            console.useAgentDefaults();
+            assertEquals("keep", console.getRepeats());
+
+            System.setProperty(ConsoleLogger.PROPERTY_REPEATS, "squash");
+            console = new ConsoleLogger();
+            getErrAndClear();
+            console.useAgentDefaults();
+            assertEquals("collapse", console.getRepeats());
+            assertEquals("", getErrAndClear(), "reported by the constructor already");
+        } finally {
+            System.clearProperty(ConsoleLogger.PROPERTY_REPEATS);
+        }
+    }
+
+    @Test
     public void testTheConsoleOfAgentModeIsShort() throws ReflectiveOperationException {
         ConsoleLogger console = new ConsoleLogger();
         console.useAgentDefaults();

@@ -83,6 +83,7 @@ public class LOG {
      * class initialises.
      */
     public static void init() {
+        flushRepeats(LOG.logger);
         LOG.logger = DefaultLoggerCreator.createDefaultLogger();
         // after the logger: creating it loads nanolog.properties, which may set the other settings
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
@@ -108,7 +109,25 @@ public class LOG {
      *               {@code LOG.init(entry -> System.out.println(entry.getFormattedMessage()))}
      */
     public static void init(ILogger logger) {
+        flushRepeats(LOG.logger);
         LOG.logger = logger;
+    }
+
+    /**
+     * Writes the counts of repeats that the consoles of the installed logger still hold; for the end of the run.
+     */
+    static void flushRepeats() {
+        flushRepeats(logger);
+    }
+
+    private static void flushRepeats(ILogger target) {
+        if (target instanceof ConsoleLogger) {
+            ((ConsoleLogger) target).flushRepeats();
+        } else if (target instanceof CompositeLogger) {
+            for (ILogger delegate : ((CompositeLogger) target).getLoggers()) {
+                flushRepeats(delegate);
+            }
+        }
     }
 
     // LEVELS AT RUN TIME

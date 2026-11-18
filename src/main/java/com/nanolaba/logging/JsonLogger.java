@@ -54,6 +54,14 @@ public class JsonLogger extends ConsoleLogger {
     }
 
     /**
+     * Never: every entry is one line, which a tool counts itself.
+     */
+    @Override
+    boolean collapsesRepeats() {
+        return false;
+    }
+
+    /**
      * Builds the JSON object of an entry.
      *
      * @param entry the entry to write
