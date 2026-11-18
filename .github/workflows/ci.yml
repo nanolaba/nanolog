@@ -50,3 +50,28 @@ jobs:
         # ambiguous for Kotlin fails here, although Java compiles it
         if: matrix.java == 17
         run: mvn -B --no-transfer-progress -P kotlin test-compile surefire:test -Dtest=KotlinCallersTest
+
+  native:
+    name: GraalVM ${{ matrix.java }} native image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ 21, 25 ]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up GraalVM ${{ matrix.java }}
+        uses: graalvm/setup-graalvm@60e76998d25690099182b796e99b8804da582d90 # v1.6.10
+        with:
+          distribution: graalvm-community
+          java-version: ${{ matrix.java }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: maven
+
+      - name: Package
+        run: mvn -B --no-transfer-progress -Dgpg.skip=true -DskipTests package
+
+      - name: A native image that logs through Nanolog
+        # only the metadata in META-INF/native-image of the jar: the program registers nothing itself
+        run: sh src/it/native/run.sh

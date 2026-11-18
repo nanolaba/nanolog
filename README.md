@@ -83,6 +83,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 <summary>Table of contents</summary>
 
 - 1 [Installation](#installation)
+	- 1.1 [Native image and Android](#native-image-and-android)
 - 2 [Quick start](#quick-start)
 	- 2.1 [API at a glance](#api-at-a-glance)
 - 3 [Print debugging: `LOG.dbg` prints the expression and its value](#print-debugging-logdbg-prints-the-expression-and-its-value)
@@ -172,6 +173,13 @@ Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nan
 Requirements: Java 8+. On Java 9+ the jar is the module `com.nanolaba.nanolog`, which needs only `java.base` (SLF4J and JUnit are optional), so it works on the module path and in a runtime image built with `jlink`. A logger class named in `nanolog.logger` must be in a package its module exports. On the module path JUnit does not find `NanologExtension` by itself: register it with `@ExtendWith(NanologExtension.class)`.
 
 The same jar serves Kotlin: CI compiles the calls of `LOG` in every shape from Kotlin, `LOG.info { "lazy" }` among them, so no overload is ambiguous there. A block given to `LOG.timed` or `LOG.unit` takes the overload that returns nothing; for the value of the block write `val n = LOG.timed("Count users", Supplier { repo.count() })`.
+
+### Native image and Android
+
+*Since 1.4.*
+
+- **GraalVM native image.** The jar carries its metadata in `META-INF/native-image`: the constructors of the loggers that `nanolog.logger` names, the stack walker of caller detection and the resource `nanolog.properties`. CI builds a native image on GraalVM 21 and 25 that logs through `ConsoleLogger` and through `JsonLogger` chosen with `-Dnanolog.logger`. A class of your own named in `nanolog.logger` or `nanolog.context.provider` needs its constructor registered by you, and so do the classes that `LOG.dbg` or `nanolog.dump` print field by field. `LOG.dbg` prints values without the expression text, since there are no source files at run time.
+- **Android and R8.** The jar carries `META-INF/proguard/nanolog.pro`, which R8 and ProGuard apply by themselves: it keeps the constructors of the loggers and the attributes that caller detection reads, and silences the warnings about SLF4J and JUnit, which an app may not have. Obfuscation renames your classes in the log as it does in stack traces; the mapping file restores them (`retrace`). Nanolog is not tested on Android.
 
 ## Quick start
 
@@ -1686,6 +1694,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- GraalVM native image and Android: the jar carries the metadata of a native image (`META-INF/native-image`: the constructors of the loggers, the stack walker, `nanolog.properties`) and rules for R8 and ProGuard (`META-INF/proguard/nanolog.pro`), so neither needs setup; CI builds and runs a native image on GraalVM 21 and 25.
 - `FileLogger`: `nanolog.logger=com.nanolaba.logging.FileLogger` with `nanolog.file=logs/app.log` writes the entries to a file, appended, each written through at once or with `nanolog.file.flush=buffer` kept until `LOG.flush()`, rolled over by `nanolog.file.maxSize` with `nanolog.file.backups`, in the text of `ConsoleLogger` or the JSON lines of `JsonLogger`. `LOG.flush()` and `ILogger.flush()` are new.
 - A real module descriptor: on Java 9+ the jar is the module `com.nanolaba.nanolog`, from `META-INF/versions/9/module-info.class` of a multi-release jar, so `jlink` accepts it; the module needs only `java.base`. The run log no longer needs `java.management` for the id of the process, which a runtime image of `java.base` alone left out with a `NoClassDefFoundError` from the first logging call.
 - `LOG.captureSystemStreams()` and `nanolog.captureSystemStreams=true` turn the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries with the source and call site of the code that printed, `e.printStackTrace()` included, without a loop through the console.

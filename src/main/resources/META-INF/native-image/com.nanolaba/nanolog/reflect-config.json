@@ -1,0 +1,55 @@
+[
+  {
+    "name": "com.nanolaba.logging.ConsoleLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "name": "com.nanolaba.logging.JsonLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "name": "com.nanolaba.logging.FileLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "name": "com.nanolaba.logging.MemoryLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "condition": {"typeReachable": "org.slf4j.LoggerFactory"},
+    "name": "com.nanolaba.logging.Slf4jLogger",
+    "methods": [{"name": "<init>", "parameterTypes": []}],
+    "queryAllPublicMethods": true
+  },
+  {
+    "name": "com.nanolaba.logging.CompositeLogger",
+    "queryAllPublicMethods": true
+  },
+  {
+    "name": "java.lang.StackWalker",
+    "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.StackWalker$Option"]},
+      {"name": "walk", "parameterTypes": ["java.util.function.Function"]}
+    ]
+  },
+  {
+    "name": "java.lang.StackWalker$Option",
+    "fields": [{"name": "RETAIN_CLASS_REFERENCE"}],
+    "methods": [{"name": "values", "parameterTypes": []}]
+  },
+  {
+    "name": "java.lang.StackWalker$StackFrame",
+    "methods": [
+      {"name": "getDeclaringClass", "parameterTypes": []},
+      {"name": "toStackTraceElement", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "java.io.Console",
+    "methods": [{"name": "isTerminal", "parameterTypes": []}]
+  }
+]
