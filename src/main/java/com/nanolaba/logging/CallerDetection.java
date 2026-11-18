@@ -64,10 +64,11 @@ final class CallerDetection {
     }
 
     /**
-     * The locator {@code LOG} uses: the stack walker where it works (Java 9+), the {@code Throwable} walk otherwise.
+     * The locator {@code LOG} uses: the stack walker where it works (Java 9+), the legacy walk where it works (Java 8),
+     * the {@code Throwable} walk otherwise.
      */
     static Locator best() {
-        return firstWorking(StackWalk::new, ThrowableWalk.INSTANCE);
+        return firstWorking(StackWalk::new, firstWorking(LegacyWalk::new, ThrowableWalk.INSTANCE));
     }
 
     /**
@@ -154,6 +155,68 @@ final class CallerDetection {
     @SuppressWarnings("unchecked")
     private static <T extends Throwable> RuntimeException rethrow(Throwable t) throws T {
         throw (T) t;
+    }
+
+    /**
+     * Java 8: the class of each frame from {@code sun.reflect.Reflection.getCallerClass(int)} and only the frames it
+     * looks at from {@code sun.misc.JavaLangAccess.getStackTraceElement}, so no class is loaded by name and no
+     * element is built for the frames below the caller: the cost grows far more slowly with the depth of the stack.
+     * Both are internal APIs of Java 8, reached through method handles; on any other JVM creating this class fails
+     * with an {@code ExceptionInInitializerError}, and {@link #best()} takes the {@code Throwable} walk.
+     * <p>
+     * {@code getCallerClass(i + 1)} and frame {@code i} of a {@code Throwable} made in {@link #find()} are the same
+     * frame, except where {@code getCallerClass} skips the frames of reflection ({@code Method.invoke}): a class whose
+     * name differs from the name in the frame gives way to {@link #fallback}.
+     */
+    static final class LegacyWalk implements Locator {
+
+        private static final MethodHandle CALLER_CLASS;
+        private static final MethodHandle ELEMENT;
+        private static final Object ACCESS;
+
+        static {
+            try {
+                MethodHandles.Lookup lookup = MethodHandles.lookup();
+                CALLER_CLASS = lookup.findStatic(Class.forName("sun.reflect.Reflection"), "getCallerClass",
+                                                 MethodType.methodType(Class.class, int.class));
+                Class<?> accessClass = Class.forName("sun.misc.JavaLangAccess");
+                ACCESS = lookup.findStatic(Class.forName("sun.misc.SharedSecrets"), "getJavaLangAccess",
+                                           MethodType.methodType(accessClass)).invoke();
+                ELEMENT = lookup.findVirtual(accessClass, "getStackTraceElement",
+                                             MethodType.methodType(StackTraceElement.class, Throwable.class, int.class));
+            } catch (Throwable t) {
+                throw new ExceptionInInitializerError(t);
+            }
+        }
+
+        /**
+         * What finds the caller when the two views of the stack drift apart; replaced in tests.
+         */
+        static Locator fallback = ThrowableWalk.INSTANCE;
+
+        @Override
+        public Caller find() {
+            try {
+                Throwable stack = new Throwable();
+                // getCallerClass must be called right here: its depth counts from this frame, as the frames of stack do
+                for (int i = 0; ; i++) {
+                    Class frameClass = (Class) CALLER_CLASS.invoke(i + 1);
+                    if (frameClass == null) {
+                        return Caller.NONE;
+                    }
+                    StackTraceElement frame = (StackTraceElement) ELEMENT.invoke(ACCESS, stack, i);
+                    if (!frameClass.getName().equals(frame.getClassName())) {
+                        return fallback.find();
+                    }
+                    Class sourceClass = topLevel(frameClass);
+                    if (!isNanolog(sourceClass)) {
+                        return new Caller(sourceClass, frame);
+                    }
+                }
+            } catch (Throwable t) {
+                throw rethrow(t);
+            }
+        }
     }
 
     /**

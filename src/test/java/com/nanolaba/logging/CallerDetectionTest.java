@@ -33,12 +33,13 @@ class CallerDetectionTest {
     }
 
     /**
-     * The locators this JVM can run: the {@code Throwable} walk always, the stack walker from Java 9.
+     * The locators this JVM can run: the {@code Throwable} walk always, the stack walker from Java 9, the legacy walk on
+     * Java 8.
      */
     static Stream<CallerDetection.Locator> locators() {
         return isJava9OrLater()
                ? Stream.of(CallerDetection.ThrowableWalk.INSTANCE, new CallerDetection.StackWalk())
-               : Stream.of(CallerDetection.ThrowableWalk.INSTANCE);
+               : Stream.of(CallerDetection.ThrowableWalk.INSTANCE, new CallerDetection.LegacyWalk());
     }
 
     @Test
@@ -48,8 +49,34 @@ class CallerDetectionTest {
             assertEquals(CallerDetection.StackWalk.class, CallerDetection.best().getClass());
             assertEquals(CallerDetection.StackWalk.class, LOG.callerLocator.getClass());
         } else {
-            assertSame(CallerDetection.ThrowableWalk.INSTANCE, CallerDetection.best());
-            assertSame(CallerDetection.ThrowableWalk.INSTANCE, LOG.callerLocator);
+            assertEquals(CallerDetection.LegacyWalk.class, CallerDetection.best().getClass());
+            assertEquals(CallerDetection.LegacyWalk.class, LOG.callerLocator.getClass());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("locators")
+    public void testAStackOfNanologFramesOnlyHasNoCaller(CallerDetection.Locator locator) throws InterruptedException {
+        LoggerThread thread = new LoggerThread(locator);
+        thread.start();
+        thread.join();
+        assertSame(CallerDetection.Caller.NONE, thread.found);
+    }
+
+    @Test
+    public void testTheLegacyWalkGivesWayWhenTheFramesDriftApart() throws ReflectiveOperationException {
+        org.junit.jupiter.api.Assumptions.assumeFalse(isJava9OrLater(), "the legacy walk runs on Java 8 only");
+        CallerDetection.Caller marker = new CallerDetection.Caller(String.class, null);
+        CallerDetection.Locator fallback = CallerDetection.LegacyWalk.fallback;
+        try {
+            CallerDetection.LegacyWalk.fallback = () -> marker;
+            CallerDetection.LegacyWalk walk = new CallerDetection.LegacyWalk();
+            assertEquals(CallerDetectionTest.class, walk.find().sourceClass, "called directly, the frames agree");
+            // Reflection.getCallerClass skips the frames of Method.invoke, a Throwable does not
+            java.lang.reflect.Method find = CallerDetection.LegacyWalk.class.getMethod("find");
+            assertSame(marker, find.invoke(walk));
+        } finally {
+            CallerDetection.LegacyWalk.fallback = fallback;
         }
     }
 

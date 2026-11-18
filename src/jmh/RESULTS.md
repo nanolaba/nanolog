@@ -76,6 +76,30 @@ twenty times cheaper 500 frames down, and its cost now hardly grows with the dep
 3 µs at 100 and 4 to 5 µs at 500. On JDK 11 it no longer grows with the depth either, but the `StackWalker` of that release has a
 higher fixed cost, about 8.5 µs.
 
+## Before and after #71
+
+On Java 8 the caller is now found by `sun.reflect.Reflection.getCallerClass(int)` and only the frames up to it are
+built (`JavaLangAccess.getStackTraceElement`), instead of the whole stack trace of a `Throwable` with each class loaded
+by name. Measured on 2026-11-18 on the same machine and JDK 8 (Java HotSpot 1.8.0_421), the same benchmark classes,
+before → after, in microseconds per call. Java 9+ uses `StackWalker` and is not affected.
+
+| Call | Depth | JDK 8 |
+|---|---:|---:|
+| `LOG.debug("value {}", v)`, `DEBUG` on elsewhere (`DisabledCallBenchmark`) | | 14.5 → 4.7 |
+| the same (`StackDepthBenchmark`) | 10 | 19.6 → 5.0 |
+| | 100 | 65.0 → 8.1 |
+| | 500 | 266.5 → 19.2 |
+| `LOG.info("value {}", v)`, enabled, logger keeps the entry | 10 | 19.7 → 5.3 |
+| | 100 | 65.2 → 8.3 |
+| | 500 | 263.1 → 19.4 |
+| `LOG.info(Foo.class, "value {}", v)`, enabled, logger keeps the entry | 10 | 0.16 → 0.16 |
+| | 500 | 0.58 → 0.58 |
+
+A call that detects its caller became four times cheaper near the top of the stack and fourteen times cheaper 500
+frames down. It still grows with the depth, more slowly: creating the `Throwable` fills in its native backtrace for the
+whole stack. The calls with an explicit class and the disabled calls did not change. The JDK 8 column of the tables
+above and below shows the code before #71.
+
 ## Before and after #16
 
 `DisabledCallBenchmark` against the code before #16, in nanoseconds per call, before → after (after: commit

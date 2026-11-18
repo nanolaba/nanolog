@@ -304,6 +304,29 @@
             </build>
         </profile>
         <!--
+            The legacy walk uses internal APIs of Java 8 and cannot be created on a newer JDK, so pitest leaves it out
+            there. It is mutated on JDK 8, where it is the locator LOG uses.
+        -->
+        <profile>
+            <id>pitest-java9</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-maven</artifactId>
+                        <configuration>
+                            <excludedClasses>
+                                <param>com.nanolaba.logging.CallerDetection$LegacyWalk</param>
+                            </excludedClasses>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
             JMH benchmarks in src/jmh/java, never part of the default build, CI or the published jar:
                 mvn -P benchmark test-compile exec:exec
             -Djmh.java=<path to bin/java> runs them on another JVM, -Djmh.args="..." passes JMH options.
