@@ -156,7 +156,8 @@
                     <configuration>
                         <archive>
                             <manifestEntries>
-                                <!-- stable module name for JPMS users; the jar itself stays a Java 8 classpath jar -->
+                                <!-- the module name for a jar built on JDK 8, which has no module descriptor; on JDK 9+ the
+                                     profile java9-module adds META-INF/versions/9/module-info.class with the same name -->
                                 <Automatic-Module-Name>com.nanolaba.nanolog</Automatic-Module-Name>
                             </manifestEntries>
                         </archive>
@@ -283,6 +284,50 @@
     </build>
 
     <profiles>
+        <!--
+            A real module descriptor, so jlink accepts the jar: src/main/java9/module-info.java is compiled with release 9
+            into META-INF/versions/9 of a multi-release jar, and every other class stays Java 8 bytecode. javac 8 cannot
+            compile it, so the profile is active from JDK 9 on, and a release must be built there.
+            src/it/jlink/run.sh checks the jar with jlink.
+        -->
+        <profile>
+            <id>java9-module</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>module-info</id>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>9</release>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                    </compileSourceRoots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!--
             Calls of LOG from Kotlin: compiles src/test/kotlin, so an overload that makes a call ambiguous for Kotlin
             fails the build, and KotlinCallersTest runs the calls once. CI runs

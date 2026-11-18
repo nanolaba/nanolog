@@ -126,7 +126,7 @@ Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nan
 
 </details>
 
-Requirements: Java 8+. The jar declares `Automatic-Module-Name: com.nanolaba.nanolog` for modular applications.
+Requirements: Java 8+. On Java 9+ the jar is the module `com.nanolaba.nanolog`, which needs only `java.base` (SLF4J and JUnit are optional), so it works on the module path and in a runtime image built with `jlink`. A logger class named in `nanolog.logger` must be in a package its module exports. On the module path JUnit does not find `NanologExtension` by itself: register it with `@ExtendWith(NanologExtension.class)`.
 
 The same jar serves Kotlin: CI compiles the calls of `LOG` in every shape from Kotlin, `LOG.info { "lazy" }` among them, so no overload is ambiguous there. A block given to `LOG.timed` or `LOG.unit` takes the overload that returns nothing; for the value of the block write `val n = LOG.timed("Count users", Supplier { repo.count() })`.
 
@@ -1555,6 +1555,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- A real module descriptor: on Java 9+ the jar is the module `com.nanolaba.nanolog`, from `META-INF/versions/9/module-info.class` of a multi-release jar, so `jlink` accepts it; the module needs only `java.base`. The run log no longer needs `java.management` for the id of the process, which a runtime image of `java.base` alone left out with a `NoClassDefFoundError` from the first logging call.
 - `LOG.captureSystemStreams()` and `nanolog.captureSystemStreams=true` turn the lines printed to `System.out` and `System.err` into `INFO` and `ERROR` entries with the source and call site of the code that printed, `e.printStackTrace()` included, without a loop through the console.
 - Calls from Kotlin are checked: CI compiles the calls of `LOG` in every shape from Kotlin, so an overload that is ambiguous for Kotlin, as in tinylog, fails the build.
 - `Slf4jLogger` is tested against SLF4J 1.7 as well as 2.x: CI runs the tests once more with slf4j-api and slf4j-simple 1.7.36.

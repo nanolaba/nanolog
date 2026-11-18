@@ -126,7 +126,7 @@ dependencies {
 
 </details>
 
-Требования: Java 8+. В манифесте jar объявлено `Automatic-Module-Name: com.nanolaba.nanolog` для модульных приложений.
+Требования: Java 8+. На Java 9+ jar является модулем `com.nanolaba.nanolog`, которому нужен только `java.base` (SLF4J и JUnit необязательны), поэтому он работает на module path и в образе среды выполнения, собранном `jlink`. Класс логгера, названный в `nanolog.logger`, должен лежать в пакете, который экспортирует его модуль. На module path JUnit не находит `NanologExtension` сам: подключите его через `@ExtendWith(NanologExtension.class)`.
 
 Тот же jar подходит и для Kotlin: CI компилирует из Kotlin вызовы `LOG` всех форм, в том числе `LOG.info { "lazy" }`, поэтому ни одна перегрузка там не неоднозначна. Блок, переданный в `LOG.timed` или `LOG.unit`, выбирает перегрузку без возвращаемого значения; чтобы получить значение блока, пишите `val n = LOG.timed("Count users", Supplier { repo.count() })`.
 
@@ -1555,6 +1555,7 @@ tinylog — ближайший аналог. Одни и те же вызовы,
 - `NanologExtension`, расширение JUnit 5: лог теста придерживается и печатается, только если тест упал, в рамке `--- log of PaymentServiceTest.chargeIsRetried ---`; прошедший или прерванный тест пишет его только в журнал запуска. Параллельные тесты не смешивают логи, а `nanolog.junit.output=failed|all|none` решает, что печатать.
 - `nanolog.console.multiline` (`setMultiline`) для `ConsoleLogger`: `indent` начинает каждую строку записи после первой с табуляции, поэтому сообщение не может подделать запись; `escape` пишет переводы строк как `\r` и `\n`, поэтому запись вместе с трассировкой занимает одну физическую строку; оба режима пишут остальные управляющие символы, в том числе escape-последовательности терминала, как `\u001b`. `keep` по умолчанию ничего не меняет; агентский режим использует `escape`.
 - Цветные имена уровней в терминале, `nanolog.console.color=auto|always|never` (`setColor`): красный `ERROR`, жёлтый `WARN`, зелёный `INFO`, приглушённые `DEBUG` и `TRACE`, пурпурный `DBG`. `auto` по умолчанию раскрашивает, только когда стандартный вывод является терминалом, учитывает `NO_COLOR`, `FORCE_COLOR` и `TERM=dumb` и выключен в Windows и в агентском режиме; в конвейеры, файлы, журнал запуска и `JsonLogger` escape-последовательности не попадают никогда.
+- Настоящий дескриптор модуля: на Java 9+ jar является модулем `com.nanolaba.nanolog` из `META-INF/versions/9/module-info.class` многорелизного jar, поэтому `jlink` его принимает; модулю нужен только `java.base`. Журналу запуска больше не нужен `java.management` для номера процесса: в образе только с `java.base` его отсутствие давало `NoClassDefFoundError` уже при первом вызове лога.
 - `LOG.captureSystemStreams()` и `nanolog.captureSystemStreams=true` превращают строки, напечатанные в `System.out` и `System.err`, в записи `INFO` и `ERROR` с источником и местом вызова того кода, который печатал, в том числе `e.printStackTrace()`, без петли через консоль.
 - Вызовы из Kotlin проверяются: CI компилирует из Kotlin вызовы `LOG` всех форм, поэтому перегрузка, неоднозначная для Kotlin, как в tinylog, роняет сборку.
 - `Slf4jLogger` проверяется не только на SLF4J 2.x, но и на 1.7: CI ещё раз прогоняет тесты со slf4j-api и slf4j-simple 1.7.36.

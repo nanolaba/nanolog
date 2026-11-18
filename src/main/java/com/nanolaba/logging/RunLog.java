@@ -3,7 +3,6 @@ package com.nanolaba.logging;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringWriter;
-import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -15,6 +14,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.*;
 
@@ -127,8 +127,24 @@ final class RunLog extends ConsoleLogger {
      * The id of this process; Java 8 has it only in the name of the runtime, {@code 4567@host}.
      */
     static String pid() {
-        String name = ManagementFactory.getRuntimeMXBean().getName();
-        return name.substring(0, name.indexOf('@'));
+        return pid("java.lang.management.ManagementFactory");
+    }
+
+    /**
+     * The id of this process from the name of the runtime, read through reflection: {@code java.management} is
+     * missing from a runtime image of {@code java.base} alone, and a module that does not read it cannot see it.
+     * Without it a random id stands in, {@code r3f2a}, so two runs of one millisecond still get files of their own.
+     *
+     * @param managementFactory the class that gives the runtime bean; another one in tests
+     */
+    static String pid(String managementFactory) {
+        try {
+            Object runtime = Class.forName(managementFactory).getMethod("getRuntimeMXBean").invoke(null);
+            String name = (String) Class.forName("java.lang.management.RuntimeMXBean").getMethod("getName").invoke(runtime);
+            return name.substring(0, name.indexOf('@'));
+        } catch (Throwable t) {
+            return "r" + Integer.toHexString(0x10000 + ThreadLocalRandom.current().nextInt(0x10000)).substring(1);
+        }
     }
 
     // OPENING

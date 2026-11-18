@@ -121,6 +121,13 @@ class RunLogTest extends AbstractLoggerTest {
         assertTrue(RunLog.pid().matches("\\d+"), RunLog.pid());
     }
 
+    @Test
+    public void testARuntimeWithoutJavaManagementGetsARandomId() {
+        // a jlink image of java.base alone, or a module that does not read java.management
+        String id = RunLog.pid("com.acme.MissingManagementFactory");
+        assertTrue(id.matches("r[0-9a-f]{4}"), id);
+    }
+
     // FILES
 
     @Test
