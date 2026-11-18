@@ -32,3 +32,9 @@ jobs:
         # -Dcheck=true makes nrg-maven-plugin fail the build when README.md / README.ru.md
         # are out of date with README.src.md instead of silently regenerating them
         run: mvn -B --no-transfer-progress -Dgpg.skip=true -Dcheck=true verify
+
+      - name: Tests against SLF4J 1.7
+        # Slf4jLogger uses only the API of SLF4J 1.7, which many applications still run: the tests once more against
+        # slf4j-api and slf4j-simple 1.7.36, JUnit only; compiling against 1.7 fails on an API that only 2.x has
+        if: matrix.java == 8
+        run: mvn -B --no-transfer-progress -P slf4j-1.7 clean test-compile surefire:test

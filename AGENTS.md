@@ -12,8 +12,9 @@ Maven project targeting **Java 8** (`maven.compiler.release=8`). Do not introduc
 - Single test method: `mvn test -Dtest=LOGTest#methodName`
 - Compile only (also regenerates the README files): `mvn compile`
 - Fast JUnit-only loop while developing: `mvn test-compile surefire:test -Dtest=LOGTest`
+- The tests against SLF4J 1.7 (the `slf4j-1.7` profile sets `slf4j.version` to 1.7.36 and skips the README generation, since the README names the version of the main build): `mvn -P slf4j-1.7 clean test-compile surefire:test`. `Slf4jLogger` must keep to the API of 1.7; compiling under the profile fails on anything newer.
 
-CI (`.github/workflows/ci.yml`) runs `mvn -Dgpg.skip=true -Dcheck=true verify` on JDK 8, 11, 17 and 21. Actions are pinned to commit SHAs and the token is read-only; keep it that way when editing the workflow.
+CI (`.github/workflows/ci.yml`) runs `mvn -Dgpg.skip=true -Dcheck=true verify` on JDK 8, 11, 17 and 21, and on JDK 8 the JUnit tests once more under the `slf4j-1.7` profile. Actions are pinned to commit SHAs and the token is read-only; keep it that way when editing the workflow.
 
 ### Javadoc
 

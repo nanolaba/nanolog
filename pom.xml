@@ -281,6 +281,31 @@
 
     <profiles>
         <!--
+            SLF4J 1.7 instead of 2.x, to test Slf4jLogger against the older API many applications still run:
+            mvn -P slf4j-1.7 clean test-compile surefire:test -Dtest=... (CI runs it on JDK 8, JUnit only). The README
+            is not generated: it names the SLF4J version of the main build.
+        -->
+        <profile>
+            <id>slf4j-1.7</id>
+            <properties>
+                <slf4j.version>1.7.36</slf4j.version>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.nanolaba</groupId>
+                        <artifactId>nrg-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
             CallerDetection.StackWalk uses java.lang.StackWalker (Java 9+): on Java 8 it can never run, so pitest
             leaves it out there. It is mutated on every newer JDK, where it is the locator LOG uses.
         -->

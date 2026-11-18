@@ -739,7 +739,7 @@ One JSON object per line, for `jq`, log collectors and scripts. It needs no JSON
 
 ### Slf4jLogger
 
-The bridge to **SLF4J**. Each entry is forwarded to the `org.slf4j.Logger` named after the source class, so your SLF4J backend sees the real caller, not `LOG`. Levels, patterns, appenders and files are configured in that backend as usual.
+The bridge to **SLF4J**. Each entry is forwarded to the `org.slf4j.Logger` named after the source class, so your SLF4J backend sees the real caller, not `LOG`. Levels, patterns, appenders and files are configured in that backend as usual. SLF4J 1.7 and 2.x both work: CI runs the tests against both.
 
 > [!NOTE]
 > `slf4j-api` is a `provided` dependency of Nanolog. Add it and a backend to your project yourself.
@@ -1514,6 +1514,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `Slf4jLogger` is tested against SLF4J 1.7 as well as 2.x: CI runs the tests once more with slf4j-api and slf4j-simple 1.7.36.
 - A library that replaces the logger of the application is reported: when code of another organization (the first two segments of the package) replaces a logger installed with `LOG.init(logger)`, a `[NANOLOG]` line names both call sites. `LOG.lock()` and `nanolog.logger.lock=true` keep the installed logger and turn later `LOG.init` calls into no-ops with such a line; `MemoryLogger.install()` still works under the lock.
 - Documentation: a `nanolog.properties` in `src/test/resources` replaces the one in `src/main/resources` in tests, as a whole file, not merged.
 - Several `nanolog.properties` on the classpath, one of them in a jar, are reported with one `[NANOLOG]` line that lists them and names the one that was read: a library that ships its own file no longer wins over the file of the application without a word. Two directories, such as the main and the test resources, stay quiet.
