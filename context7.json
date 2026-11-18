@@ -1,0 +1,19 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Nanolog (Java logging)",
+  "description": "Zero-dependency logging library for Java 8+ (com.nanolaba:nanolog): static LOG calls without logger fields, LOG.dbg print debugging, an agent mode that cuts the tokens an AI coding agent reads, wide events, structured fields and context, JSON lines, file output, log capture in tests and a bridge to SLF4J. Not the C++ NanoLog.",
+  "excludeFolders": ["skills", "src/tokens", "src/jmh", "src/it", ".github"],
+  "excludeFiles": [
+    "README.src.md", "README.ru.md", "agent-guide.src.md", "AGENTS.md", "CLAUDE.md",
+    "CONTRIBUTING.md", "CONTRIBUTING.ru.md", "CONTRIBUTING.src.md",
+    "SECURITY.md", "SECURITY.ru.md", "SECURITY.src.md",
+    "SUPPORT.md", "SUPPORT.ru.md", "SUPPORT.src.md", "LICENSE"
+  ],
+  "rules": [
+    "Do not declare logger fields: import com.nanolaba.logging.LOG and call LOG.info(...), LOG.warn(...) and the others directly; the source class is detected from the stack.",
+    "Use {} placeholders as in SLF4J and keep the template a constant: LOG.info(\"User {} logged in from {}\", id, ip), not string concatenation.",
+    "Pass the exception first, LOG.error(e, \"Failed to load {}\", id), or last (1.2+), and never e.getMessage() next to it: the stack trace prints it already.",
+    "For temporary debug output use LOG.dbg(expression) (1.4+) instead of System.out.println, and remove every LOG.dbg call before finishing.",
+    "Call LOG.init(...) once at application startup and never from library code: it replaces the logger for the whole JVM."
+  ]
+}
