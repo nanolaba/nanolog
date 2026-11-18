@@ -38,6 +38,7 @@ The latest stable version is ${stableVersion}${widget:if(cond='endsWith(${devVer
 12. Name the values a script or you will select on with `LOG.kv(key, value)` *1.4+*: `LOG.info("Payment accepted", LOG.kv("orderId", id))` prints `Payment accepted orderId=A-17`, `JsonLogger` writes `"fields":{"orderId":"A-17"}` for `jq 'select(.fields.orderId=="A-17")'`, and in a `{}` a field prints its value. Put an exception after the fields.
 13. Wrap a request, a job or a step of an agent loop in `try (LOG.Unit u = LOG.unit("checkout")) { u.put("orderId", id); ... }` *1.4+*, or `LOG.unit("import", () -> ...)`: when it ends it writes one line, `checkout ok 182 ms orderId=A-17 warn=1`, with the counts of the warnings and errors logged inside it; a failed unit is an `ERROR` line with `error.type`, `error.message` and `error.key`. An exception that leaves the try block is not seen: call `u.fail(e)` or use the lambda form.
 14. Wrap payloads, such as prompts, model responses, request bodies and documents, in `LOG.content(...)` *1.4+*: `LOG.debug("Prompt: {}", LOG.content(prompt))` writes `[content 1834 chars #3f2a9c1b]`, and equal payloads share the hash. `-Dnanolog.content=show` or `truncate:200` writes the text, escaped, while you debug. The logs you read are sent to your model provider, so never log a payload raw. For Spring AI and LangChain4j the README has an advisor and a listener that log one line per model call with `gen_ai.*` fields.
+15. For best-effort work, such as closing a resource or deleting a temporary file, write `LOG.catching(() -> file.delete())` *1.4+* instead of `try`/`catch` with `LOG.error`: it logs at `ERROR` with the stack trace and carries on. Never use it where the caller must see the failure. In `main`, `LOG.installUncaughtExceptionHandler()` *1.4+* puts the exceptions that kill threads into the log, attributed to the code that threw.
 
 ## Call shapes
 
@@ -54,6 +55,8 @@ LOG.info(MyClass.class, "...");                      // any form above with an e
 LOG.isInfoEnabled();                                 // level check, with or without a class
 LOG.once().warn("Option {} is deprecated", key);     // only the first time this line runs (1.3+)
 LOG.atMostEvery(10, TimeUnit.SECONDS).warn("...");   // at most once per period, then "[skipped N]" (1.3+)
+LOG.catching(() -> connection.close());              // ERROR with the stack trace, then carry on (1.4+)
+int n = LOG.catching(() -> Integer.parseInt(s), -1); // a default value when it fails (1.4+)
 LOG.info("Payment accepted", LOG.kv("orderId", id)); // a field: "Payment accepted orderId=A-17", JSON "fields" (1.4+)
 try (LOG.Unit u = LOG.unit("checkout")) {          // one line when it ends: "checkout ok 182 ms warn=1" (1.4+)
     u.put("orderId", id);

@@ -71,18 +71,19 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 11.2 [Spring AI](#spring-ai)
 - 12 [Context: tag the lines of one request](#context-tag-the-lines-of-one-request)
 - 13 [Rate limiting](#rate-limiting)
-- 14 [Caller detection](#caller-detection)
-- 15 [Writing your own logger](#writing-your-own-logger)
-- 16 [Thread safety and performance](#thread-safety-and-performance)
-- 17 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 18 [Changelog](#changelog)
-	- 18.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 18.2 [1.3](#13)
-	- 18.3 [1.2](#12)
-	- 18.4 [1.1](#11)
-	- 18.5 [1.0](#10)
-- 19 [Contributing](#contributing)
-- 20 [License](#license)
+- 14 [Catching exceptions](#catching-exceptions)
+- 15 [Caller detection](#caller-detection)
+- 16 [Writing your own logger](#writing-your-own-logger)
+- 17 [Thread safety and performance](#thread-safety-and-performance)
+- 18 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 19 [Changelog](#changelog)
+	- 19.1 [1.4-SNAPSHOT](#14-snapshot)
+	- 19.2 [1.3](#13)
+	- 19.3 [1.2](#12)
+	- 19.4 [1.1](#11)
+	- 19.5 [1.0](#10)
+- 20 [Contributing](#contributing)
+- 21 [License](#license)
 
 
 ## Installation
@@ -181,6 +182,8 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.unit("import", () -> importer.run())` | the same for a lambda: a thrown exception fails the unit and is thrown on |
 | `try (LOG.Context c = LOG.context("requestId", id))` | adds `requestId=...` to every entry the thread logs until the block ends, see [Context](#context-tag-the-lines-of-one-request) |
 | `executor.submit(LOG.wrap(task))` | runs the task with the context of the code that submitted it |
+| `LOG.catching(() -> connection.close())` | run an action, log an exception at `ERROR` and carry on; `LOG.catching(() -> parse(s), -1)` returns a default, see [Catching exceptions](#catching-exceptions) |
+| `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
 Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
@@ -436,7 +439,7 @@ LOG.unit("import", () -> importFile(file)); // an exception fails the unit and i
 - **The outcome** is `ok`, an `INFO` line, or `error`, an `ERROR` line, once an `ERROR` entry was logged inside the unit or `fail(e)` was called. A failed unit adds `error.type`, `error.message` and `error.key`: eight hexadecimal digits made from the template and call site of the first error, the same in every run, so failures of one kind can be counted.
 - **Exceptions.** `close()` cannot see an exception that leaves a try-with-resources block: catch it and call `u.fail(e)`, or let `run(...)` do it. `LOG.unit("import", () -> importFile(file))` and `LOG.unit("report").put("month", m).run(() -> build(m))` mark the unit failed, attach the exception to its line and throw it on.
 - **Nesting.** A unit opened inside another names it as `parent`, and an entry counts in every unit around it. `LOG.wrap(task)` carries the open unit into a task for an executor together with the [context](#context-tag-the-lines-of-one-request), so the tasks of a request count in its unit.
-- **Not lost.** A unit still open when the run ends, when the JVM exits or JUnit has run the tests, is written with the outcome `interrupted`, before the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation), which therefore counts it and lists a failed unit as `unit <name>`.
+- **Not lost.** A unit still open when its thread dies of an uncaught exception, with [`LOG.installUncaughtExceptionHandler()`](#catching-exceptions), or when the run ends, when the JVM exits or JUnit has run the tests, is written with the outcome `interrupted`, before the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation), which therefore counts it and lists a failed unit as `unit <name>`.
 - **Sampling.** `nanolog.unit.sample=0.05` writes 5% of the units that succeed fast and every failed one, and `nanolog.unit.slowMs=500` always writes those that take 500 ms or longer. By default every unit is written.
 - **Levels.** The line has the source class and call site of the `LOG.unit` call and the context of the thread, and follows the levels: an `ok` unit of a class set to `WARN` writes nothing, a failed one is still written. In agent mode the console shows only the failed units, and the run log has them all.
 - **Breadcrumbs.** With `nanolog.buffer=DEBUG` a failed unit is followed by the `DEBUG` entries logged inside it, and a successful one drops them; see [Breadcrumbs](#breadcrumbs-debug-only-when-something-fails).
@@ -464,7 +467,7 @@ ERROR [Payment] Charge failed
 - Outside units each thread has its own buffer, which its next `ERROR` writes. Inside a [unit](#wide-events-one-line-per-request-canonical-log-lines) the unit has the buffer: a successful unit drops it, a failed or interrupted one writes it after its line. In a thread pool open a unit per task, or the buffer of a thread mixes its tasks.
 - An entry is held back as a snapshot: its arguments, fields and context are rendered to text when it is logged, while numbers, booleans and strings keep their type, and text over 2000 characters is cut. Its time, thread and call site stay those of the call: the console prints the time of the call, and `JsonLogger` adds `"breadcrumb":true`.
 - `LOG.dbg` is never held back, and a capture of `MemoryLogger` gets every entry at once. The buffer sits in front of the installed logger, so the run log too gets the held-back entries only before an error.
-- The run summary counts an entry once, when it is logged. The buffer of a thread that ends without an error is dropped, as is everything held back when the JVM exits normally.
+- The run summary counts an entry once, when it is logged. The buffer of a thread that ends without an error is dropped, as is everything held back when the JVM exits normally; a thread that dies of an uncaught exception writes its buffer before the exception, with [`LOG.installUncaughtExceptionHandler()`](#catching-exceptions).
 
 ## Choosing a logger
 
@@ -1062,6 +1065,27 @@ LOG.atMostEvery(10, TimeUnit.SECONDS).warn("Queue is full, dropping {}", item);
 - `once()` and `atMostEvery(...)` offer four shapes at every level: `("... {} ...", args)`, `(() -> message)` and both with an exception first. The state of each call site takes a few bytes, without locks, and the number of call sites is bounded by the code.
 - A count left at the end of a burst is printed only when the statement runs again. A period of zero or less limits nothing.
 
+## Catching exceptions
+
+Two patterns repeat in every code base: the `try { ... } catch (Exception e) { LOG.error(...) }` block that logs and carries on, and the exception that kills a background thread and is printed by the JVM as `Exception in thread "pool-1-thread-3"`, outside the log format, outside `JsonLogger` and out of sight of `MemoryLogger`:
+
+```java
+LOG.installUncaughtExceptionHandler(); // once, at startup: exceptions that kill threads go into the log
+
+LOG.catching(() -> connection.close()); // best-effort cleanup: ERROR with the stack trace, then carry on
+// ERROR 16.11.2026 10:15:02 [Catching] Caught and ignored
+// java.io.IOException: Connection reset ...
+
+int retries = LOG.catching(() -> Integer.parseInt(text), 3); // a default value when it fails
+// ERROR 16.11.2026 10:15:02 [Catching] Caught, returning 3
+// java.lang.NumberFormatException: For input string: "many" ...
+```
+
+- **When to swallow.** `LOG.catching` is for work whose failure must not stop the caller: closing a resource, deleting a temporary file, a best-effort notification or metric. Do not use it where the caller must know about the failure, such as saving data, charging, or anything whose result the next step relies on: let the exception propagate, or handle it.
+- The exception is logged at `ERROR` with its stack trace, from the class and call site of the `LOG.catching` call, and the levels apply as usual. The actions may throw checked exceptions (`LOG.ThrowingRunnable`, `LOG.ThrowingSupplier`). An `Error` is not caught, and an `InterruptedException` is caught with the interrupt flag of the thread set again. Inside a [unit](#wide-events-one-line-per-request-canonical-log-lines) a caught exception makes the unit fail, like any `ERROR`.
+- **Threads.** `LOG.installUncaughtExceptionHandler()` installs a default handler that logs `Uncaught exception in thread worker-1` with the stack trace, then passes the exception to the handler installed before, so test frameworks and existing handlers still see it; without one, the JVM no longer prints it itself. Installing again changes nothing.
+- The entry of an uncaught exception has the class and call site of the first frame of its stack trace outside the JDK, the code that failed, not the dispatch code of the JVM. The dying thread first writes its [breadcrumbs](#breadcrumbs-debug-only-when-something-fails), then the exception, then its units still open, as `interrupted`.
+
 ## Caller detection
 
 When no class is passed explicitly, `LOG` walks the stack and takes the first frame
@@ -1191,6 +1215,7 @@ dependencies {
 - `NanologExtension`, a JUnit 5 extension: the log of a test is held back and printed only when the test fails, framed by `--- log of PaymentServiceTest.chargeIsRetried ---`; a passing or aborted test writes it only to the run log. Parallel tests keep their logs apart, and `nanolog.junit.output=failed|all|none` decides what is printed.
 - `nanolog.console.multiline` (`setMultiline`) for `ConsoleLogger`: `indent` starts every line of an entry after the first with a tab, so a message cannot forge an entry; `escape` writes line breaks as `\r` and `\n`, so an entry and its stack trace are one physical line; both write other control characters, terminal escape sequences among them, as `\u001b`. `keep`, the default, changes nothing; agent mode uses `escape`.
 - Coloured level words on a terminal, `nanolog.console.color=auto|always|never` (`setColor`): red `ERROR`, yellow `WARN`, green `INFO`, dim `DEBUG` and `TRACE`, magenta `DBG`. `auto`, the default, colours only when standard output is a terminal, honours `NO_COLOR`, `FORCE_COLOR` and `TERM=dumb`, and stays off on Windows and in agent mode; pipes, files, the run log and `JsonLogger` never get escape codes.
+- `LOG.catching(() -> cleanup())` logs an exception at `ERROR` with its stack trace and carries on, `LOG.catching(() -> parse(s), -1)` returns a default instead; checked exceptions are allowed, an `Error` is not caught, an interruption is kept. `LOG.installUncaughtExceptionHandler()` logs the exceptions that kill threads, from the first frame outside the JDK, then passes them to the previous handler; the dying thread writes its breadcrumbs and its open units too.
 - README: *Logging LLM calls*, a LangChain4j listener and a Spring AI advisor that log one line per model call with the OpenTelemetry `gen_ai.*` field names, the prompt and the completion as `LOG.content`, and a transcript at `DEBUG`.
 - Payloads: `LOG.content(prompt)` writes a prompt, a response or a request body as `[content 1834 chars #3f2a9c1b]`, its length and a hash keyed per JVM, unless `nanolog.content=truncate:<characters>` or `show` says otherwise, for all classes or, through `nanolog.content.<package or class>`, for some. The text is taken when the entry is created and always escaped against forged lines; in JSON fields a hidden payload is `{"content_len":1834,"content_hash":"3f2a9c1b"}`.
 - Breadcrumbs: `nanolog.buffer=DEBUG` holds `DEBUG` and `TRACE` entries back, the newest 200 per thread (`nanolog.buffer.size`), and writes them before the next `ERROR` under `--- 37 earlier DEBUG entries ---`; inside `LOG.unit` the unit drops them when it succeeds and writes them after its line when it fails. Held-back levels count as enabled, entries are snapshots with the time of their call, and `JsonLogger` marks them `"breadcrumb":true`.

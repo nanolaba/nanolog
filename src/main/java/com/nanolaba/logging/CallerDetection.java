@@ -195,7 +195,7 @@ final class CallerDetection {
          * containers) and falling back to the loader of {@code LOG} itself. Returns {@code null} if neither can see or
          * load it, whatever the failure.
          */
-        private static Class resolveClass(String className) {
+        static Class resolveClass(String className) {
             ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
             if (contextClassLoader != null) {
                 try {

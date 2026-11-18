@@ -1562,6 +1562,113 @@ public class LOG {
         return new Content(value, null, 0);
     }
 
+    // CATCHING
+
+    /**
+     * An action that may throw a checked exception, for {@link LOG#catching(ThrowingRunnable)}.
+     */
+    @FunctionalInterface
+    public interface ThrowingRunnable {
+
+        /**
+         * Runs the action.
+         *
+         * @throws Exception whatever the action throws
+         */
+        void run() throws Exception;
+    }
+
+    /**
+     * A computation that may throw a checked exception, for {@link LOG#catching(ThrowingSupplier, Object)}.
+     *
+     * @param <T> the type of the value
+     */
+    @FunctionalInterface
+    public interface ThrowingSupplier<T> {
+
+        /**
+         * Computes the value.
+         *
+         * @return the value
+         * @throws Exception whatever the computation throws
+         */
+        T get() throws Exception;
+    }
+
+    /**
+     * Runs an action and logs an exception it throws instead of passing it on: the "log and carry on" block, for work
+     * whose failure must not stop the caller, such as cleanup or a best-effort notification:
+     * {@code LOG.catching(() -> connection.close())}. The exception is logged at {@code ERROR} with its stack trace and
+     * the message {@code Caught and ignored}, from the class and call site of this call. An {@code Error} is not caught.
+     * An {@code InterruptedException} is caught and the interrupt flag of the thread set again.
+     *
+     * @param action the action; checked exceptions are allowed
+     */
+    public static void catching(ThrowingRunnable action) {
+        try {
+            action.run();
+        } catch (Exception e) {
+            caught(e, "Caught and ignored", NO_ARGS);
+        }
+    }
+
+    /**
+     * Computes a value and returns a default instead of passing an exception on: {@code LOG.catching(() ->
+     * Integer.parseInt(text), -1)}. The exception is logged as by {@link #catching(ThrowingRunnable)}, with the message
+     * {@code Caught, returning <default>}.
+     *
+     * @param action       the computation; checked exceptions are allowed
+     * @param defaultValue the value returned when the computation throws an exception
+     * @param <T>          the type of the value
+     * @return the value of the computation, or {@code defaultValue}
+     */
+    public static <T> T catching(ThrowingSupplier<T> action, T defaultValue) {
+        try {
+            return action.get();
+        } catch (Exception e) {
+            caught(e, "Caught, returning {}", new Object[]{defaultValue});
+            return defaultValue;
+        }
+    }
+
+    private static void caught(Exception e, String message, Object[] args) {
+        if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+        logFromCaller(ERROR, e, () -> message, args);
+    }
+
+    /**
+     * Logs the exceptions that kill threads: installs a default uncaught exception handler that logs each one at
+     * {@code ERROR}, as {@code Uncaught exception in thread pool-1-thread-3}, with its stack trace, in the format of the
+     * installed logger, and then passes it to the default handler installed before, so test frameworks and existing
+     * handlers still see the failure. Without a handler before, the JVM no longer prints the exception itself. The
+     * source class and call site of the entry are those of the first frame of the stack trace outside the JDK.
+     * <p>
+     * The dying thread first writes its breadcrumbs of {@code nanolog.buffer}, then the exception, then its units of
+     * {@link #unit(String)} still open, as {@code interrupted}. Installing again changes nothing. Call it once at
+     * application startup, like {@link #init(ILogger)}.
+     */
+    public static void installUncaughtExceptionHandler() {
+        Thread.UncaughtExceptionHandler current = Thread.getDefaultUncaughtExceptionHandler();
+        if (!(current instanceof Uncaught)) {
+            Thread.setDefaultUncaughtExceptionHandler(new Uncaught(current));
+        }
+    }
+
+    /**
+     * Writes the exception that kills a thread, for {@link Uncaught}: the breadcrumbs of the thread, the exception,
+     * then the units still open in it.
+     */
+    static void writeUncaught(Thread thread, Throwable error) {
+        ILogger current = logger;
+        deliver(current, Breadcrumbs.drainThread());
+        CallerDetection.Caller origin = Uncaught.origin(error);
+        doLog(current, ERROR, origin.sourceClass, origin.frame, error, () -> "Uncaught exception in thread {}",
+              new Object[]{thread.getName()});
+        Units.interruptThread();
+    }
+
     // RATE LIMITING
 
     /**

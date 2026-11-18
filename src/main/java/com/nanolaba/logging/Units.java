@@ -123,6 +123,16 @@ final class Units {
     }
 
     /**
+     * Writes the units open in the current thread with the outcome {@code interrupted}, the innermost first; for a
+     * thread that dies of an uncaught exception.
+     */
+    static void interruptThread() {
+        for (Scope unit = Contexts.unit(); unit != null; unit = unit.parent) {
+            unit.finish(true);
+        }
+    }
+
+    /**
      * Writes every open unit with the outcome {@code interrupted}, the innermost first.
      */
     static void interruptOpen() {
