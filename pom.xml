@@ -50,7 +50,8 @@
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
 
-        <pitest-maven.version>1.30.2</pitest-maven.version>
+        <!-- 1.17.4 is the last pitest that runs on Java 8, which CI builds with; 1.18 needs Java 11 -->
+        <pitest-maven.version>1.17.4</pitest-maven.version>
         <pitest-junit5-plugin.version>1.2.3</pitest-junit5-plugin.version>
     </properties>
 
@@ -155,7 +156,6 @@
                         <!-- a run from a coding agent behaves like CI: the tests that need agent mode turn it on -->
                         <environmentVariables>
                             <NANOLOG_AGENT>off</NANOLOG_AGENT>
-                        <NANOLOG_CONSOLE_COLOR>never</NANOLOG_CONSOLE_COLOR>
                             <!-- a FORCE_COLOR of the developer's shell must not colour the output the tests compare -->
                             <NANOLOG_CONSOLE_COLOR>never</NANOLOG_CONSOLE_COLOR>
                         </environmentVariables>

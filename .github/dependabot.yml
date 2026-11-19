@@ -22,6 +22,9 @@ updates:
       # decision, not an update
       - dependency-name: "org.slf4j:*"
         update-types: [ "version-update:semver-major" ]
+      # pitest 1.18 and newer need Java 11 to run, and CI builds and mutates on Java 8 as well
+      - dependency-name: "org.pitest:pitest-maven"
+        versions: [ ">= 1.18.0" ]
       # JUnit 5 stays the API that NanologExtension and MemoryLogger are built for
       - dependency-name: "org.junit*:*"
         update-types: [ "version-update:semver-major" ]
