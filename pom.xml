@@ -9,10 +9,11 @@
     <!-- mvnrepository and the IDEs show the name as the title: it says what the library is, unlike NanoLog for C++ -->
     <name>Nanolog Java logging</name>
     <url>https://github.com/nanolaba/nanolog</url>
-    <description>Zero-dependency logging library for Java 8+: static LOG calls without logger fields, LOG.dbg print debugging that shows each expression with its value, an
-        agent mode that cuts the tokens an AI coding agent reads from the console and ends the run with a summary, wide events with one
-        canonical log line per request or job, structured fields and context, automatic caller detection, levels changed at run time, JSON lines, log capture in
-        tests and a bridge to SLF4J.
+    <description>Zero-dependency logging library for Java 8+ built for AI coding agents: an agent mode that cuts the tokens an
+        agent reads from the console (13,577 to 1,022 on a failing test run, o200k_base) and ends the run with a summary, LOG.dbg print
+        debugging that shows each expression with its value, wide events with one canonical log line per request or job, static LOG
+        calls without logger fields, structured fields and context, automatic caller detection, levels changed at run time, JSON
+        lines, log capture in tests and a bridge to SLF4J.
     </description>
 
     <version>1.4-SNAPSHOT</version>
