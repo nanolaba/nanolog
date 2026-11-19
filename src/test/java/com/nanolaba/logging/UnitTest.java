@@ -565,4 +565,30 @@ class UnitTest extends AbstractLoggerTest {
         }
         assertNull(Contexts.CURRENT.get());
     }
+
+    @Test
+    public void testOpenUnitsAreInterruptedInnermostFirstWhateverTheOrderOfTheSet() {
+        // the open units are a hash set, whose order may happen to be the right one: ten rounds leave no such luck
+        try (MemoryLogger memory = MemoryLogger.install()) {
+            for (int round = 0; round < 10; round++) {
+                List<LOG.Unit> units = new ArrayList<>();
+                for (int i = 1; i <= 4; i++) {
+                    units.add(LOG.unit("u" + i));
+                }
+
+                Units.interruptOpen();
+
+                List<Object> names = new ArrayList<>();
+                for (LogEntry entry : memory.getEntries()) {
+                    names.add(entry.getFields().get("unit"));
+                }
+                assertEquals(java.util.Arrays.asList("u4", "u3", "u2", "u1"), names, "round " + round);
+                for (int i = units.size() - 1; i >= 0; i--) {
+                    units.get(i).close();
+                }
+                memory.clear();
+            }
+        }
+        assertNull(Contexts.CURRENT.get());
+    }
 }
