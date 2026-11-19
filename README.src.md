@@ -20,6 +20,7 @@ ${widget:badge(type='maven-central', coordinates='${coords}')}
 ${widget:badge(type='custom', label='javadoc', message='${stableVersion}', color='blue', url='${javadoc}/${stableVersion}', alt='API documentation on javadoc.io')}
 ${widget:badge(type='custom', label='java', message='${pom.properties.maven.compiler.release}+', color='blue', url='https://adoptium.net/', alt='Java 8 or newer')}
 ${widget:badge(type='license', value='Apache-2.0', url='https://www.apache.org/licenses/LICENSE-2.0')}
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
 ${widget:badge(type='github-stars', repo='nanolaba/nanolog')}
 
 # ${en:'Nanolog: Java logging without logger fields', ru:'Nanolog: логирование в Java без полей логгера'}

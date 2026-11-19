@@ -9,6 +9,7 @@
 [![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.3-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.3)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
 
 # Nanolog: логирование в Java без полей логгера
