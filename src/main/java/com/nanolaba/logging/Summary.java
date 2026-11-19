@@ -171,7 +171,7 @@ final class Summary {
         }
         String site = " at " + where(entry);
         String template = template(entry);
-        String place = site + ": " + template;
+        String place = site + ": " + firstLine(template);
         // a call site is one kind, whatever messages it builds; without a call site the message tells kinds apart
         String key = level.name() + (entry.getCaller() != null ? site : place);
         Kind kind = KINDS.get(key);
@@ -207,6 +207,31 @@ final class Summary {
         Object message = entry.getMessage() != null ? entry.getMessage() : entry.getThrowable();
         String text = message == null ? "" : LogEntry.safeToString(message);
         return text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) + "..." : text;
+    }
+
+    /**
+     * The first line of a message that is not blank, followed by {@code ...}, as a message cut at {@link #MAX_TEXT},
+     * when a line that is not blank follows it: the summary keeps one line per kind, and the rest is in the run log
+     * (#98). Escaped, six characters each, the line breaks would fill the line with details and cost more tokens than
+     * they save.
+     */
+    static String firstLine(String text) {
+        int start = 0;
+        int end = lineEnd(text, start);
+        while (end < text.length() && text.substring(start, end).trim().isEmpty()) {
+            start = end + 1;
+            end = lineEnd(text, start);
+        }
+        String line = text.substring(start, end);
+        return text.substring(end).trim().isEmpty() ? line : line + "...";
+    }
+
+    private static int lineEnd(String text, int from) {
+        int end = from;
+        while (end < text.length() && text.charAt(end) != '\n' && text.charAt(end) != '\r') {
+            end++;
+        }
+        return end;
     }
 
     /**

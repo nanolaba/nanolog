@@ -302,6 +302,46 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testAMessageWithSeveralLinesShowsItsFirstLine() {
+        on();
+        int alert = lineOf(new Throwable()) + 1;
+        LOG.warn("Retry limit reached for task 109\nURL: https://localhost:8080/task?id=109\nLimit: 1\nErrors:\n  1) provider 'x' not found");
+        int windows = lineOf(new Throwable()) + 1;
+        LOG.warn("Windows line\r\nSecond");
+        int blank = lineOf(new Throwable()) + 1;
+        LOG.warn("\n \r\nAfter blank lines\nDetails");
+        int alone = lineOf(new Throwable()) + 1;
+        LOG.warn("\nAlone after a line break");
+        int trailing = lineOf(new Throwable()) + 1;
+        LOG.warn("Blank lines after it\n  \n");
+
+        assertEquals(Arrays.asList(
+                "Run summary: 5 entries: 5 WARN",
+                "  WARN x1 at " + FILE + alert + ": Retry limit reached for task 109...",
+                "  WARN x1 at " + FILE + windows + ": Windows line...",
+                "  WARN x1 at " + FILE + blank + ": After blank lines...",
+                "  WARN x1 at " + FILE + alone + ": Alone after a line break",
+                "  WARN x1 at " + FILE + trailing + ": Blank lines after it"), Summary.lines());
+    }
+
+    @Test
+    public void testMessagesThatDifferAfterTheFirstLineAreDifferentMessages() {
+        on();
+        int site = lineOf(new Throwable()) + 2;
+        for (int field = 1; field <= 3; field++) {
+            LOG.warn("Validation failed\nfield " + field);
+        }
+        LOG.warn(String.class, "Explicit\nfirst");
+        LOG.warn(String.class, "Explicit\nsecond");
+
+        assertEquals(Arrays.asList(
+                "Run summary: 5 entries: 5 WARN",
+                "  WARN x3 at " + FILE + site + ": Validation failed... (3 different messages)",
+                "  WARN x2 at java.lang.String: Explicit... (2 different messages)"), Summary.lines(),
+                     "without a call site the line shown tells kinds apart");
+    }
+
+    @Test
     public void testAtMostTenKindsAreShown() {
         on();
         for (int i = 0; i < Summary.MAX_SHOWN + 2; i++) {
