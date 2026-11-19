@@ -1,6 +1,6 @@
 # What agent mode saves a coding agent
 
-Measured on 2026-11-18 with `src/tokens/measure.py`, Nanolog 1.4-SNAPSHOT at commit `c783d3c`. Environment: Windows 10, JDK 1.8.0_421, Maven 3.9.16, Surefire 3.2.5, Python 3.10.6, `tiktoken` 0.14.0. The project lives in `P:\github\nanolaba\nanolog\src\tokens\shop`, and its absolute paths appear in the output. Nanolog runs with its default settings, so the level is `TRACE`.
+Measured on 2026-11-18 with `src/tokens/measure.py`, Nanolog 1.4-SNAPSHOT at commit `c783d3c`; measured again on 2026-11-19 at commit `dab574c`, before the 1.4 release, with the same counts. Environment: Windows 10, JDK 1.8.0_421, Maven 3.9.16, Surefire 3.2.5, Python 3.10.6, `tiktoken` 0.14.0. The project lives in `P:\github\nanolaba\nanolog\src\tokens\shop`, and its absolute paths appear in the output. Nanolog runs with its default settings, so the level is `TRACE`.
 
 Each row compares the whole output of `mvn -q test -Dtest=<class>`, stdout and stderr together, which is what an agent reads. The first value is without agent mode, the second with `AI_AGENT=claude-code` and `CLAUDECODE=1` set, as Claude Code sets them.
 
