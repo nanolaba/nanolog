@@ -223,7 +223,7 @@ final class RunLog extends ConsoleLogger {
      *
      * @param logger the default logger
      * @param agent  whether agent mode is on
-     * @return {@code logger}, or a {@link CompositeLogger} of it and the run log
+     * @return {@code logger}, or a {@link Tee} of it and the run log
      */
     static synchronized ILogger attach(ILogger logger, boolean agent) {
         String run = agent ? readChoice(PROPERTY_RUN, "on", "off") : readChoice(PROPERTY_RUN, "off", "on");
@@ -245,7 +245,48 @@ final class RunLog extends ConsoleLogger {
                 printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
             }
         }
-        return current == null ? logger : new CompositeLogger(logger, current);
+        return current == null ? logger : new Tee(logger, current);
+    }
+
+    /**
+     * A logger together with the run log of this JVM. {@link LOG} installs one for every logger while the run log is
+     * open, so the file keeps every entry of the run whichever logger the application installs (#90).
+     */
+    static final class Tee extends CompositeLogger {
+
+        Tee(ILogger logger, RunLog runLog) {
+            super(logger, runLog);
+        }
+    }
+
+    /**
+     * Adds the run log of this JVM to a logger that does not write it yet, for {@link LOG#init(ILogger)} and
+     * {@link MemoryLogger#install()}: a logger the application installs at startup, Spring's {@code Slf4jLogger} for
+     * one, would otherwise leave the run log behind with what was logged before it.
+     *
+     * @param logger the logger to install; {@code null} is installed as it is
+     * @return {@code logger}, or a {@link Tee} of it and the run log
+     */
+    static ILogger with(ILogger logger) {
+        RunLog runLog = current();
+        if (runLog == null || logger == null || writes(logger, runLog)) {
+            return logger;
+        }
+        return new Tee(logger, runLog);
+    }
+
+    private static boolean writes(ILogger logger, RunLog runLog) {
+        return logger == runLog || logger instanceof CompositeLogger && ((CompositeLogger) logger).getLoggers().contains(runLog);
+    }
+
+    /**
+     * The logger that code installed, without the run log that {@link #with} or {@link #attach} added to it.
+     *
+     * @param logger an installed logger
+     * @return the logger inside a {@link Tee}, otherwise {@code logger}
+     */
+    static ILogger unwrap(ILogger logger) {
+        return logger instanceof Tee ? ((Tee) logger).getLoggers().get(0) : logger;
     }
 
     /**

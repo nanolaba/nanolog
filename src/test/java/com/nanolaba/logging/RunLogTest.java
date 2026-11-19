@@ -467,6 +467,85 @@ class RunLogTest extends AbstractLoggerTest {
         assertTrue(lines.get(0).contains("\"message\":\"only in the file\""), lines.get(0));
     }
 
+    private void runLogOn() {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        getErrAndClear();
+    }
+
+    @Test
+    public void testTheRunLogGoesOnAfterTheApplicationInstallsItsOwnLogger() throws IOException {
+        runLogOn();
+        LOG.info("before LOG.init");
+        MemoryLogger application = new MemoryLogger();
+
+        LOG.init(application);
+        LOG.info("after LOG.init");
+        LOG.warn("warning after LOG.init");
+
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(3, log.size(), String.join(NL, log));
+        assertTrue(log.get(2).contains("warning after LOG.init"), log.get(2));
+        assertEquals(1, lines(root.resolve("latest.errors.log")).size());
+        assertEquals(2, application.getEntries().size(), "the logger of the application gets every entry as before");
+    }
+
+    @Test
+    public void testALoggerThatWritesTheRunLogAlreadyIsInstalledAsItIs() throws IOException {
+        runLogOn();
+        ILogger withRunLog = LOG.getLogger();
+        LOG.init(new MemoryLogger());
+
+        LOG.init(withRunLog);
+        LOG.info("once");
+
+        assertSame(withRunLog, LOG.getLogger());
+        assertEquals(1, lines(root.resolve("latest.log")).size(), "not written twice");
+    }
+
+    @Test
+    public void testANullLoggerIsInstalledAsItIs() {
+        runLogOn();
+
+        LOG.init(null);
+
+        assertEquals(null, LOG.getLogger(), "as without the run log");
+        LOG.init();
+    }
+
+    @Test
+    public void testTheEntriesOfAnInstalledMemoryLoggerGoToTheRunLogToo() throws IOException {
+        runLogOn();
+
+        try (MemoryLogger memory = MemoryLogger.install()) {
+            LOG.info("captured");
+            assertEquals(1, memory.getEntries().size());
+        }
+        LOG.info("after the test");
+
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(2, log.size(), String.join(NL, log));
+        assertTrue(log.get(0).contains("captured"), log.get(0));
+    }
+
+    @Test
+    public void testAReplacementNamesTheLoggersTheCodeInstalled() {
+        runLogOn();
+        ConsoleLogger console = new ConsoleLogger();
+        LOG.init(console);
+
+        org.example.vendor.Sdk.install(new JsonLogger());
+        String err = getErrAndClear();
+        assertTrue(err.startsWith("[NANOLOG] Logger replaced: " + ConsoleLogger.class.getName() + " (installed at "), err);
+        assertTrue(err.contains(" -> " + JsonLogger.class.getName() + " (installed at "), err);
+
+        org.example.vendor.Sdk.install(console);
+        getErrAndClear();
+        LOG.init(console);
+        assertEquals("", getErrAndClear(), "the same logger again");
+    }
+
     @Test
     public void testTheSettingsOfTheRunLog() throws IOException {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");

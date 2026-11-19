@@ -407,7 +407,7 @@ With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a f
 - **What.** `latest.log` holds every entry, with the thread and the call site; `nanolog.run.format=json` writes the lines of `JsonLogger` instead, ready for `jq`. `latest.errors.log` holds each `WARN` and `ERROR` as one line, cheap to follow with `tail -f`.
 - **History.** Each run writes `runs/<time>-<pid>.log`, and `latest.log` is a second name of the newest one, a hard link, so it shows the run live and is written once. The last 10 runs are kept (`nanolog.run.keep`); a file stops at 100 MB with a note (`nanolog.run.maxSize`). Where hard links are not supported, the path of the run's own file is printed instead of `latest.log`.
 - **Levels.** The run log reads `nanolog.level` and the package rules as `ConsoleLogger` does, but keeps levels of its own: `LOG.setLevel` changes both, and a console that shows less leaves the file complete.
-- **Safe.** An entry is on disk as soon as it is logged, even if the JVM is killed. An I/O error prints one `[NANOLOG]` line and turns the run log off; logging goes on. The file is opened once per JVM: `LOG.init()` keeps writing it, `LOG.init(logger)` replaces it together with the default logger.
+- **Safe.** An entry is on disk as soon as it is logged, even if the JVM is killed. An I/O error prints one `[NANOLOG]` line and turns the run log off; logging goes on. The file is opened once per JVM: `LOG.init()` keeps writing it, and so does a logger installed with `LOG.init(logger)` or `MemoryLogger.install()`, Spring's `Slf4jLogger` for one: the run log is added to it, and `LOG.getLogger()` returns a `CompositeLogger` of both.
 
 ### Using Nanolog from a coding agent
 
@@ -1742,6 +1742,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 ### 1.5-SNAPSHOT
 
 - Run summary with `forkCount` above 1: a Surefire fork that runs several test classes prints one summary after the last of them, through the new `SummarySessionListener` (JUnit Platform 1.8+). Before, it printed after the first class and missed the rest of the fork.
+- The run log keeps every entry after `LOG.init(logger)`: a logger the application installs, Spring with `Slf4jLogger` for one, or `MemoryLogger.install()` gets the run log added, and `LOG.getLogger()` returns a `CompositeLogger` of both. Before, the run log stopped at that call, while the run summary still called it the full log.
 
 ### 1.4
 

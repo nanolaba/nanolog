@@ -139,6 +139,9 @@ public class LOG {
      * {@code com.acme} for {@code com.acme.billing.Main}, so the code of the application and its tests may replace
      * their own logger without a word, and so may the same logger again. After {@link #lock()} or with
      * {@code nanolog.logger.lock=true} the call is ignored, with a diagnostic. Nothing is thrown.
+     * <p>
+     * While the run log is on ({@code nanolog.run}, on by default in agent mode), it keeps receiving every entry as
+     * well: {@link #getLogger()} then returns a {@link CompositeLogger} of the logger and the run log.
      *
      * @param logger the logger that receives every entry from now on, for example a lambda:
      *               {@code LOG.init(entry -> System.out.println(entry.getFormattedMessage()))}
@@ -282,7 +285,8 @@ public class LOG {
      */
     static void install(ILogger logger, Origin origin) {
         flushRepeats(LOG.logger);
-        LOG.logger = logger;
+        // the run log keeps every entry of the run, whichever logger is installed
+        LOG.logger = RunLog.with(logger);
         LOG.installedBy = origin;
     }
 
@@ -294,7 +298,7 @@ public class LOG {
     }
 
     private static void reportReplacement(ILogger previous, Origin previousOrigin, ILogger next, Origin origin) {
-        if (previousOrigin != null && !previousOrigin.organization.equals(origin.organization) && previous != next) {
+        if (previousOrigin != null && !previousOrigin.organization.equals(origin.organization) && RunLog.unwrap(previous) != RunLog.unwrap(next)) {
             DefaultLoggerCreator.printDiagnostic("Logger replaced: " + describeInstall(previous, previousOrigin) + " -> " + className(next) +
                                                  " (installed at " + origin.site + ")");
         }
@@ -310,7 +314,8 @@ public class LOG {
     }
 
     private static String className(ILogger installed) {
-        return installed == null ? "null" : installed.getClass().getName();
+        ILogger shown = RunLog.unwrap(installed);
+        return shown == null ? "null" : shown.getClass().getName();
     }
 
     /**
@@ -502,7 +507,7 @@ public class LOG {
     }
 
     /**
-     * Returns the installed logger.
+     * Returns the installed logger: while the run log is on, a {@link CompositeLogger} of it and the run log.
      *
      * @return the installed logger
      */
