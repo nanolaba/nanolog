@@ -5,7 +5,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -362,6 +367,29 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testAFullLogWhoseLatestWasTakenIsNamedByItsOwnFile() throws IOException {
+        System.setProperty(PROPERTY_SUMMARY, "on");
+        System.setProperty(PROPERTY_RUN, "on");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        getErrAndClear();
+        getOutAndClear();
+        Path own;
+        try (Stream<Path> files = Files.list(root.resolve("runs"))) {
+            own = files.filter(file -> !file.toString().endsWith(".errors.log")).collect(Collectors.toList()).get(0);
+        }
+        // another fork of Surefire starts in the same directory and takes latest.log (#93)
+        RunLog later = RunLog.open(root, false, 10, 1024 * 1024, "later");
+        try {
+            LOG.info("one");
+
+            assertEquals("Run summary: 1 entry: 1 INFO; the full log is in " + own.toAbsolutePath(), Summary.lines().get(0));
+        } finally {
+            later.close();
+        }
+    }
+
+    @Test
     public void testTheDbgCallsThatRanAreListed() {
         on();
         int line = lineOf(new Throwable()) + 1;
@@ -389,6 +417,29 @@ class RunSummaryTest extends AbstractLoggerTest {
 
         Summary.printOnce();
         assertEquals("", getErrAndClear());
+    }
+
+    @Test
+    public void testItIsPrintedInOneWrite() {
+        // Surefire relays each println of a fork as one piece, so two forks that end together do not mix their lines (#93)
+        List<String> printed = new ArrayList<>();
+        System.setErr(new PrintStream(new ByteArrayOutputStream()) {
+            @Override
+            public void println(String line) {
+                printed.add(line);
+            }
+        });
+        on();
+        LOG.warn("Careful");
+        LOG.error("Failed");
+
+        Summary.printOnce();
+
+        StringBuilder expected = new StringBuilder();
+        for (String line : Summary.lines()) {
+            expected.append(expected.length() == 0 ? "" : NL).append("[NANOLOG] ").append(line);
+        }
+        assertEquals(Arrays.asList(expected.toString()), printed);
     }
 
     @Test

@@ -25,7 +25,9 @@ import static com.nanolaba.logging.DefaultLoggerCreator.*;
  * <p>
  * Each run writes {@code runs/<time>-<pid>.log} and {@code runs/<time>-<pid>.errors.log} in the directory;
  * {@code latest.log} and {@code latest.errors.log} are hard links to them, so they are written once and show the run
- * live. The last {@code nanolog.run.keep} runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
+ * live. A run names {@code latest.log} while it is a name of its file, and its own file once a later run in the same
+ * directory has taken {@code latest.log}, such as another fork of Surefire (#93). The last {@code nanolog.run.keep}
+ * runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
  * <p>
  * The run log is a {@link ConsoleLogger} with its own levels, read from the same settings, so a console kept short
  * leaves the file complete. Text lines show the thread and the call site. The file is opened once per JVM and is
@@ -66,8 +68,9 @@ final class RunLog extends ConsoleLogger {
     private final Path errorsFile;
     private final JsonLogger json;
     private final long maxSize;
-    private Path shownFile;
-    private Path shownErrorsFile;
+    // latest.log and latest.errors.log, or the files of the run without hard links
+    private Path latest;
+    private Path latestErrors;
 
     // guarded by this
     private OutputStream out;
@@ -87,8 +90,8 @@ final class RunLog extends ConsoleLogger {
         this.errors = errors;
         this.json = json ? new JsonLogger() : null;
         this.maxSize = maxSize;
-        this.shownFile = file;
-        this.shownErrorsFile = errorsFile;
+        this.latest = file;
+        this.latestErrors = errorsFile;
         setShowThread(true);
         setShowLocation(true);
     }
@@ -165,8 +168,8 @@ final class RunLog extends ConsoleLogger {
         OutputStream out = Files.newOutputStream(file);
         OutputStream errors = Files.newOutputStream(errorsFile);
         RunLog log = quietly(() -> new RunLog(file, out, errorsFile, errors, json, maxSize));
-        log.shownFile = link(directory.resolve(LATEST), file);
-        log.shownErrorsFile = link(directory.resolve(LATEST_ERRORS), errorsFile);
+        log.latest = link(directory.resolve(LATEST), file);
+        log.latestErrors = link(directory.resolve(LATEST_ERRORS), errorsFile);
         prune(runs, keep);
         return log;
     }
@@ -175,7 +178,7 @@ final class RunLog extends ConsoleLogger {
      * Makes {@code link} a second name of {@code target}. Without hard links (FAT), or when another process holds the
      * old link, the file of the run is shown instead.
      *
-     * @return the path to show
+     * @return {@code link}, or {@code target} if it could not be made
      */
     private static Path link(Path link, Path target) {
         try {
@@ -238,8 +241,8 @@ final class RunLog extends ConsoleLogger {
                                readPositive(PROPERTY_RUN_KEEP, 10), readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB,
                                id(System.currentTimeMillis(), pid()));
                 if (!agent) {
-                    DefaultLoggerCreator.printNotice("Run log: " + current.shownFile.toAbsolutePath() + "; WARN and ERROR also in " +
-                                    current.shownErrorsFile.toAbsolutePath());
+                    DefaultLoggerCreator.printNotice("Run log: " + current.shownFile().toAbsolutePath() + "; WARN and ERROR also in " +
+                                    current.shownErrorsFile().toAbsolutePath());
                 }
             } catch (IOException | RuntimeException e) {
                 printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
@@ -328,12 +331,29 @@ final class RunLog extends ConsoleLogger {
         opened = false;
     }
 
+    /**
+     * The path that names the log of this run: {@code latest.log} while it is a name of the file of this run, otherwise
+     * the file itself. Another fork of Surefire that starts later in the same directory takes {@code latest.log}, and
+     * the summary of this fork would send the reader to the entries of the other one (#93).
+     */
     Path shownFile() {
-        return shownFile;
+        return shown(latest, file);
     }
 
+    /**
+     * The path that names the warnings and errors of this run, as {@link #shownFile()}.
+     */
     Path shownErrorsFile() {
-        return shownErrorsFile;
+        return shown(latestErrors, errorsFile);
+    }
+
+    private static Path shown(Path link, Path target) {
+        try {
+            return Files.isSameFile(link, target) ? link : target;
+        } catch (IOException | SecurityException e) {
+            // deleted, or not to be read
+            return target;
+        }
     }
 
     long maxSize() {

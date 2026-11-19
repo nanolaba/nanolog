@@ -395,6 +395,21 @@ public class DefaultLoggerCreator {
     }
 
     /**
+     * Prints {@code [NANOLOG]} lines of a notice with one {@code println}: Surefire relays it as one piece, so the lines
+     * of two forks that print at the same moment do not mix (#93).
+     */
+    static void printNotices(List<String> messages) {
+        StringBuilder block = new StringBuilder();
+        for (String message : messages) {
+            if (block.length() > 0) {
+                block.append(System.lineSeparator());
+            }
+            block.append("[NANOLOG] ").append(escapeControlCharacters(message));
+        }
+        SystemStreams.err().println(block.toString());
+    }
+
+    /**
      * Prints that a setting has an invalid value, and where the value came from.
      *
      * @param expected what was expected, such as {@code expected true or false}

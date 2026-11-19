@@ -193,6 +193,28 @@ class RunLogTest extends AbstractLoggerTest {
         assertEquals(2, lines(root.resolve("runs/1.log")).size(), "the old run goes on in its own file");
     }
 
+    @Test
+    public void testARunWhoseLatestWasTakenNamesItsOwnFiles() throws IOException {
+        // two forks of Surefire write the same directory, and latest.log is the file of the one that started last
+        RunLog first = open("1");
+        RunLog second = open("2");
+
+        assertEquals(root.resolve("runs/1.log"), first.shownFile());
+        assertEquals(root.resolve("runs/1.errors.log"), first.shownErrorsFile());
+        assertEquals(root.resolve("latest.log"), second.shownFile());
+        assertEquals(root.resolve("latest.errors.log"), second.shownErrorsFile());
+    }
+
+    @Test
+    public void testARunWhoseLatestWasDeletedNamesItsOwnFiles() throws IOException {
+        RunLog log = open("1");
+        Files.delete(root.resolve("latest.log"));
+        Files.delete(root.resolve("latest.errors.log"));
+
+        assertEquals(root.resolve("runs/1.log"), log.shownFile());
+        assertEquals(root.resolve("runs/1.errors.log"), log.shownErrorsFile());
+    }
+
     // WHAT IS WRITTEN
 
     @Test
