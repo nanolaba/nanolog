@@ -54,7 +54,7 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 
 ### README generation
 
-`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.3 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`, and `SUPPORT`, `CONTRIBUTING` and `SECURITY` (`.md` and `.ru.md`) from their `*.src.md`. Never edit the generated files.
+`README.md` and `README.ru.md` are **generated** during the `compile` phase by `nrg-maven-plugin` 1.4 ([readme-generator](https://github.com/nanolaba/readme-generator)) from `README.src.md`, `llms.txt` and `skills/nanolog/SKILL.md` from `agent-guide.src.md`, and `SUPPORT`, `CONTRIBUTING` and `SECURITY` (`.md` and `.ru.md`) from their `*.src.md`. Never edit the generated files.
 
 - Edit `README.src.md`, run `mvn compile`, review both outputs, commit all three files together.
 - *Related projects* compares Nanolog with the versions named in its table headers, on the date in its first paragraph. A changed cell is checked against the current release of that project (its docs, sources or a run), and the version and the date are updated with it; a new feature of Nanolog that one of its rows covers changes the Nanolog column. Every ➖ has a footnote.
@@ -70,7 +70,7 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 - Collapsible content uses `${widget:details(summary='…')}` … `${widget:endDetails}`; the inner markdown and language markers keep working.
 - The English and Russian quick-start examples are chosen with the per-language properties `quickStartFile.en` / `quickStartFile.ru`.
 
-Template conventions that still apply with NRG 1.3:
+Template conventions that still apply with NRG 1.4:
 
 - Keep code spans inside the language strings (`${en:'use `LOG`.', ru:'используйте `LOG`.'}`); placing a backticked term outside the construct produces a space before Russian punctuation.
 - Every path the template names (`import`, `fileTree`, output files) must stay inside the repository: since 1.3 a template is confined to its project root, and an escaping path fails the build.
