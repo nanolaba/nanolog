@@ -98,9 +98,7 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 
 Последняя стабильная версия — **1.4**; версия в разработке — **1.5-SNAPSHOT** (см. [Changelog](#changelog)).
 
-<details>
-<summary>Содержание</summary>
-
+## Содержание
 - 1 [Установка](#установка)
 	- 1.1 [Native image и Android](#native-image-и-android)
 - 2 [Быстрый старт](#быстрый-старт)
@@ -163,8 +161,6 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 - 27 [Участие в разработке](#участие-в-разработке)
 - 28 [Лицензия](#лицензия)
 
-
-</details>
 
 ## Установка
 

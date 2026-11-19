@@ -105,9 +105,7 @@ How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related 
 
 ${en:'The latest stable version is', ru:'Последняя стабильная версия —'} **${stableVersion}**${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)', text="; ${en:'the version under development is', ru:'версия в разработке —'} **${pom.version}** (${en:'see', ru:'см.'} [Changelog](#changelog))")}.
 
-${widget:details(summary="${en:'Table of contents', ru:'Содержание'}")}
-${widget:tableOfContents(title = "", ordered = "true", numbering-style = "dotted", max-depth = "3")}
-${widget:endDetails}
+${widget:tableOfContents(title = "${en:'Table of contents', ru:'Содержание'}", ordered = "true", numbering-style = "dotted", max-depth = "3")}
 
 ## ${en:'Installation', ru:'Установка'}
 

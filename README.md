@@ -98,9 +98,7 @@ How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related 
 
 The latest stable version is **1.4**; the version under development is **1.5-SNAPSHOT** (see [Changelog](#changelog)).
 
-<details>
-<summary>Table of contents</summary>
-
+## Table of contents
 - 1 [Installation](#installation)
 	- 1.1 [Native image and Android](#native-image-and-android)
 - 2 [Quick start](#quick-start)
@@ -163,8 +161,6 @@ The latest stable version is **1.4**; the version under development is **1.5-SNA
 - 27 [Contributing](#contributing)
 - 28 [License](#license)
 
-
-</details>
 
 ## Installation
 
