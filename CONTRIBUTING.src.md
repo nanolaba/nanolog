@@ -31,6 +31,7 @@ mvn verify -Dgpg.skip=true -Dcheck=true
 ## ${en:'Pull requests', ru:'Pull request'}
 
 - ${en:'One change per pull request, with its tests and its documentation, and `Closes #N` for its issue.', ru:'Одно изменение на pull request, с тестами и документацией, и `Closes #N` для его issue.'}
+- ${en:'A pull request is merged once CI and CodeQL are green on a branch up to date with `main` and a maintainer has approved it.', ru:'Pull request мержится, когда CI и CodeQL зелёные на ветке, актуальной относительно `main`, и мейнтейнер его одобрил.'}
 - ${en:'Nanolog has no dependencies at run time and must not get any.', ru:'У Nanolog нет зависимостей во время выполнения, и их не должно появиться.'}
 - ${en:'Coding agents read [AGENTS.md](AGENTS.md), which describes the architecture and the rules in detail; people may find it useful too.', ru:'ИИ-агенты читают [AGENTS.md](AGENTS.md), где подробно описаны архитектура и правила; людям он тоже может пригодиться.'}
 - ${en:'By contributing you agree that your contribution is licensed under the', ru:'Присылая изменения, вы соглашаетесь, что они распространяются по'} [Apache License 2.0](LICENSE).

@@ -29,6 +29,7 @@ mvn verify -Dgpg.skip=true -Dcheck=true
 ## Pull requests
 
 - One change per pull request, with its tests and its documentation, and `Closes #N` for its issue.
+- A pull request is merged once CI and CodeQL are green on a branch up to date with `main` and a maintainer has approved it.
 - Nanolog has no dependencies at run time and must not get any.
 - Coding agents read [AGENTS.md](AGENTS.md), which describes the architecture and the rules in detail; people may find it useful too.
 - By contributing you agree that your contribution is licensed under the [Apache License 2.0](LICENSE).
