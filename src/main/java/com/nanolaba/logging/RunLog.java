@@ -254,11 +254,36 @@ final class RunLog extends ConsoleLogger {
     /**
      * A logger together with the run log of this JVM. {@link LOG} installs one for every logger while the run log is
      * open, so the file keeps every entry of the run whichever logger the application installs (#90).
+     * <p>
+     * A Tee may reach another one through its logger: a decorator passes each entry on to {@link LOG#getLogger()}, the
+     * Tee it replaced, and so does {@link MemoryLogger#installForwarding()}. The inner Tee then passes the entry to its
+     * logger only, and the outer one writes it to the run log, once (#95).
      */
     static final class Tee extends CompositeLogger {
 
+        // the entry that a Tee is passing on in this thread
+        private static final ThreadLocal<LogEntry> PASSING = new ThreadLocal<>();
+
+        private final ILogger logger;
+
         Tee(ILogger logger, RunLog runLog) {
             super(logger, runLog);
+            this.logger = logger;
+        }
+
+        @Override
+        public void log(LogEntry entry) {
+            LogEntry outer = PASSING.get();
+            if (outer == entry) {
+                pass(logger, entry);
+                return;
+            }
+            PASSING.set(entry);
+            try {
+                super.log(entry);
+            } finally {
+                PASSING.set(outer);
+            }
         }
     }
 
@@ -289,7 +314,7 @@ final class RunLog extends ConsoleLogger {
      * @return the logger inside a {@link Tee}, otherwise {@code logger}
      */
     static ILogger unwrap(ILogger logger) {
-        return logger instanceof Tee ? ((Tee) logger).getLoggers().get(0) : logger;
+        return logger instanceof Tee ? ((Tee) logger).logger : logger;
     }
 
     /**

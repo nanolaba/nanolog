@@ -64,12 +64,19 @@ public class CompositeLogger implements ILogger, ILevelControl {
     @Override
     public void log(LogEntry entry) {
         for (ILogger logger : loggers) {
-            if (entry.isDbg() && Dbg.ignoreLevels || isEnabled(logger, entry.getLevel(), entry.getSourceClass(), entry.getTag())) {
-                try {
-                    logger.log(entry);
-                } catch (Throwable t) {
-                    LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
-                }
+            pass(logger, entry);
+        }
+    }
+
+    /**
+     * Passes the entry to one delegate as {@link #log} does.
+     */
+    static void pass(ILogger logger, LogEntry entry) {
+        if (entry.isDbg() && Dbg.ignoreLevels || isEnabled(logger, entry.getLevel(), entry.getSourceClass(), entry.getTag())) {
+            try {
+                logger.log(entry);
+            } catch (Throwable t) {
+                LOG.reportLoggerFailure(logger, t, DELEGATE_NOTE);
             }
         }
     }

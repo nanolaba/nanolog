@@ -527,6 +527,55 @@ class RunLogTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testADecoratorOfTheInstalledLoggerWritesTheRunLogOnce() throws IOException {
+        runLogOn();
+        getOutAndClear();
+        // the usual decorator: LOG.getLogger() writes the run log already, and LOG.init adds it to the decorator (#95)
+        ILogger previous = LOG.getLogger();
+        List<LogEntry> seen = new ArrayList<>();
+        LOG.init(entry -> {
+            seen.add(entry);
+            previous.log(entry);
+        });
+
+        LOG.info("while the decorator is installed");
+        LOG.warn("a warning");
+        LOG.init(previous);
+        LOG.info("after the decorator");
+
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(3, log.size(), String.join(NL, log));
+        assertEquals(1, lines(root.resolve("latest.errors.log")).size());
+        assertEquals(2, seen.size());
+        String out = getOutAndClear() + getErrAndClear();
+        assertEquals(1, out.split("while the decorator is installed", -1).length - 1, out);
+    }
+
+    @Test
+    public void testAForwardingMemoryLoggerWritesTheRunLogOnce() throws IOException {
+        runLogOn();
+
+        try (MemoryLogger memory = MemoryLogger.installForwarding()) {
+            LOG.info("captured and forwarded");
+            assertEquals(1, memory.getEntries().size());
+        }
+
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(1, log.size(), String.join(NL, log));
+    }
+
+    @Test
+    public void testAnEntryLoggedTwiceIsWrittenTwice() throws IOException {
+        runLogOn();
+        LogEntry entry = entry(INFO, "twice", null);
+
+        LOG.getLogger().log(entry);
+        LOG.getLogger().log(entry);
+
+        assertEquals(2, lines(root.resolve("latest.log")).size());
+    }
+
+    @Test
     public void testANullLoggerIsInstalledAsItIs() {
         runLogOn();
 
