@@ -154,11 +154,12 @@ The latest stable version is **1.4**; the version under development is **1.5-SNA
 	- 25.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
 	- 25.4 [When another logger fits better](#when-another-logger-fits-better)
 - 26 [Changelog](#changelog)
-	- 26.1 [1.4](#14)
-	- 26.2 [1.3](#13)
-	- 26.3 [1.2](#12)
-	- 26.4 [1.1](#11)
-	- 26.5 [1.0](#10)
+	- 26.1 [1.5-SNAPSHOT](#15-snapshot)
+	- 26.2 [1.4](#14)
+	- 26.3 [1.3](#13)
+	- 26.4 [1.2](#12)
+	- 26.5 [1.1](#11)
+	- 26.6 [1.0](#10)
 - 27 [Contributing](#contributing)
 - 28 [License](#license)
 
@@ -389,8 +390,8 @@ In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects
 
 - **What.** The number of entries by level; each kind of warning and error, by level, call site and message template, with how often it was logged, errors first; the stack trace of the first error with an exception, without the frames of agent mode and with every cause; the `LOG.dbg` calls that ran; the path of the [run log](#run-log).
 - **Bounded.** At most 10 kinds and 15 lines of the trace are shown; the rest is counted (`... and 7 more kinds of WARN and ERROR`). Counting keeps no entry, only a counter per level and per kind, for at most 1000 kinds, and costs nothing while the summary is off.
-- **When.** `nanolog.summary=on` (`NANOLOG_SUMMARY`), the default in agent mode; `errors` prints it only after a `WARN` or `ERROR`; `off`, the default otherwise. It goes to `System.err` once per JVM: when JUnit has run the tests, through `SummaryListener`, which the JUnit Platform loads by itself in Maven, Gradle and the IDE; otherwise when the JVM exits. Surefire drops what a shutdown hook of its forked JVM prints, which is why test runs need the listener. Gradle prints the output of tests only with `testLogging.showStandardStreams = true`.
-- **A jar of your own.** `SummaryListener` is compiled against the JUnit Platform Launcher API, which a test run provides, so **Nanolog** still has no dependencies. A shaded jar that keeps `META-INF/services/org.junit.platform.launcher.TestExecutionListener` must keep `SummaryListener` too, or JUnit stops with a `ServiceConfigurationError`.
+- **When.** `nanolog.summary=on` (`NANOLOG_SUMMARY`), the default in agent mode; `errors` prints it only after a `WARN` or `ERROR`; `off`, the default otherwise. It goes to `System.err` once per JVM: when JUnit has run the tests of that JVM, through `SummarySessionListener` and `SummaryListener`, which the JUnit Platform loads by itself in Maven, Gradle and the IDE; otherwise when the JVM exits. A Surefire fork that runs several test classes, with `forkCount` above 1, prints one summary after the last of them. Surefire drops what a shutdown hook of its forked JVM prints, which is why test runs need the listeners. Gradle prints the output of tests only with `testLogging.showStandardStreams = true`.
+- **A jar of your own.** `SummaryListener` and `SummarySessionListener` are compiled against the JUnit Platform Launcher API, which a test run provides, so **Nanolog** still has no dependencies. A shaded jar that keeps `META-INF/services/org.junit.platform.launcher.TestExecutionListener` or `org.junit.platform.launcher.LauncherSessionListener` must keep the class it names too, or JUnit stops with a `ServiceConfigurationError`.
 
 ### Run log
 
@@ -1737,6 +1738,10 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 [jboss-logging]: https://github.com/jboss-logging/jboss-logging "JBoss Logging"
 
 ## Changelog
+
+### 1.5-SNAPSHOT
+
+- Run summary with `forkCount` above 1: a Surefire fork that runs several test classes prints one summary after the last of them, through the new `SummarySessionListener` (JUnit Platform 1.8+). Before, it printed after the first class and missed the rest of the fork.
 
 ### 1.4
 

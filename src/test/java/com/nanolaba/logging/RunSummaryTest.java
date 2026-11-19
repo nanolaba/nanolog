@@ -426,6 +426,61 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testAPlanThatEndsInsideALauncherSessionWaitsForTheSessionToClose() {
+        on();
+        SummarySessionListener session = new SummarySessionListener();
+        SummaryListener plans = new SummaryListener();
+        session.launcherSessionOpened(null);
+
+        LOG.warn("Warning of the first class");
+        plans.testPlanExecutionFinished(null);
+        assertEquals("", getErrAndClear(), "Surefire runs the next class of the fork as another plan of the session");
+
+        LOG.warn("Warning of the second class");
+        plans.testPlanExecutionFinished(null);
+        session.launcherSessionClosed(null);
+        String err = getErrAndClear();
+        assertTrue(err.startsWith("[NANOLOG] Run summary: 2 entries: 2 WARN" + NL), err);
+        assertTrue(err.contains("Warning of the first class") && err.contains("Warning of the second class"), err);
+    }
+
+    @Test
+    public void testASessionWithoutAPlanPrintsNothing() {
+        on();
+        LOG.warn("Careful");
+        Summary.registerHook();
+        SummarySessionListener session = new SummarySessionListener();
+
+        session.launcherSessionOpened(null);
+        session.launcherSessionClosed(null);
+        assertEquals("", getErrAndClear(), "Surefire opens and closes a session in a JVM that runs no test");
+
+        hooks.get(0).run();
+        assertTrue(getErrAndClear().startsWith("[NANOLOG] Run summary: 1 entry: 1 WARN" + NL));
+    }
+
+    @Test
+    public void testResetForgetsTheOpenSessions() {
+        on();
+        new SummarySessionListener().launcherSessionOpened(null);
+        Summary.reset();
+
+        LOG.warn("Careful");
+        new SummaryListener().testPlanExecutionFinished(null);
+        assertTrue(getErrAndClear().startsWith("[NANOLOG] Run summary: 1 entry: 1 WARN" + NL));
+    }
+
+    @Test
+    public void testTheJunitPlatformFindsTheSessionListener() {
+        boolean found = false;
+        for (org.junit.platform.launcher.LauncherSessionListener listener
+                : java.util.ServiceLoader.load(org.junit.platform.launcher.LauncherSessionListener.class)) {
+            found |= listener instanceof SummarySessionListener;
+        }
+        assertTrue(found, "META-INF/services/org.junit.platform.launcher.LauncherSessionListener");
+    }
+
+    @Test
     public void testAHookThatCannotBeRegisteredIsIgnored() {
         Summary.shutdownHooks = hook -> {
             throw new IllegalStateException("Shutdown in progress");

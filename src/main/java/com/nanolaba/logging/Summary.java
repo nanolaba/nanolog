@@ -18,8 +18,9 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.WARN;
  * The run summary, {@code nanolog.summary}: a few lines at the end of the run with the counts by level, each kind of
  * warning and error with its call site and count, the trace of the first error, the {@code LOG.dbg} calls that ran
  * and the path of the run log. A coding agent often keeps only the end of a long output, so the summary is printed
- * last: when JUnit has run the tests ({@link SummaryListener}), or else by a shutdown hook. Surefire drops what a
- * shutdown hook of its forked JVM prints, so in a Maven test run only the listener is heard.
+ * last: when JUnit has run the tests of this JVM ({@link SummarySessionListener}, {@link SummaryListener}), or else by
+ * a shutdown hook. Surefire drops what a shutdown hook of its forked JVM prints, so in a Maven test run only the
+ * listeners are heard.
  * <p>
  * Counting keeps no entry: a counter per level, and per kind (level, call site and message template) a counter, of at
  * most {@link #MAX_KEPT} kinds. When the summary is off nothing is counted, and the end of the run lists only the
@@ -88,6 +89,11 @@ final class Summary {
     private static final AtomicReference<String[]> FIRST_ERROR = new AtomicReference<>();
     private static final AtomicBoolean HOOK_REGISTERED = new AtomicBoolean();
     private static final AtomicBoolean PRINTED = new AtomicBoolean();
+    /**
+     * The launcher sessions of the JUnit Platform that are open, and whether a test plan has finished in this JVM.
+     */
+    private static final AtomicInteger SESSIONS = new AtomicInteger();
+    private static final AtomicBoolean PLAN_FINISHED = new AtomicBoolean();
 
     static {
         for (int i = 0; i < COUNTS.length; i++) {
@@ -255,9 +261,39 @@ final class Summary {
     }
 
     /**
+     * A launcher session of the JUnit Platform opened ({@link SummarySessionListener}).
+     */
+    static void sessionOpened() {
+        SESSIONS.incrementAndGet();
+    }
+
+    /**
+     * A test plan finished ({@link SummaryListener}). Inside a launcher session another plan may follow: Surefire runs
+     * each test class of a fork as a plan of its own when {@code forkCount} is above 1, so the end of the run is the
+     * end of the session. Without a session, on a JUnit Platform before 1.8, the end of the plan is the end of the run.
+     */
+    static void planFinished() {
+        PLAN_FINISHED.set(true);
+        if (SESSIONS.get() <= 0) {
+            printOnce();
+        }
+    }
+
+    /**
+     * A launcher session closed: the end of the run in this JVM, once a test plan has run in it. Surefire also opens a
+     * session in a JVM that runs no test, which has nothing to sum up.
+     */
+    static void sessionClosed() {
+        if (SESSIONS.decrementAndGet() <= 0 && PLAN_FINISHED.get()) {
+            printOnce();
+        }
+    }
+
+    /**
      * Prints the end of the run, the first time it is called: the units still open, as {@code interrupted}, then the
-     * summary when it is on, or else the {@code LOG.dbg} calls that ran. Called by {@link SummaryListener} and by the
-     * shutdown hook, whichever comes first; {@link Units} registers the hook as well.
+     * summary when it is on, or else the {@code LOG.dbg} calls that ran. Called at the end of the tests
+     * ({@link #planFinished()}, {@link #sessionClosed()}) and by the shutdown hook, whichever comes first;
+     * {@link Units} registers the hook as well.
      */
     static void printOnce() {
         if (PRINTED.compareAndSet(false, true)) {
@@ -277,7 +313,8 @@ final class Summary {
     }
 
     /**
-     * Forgets the counts, the {@code LOG.dbg} calls, the hook and that the end was printed; for tests.
+     * Forgets the counts, the {@code LOG.dbg} calls, the hook, the sessions and plans of JUnit and that the end was
+     * printed; for tests.
      */
     static void reset() {
         for (AtomicLong count : COUNTS) {
@@ -288,6 +325,8 @@ final class Summary {
         FIRST_ERROR.set(null);
         HOOK_REGISTERED.set(false);
         PRINTED.set(false);
+        SESSIONS.set(0);
+        PLAN_FINISHED.set(false);
         Dbg.clearCalls();
     }
 }

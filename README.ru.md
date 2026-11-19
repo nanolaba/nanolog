@@ -154,11 +154,12 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 	- 25.3 [Рядом с tinylog 2.8.1](#рядом-с-tinylog-281)
 	- 25.4 [Когда лучше подойдёт другой логгер](#когда-лучше-подойдёт-другой-логгер)
 - 26 [Changelog](#changelog)
-	- 26.1 [1.4](#14)
-	- 26.2 [1.3](#13)
-	- 26.3 [1.2](#12)
-	- 26.4 [1.1](#11)
-	- 26.5 [1.0](#10)
+	- 26.1 [1.5-SNAPSHOT](#15-snapshot)
+	- 26.2 [1.4](#14)
+	- 26.3 [1.3](#13)
+	- 26.4 [1.2](#12)
+	- 26.5 [1.1](#11)
+	- 26.6 [1.0](#10)
 - 27 [Участие в разработке](#участие-в-разработке)
 - 28 [Лицензия](#лицензия)
 
@@ -389,8 +390,8 @@ ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Canno
 
 - **Что.** Число записей по уровням; каждый вид предупреждений и ошибок — по уровню, месту вызова и шаблону сообщения — с числом повторений, сначала ошибки; трассировка стека первой ошибки с исключением, без кадров агентского режима и со всеми причинами; вызовы `LOG.dbg`, которые выполнились; путь к [журналу запуска](#журнал-запуска).
 - **Ограничена.** Показывается не больше 10 видов и 15 строк трассировки; остальное подсчитывается (`... and 7 more kinds of WARN and ERROR`). Подсчёт не хранит записей, только счётчик на уровень и на вид, не больше 1000 видов, и ничего не стоит, пока сводка выключена.
-- **Когда.** `nanolog.summary=on` (`NANOLOG_SUMMARY`) — по умолчанию в агентском режиме; `errors` печатает её только после `WARN` или `ERROR`; `off` — по умолчанию в остальных случаях. Она выводится в `System.err` один раз на JVM: когда JUnit выполнил тесты, через `SummaryListener`, который платформа JUnit сама загружает в Maven, Gradle и IDE; иначе при завершении JVM. Surefire отбрасывает то, что печатает shutdown hook его отдельной JVM, поэтому тестовым запускам и нужен слушатель. Gradle печатает вывод тестов только с `testLogging.showStandardStreams = true`.
-- **Собственный jar.** `SummaryListener` скомпилирован против API JUnit Platform Launcher, который предоставляет тестовый запуск, поэтому у **Nanolog** по-прежнему нет зависимостей. Shaded-jar, сохраняющий `META-INF/services/org.junit.platform.launcher.TestExecutionListener`, должен сохранить и `SummaryListener`, иначе JUnit остановится с `ServiceConfigurationError`.
+- **Когда.** `nanolog.summary=on` (`NANOLOG_SUMMARY`) — по умолчанию в агентском режиме; `errors` печатает её только после `WARN` или `ERROR`; `off` — по умолчанию в остальных случаях. Она выводится в `System.err` один раз на JVM: когда JUnit выполнил тесты этой JVM, через `SummarySessionListener` и `SummaryListener`, которые платформа JUnit сама загружает в Maven, Gradle и IDE; иначе при завершении JVM. Форк Surefire, который выполняет несколько тестовых классов (`forkCount` больше 1), печатает одну сводку после последнего из них. Surefire отбрасывает то, что печатает shutdown hook его отдельной JVM, поэтому тестовым запускам и нужны слушатели. Gradle печатает вывод тестов только с `testLogging.showStandardStreams = true`.
+- **Собственный jar.** `SummaryListener` и `SummarySessionListener` скомпилированы против API JUnit Platform Launcher, который предоставляет тестовый запуск, поэтому у **Nanolog** по-прежнему нет зависимостей. Shaded-jar, сохраняющий `META-INF/services/org.junit.platform.launcher.TestExecutionListener` или `org.junit.platform.launcher.LauncherSessionListener`, должен сохранить и названный там класс, иначе JUnit остановится с `ServiceConfigurationError`.
 
 ### Журнал запуска
 
@@ -1737,6 +1738,10 @@ tinylog — ближайший аналог. Одни и те же вызовы,
 [jboss-logging]: https://github.com/jboss-logging/jboss-logging "JBoss Logging"
 
 ## Changelog
+
+### 1.5-SNAPSHOT
+
+- Сводка запуска при `forkCount` больше 1: форк Surefire, который выполняет несколько тестовых классов, печатает одну сводку после последнего из них, через новый `SummarySessionListener` (JUnit Platform 1.8+). Раньше она печаталась после первого класса и пропускала остальные классы форка.
 
 ### 1.4
 
