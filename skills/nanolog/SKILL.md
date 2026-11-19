@@ -152,7 +152,7 @@ void chargeIsRetried() {
 
 *1.4+*: `MemoryLogger.capture()` captures the entries of the current thread only, every level, and keeps them from the installed logger; prefer it, it is safe when tests run in parallel. `captureForwarding()` also passes them on. Entries logged from other threads, a pool included, are not captured.
 
-*1.4+*: `@ExtendWith(NanologExtension.class)` on a test class prints the log of a test only when it fails, between `--- log of Class.method ---` and `--- end of the log of Class.method ---`; passing tests stay quiet. When a test fails, read that block first. `-Dnanolog.junit.output=all` prints every log as it is written.
+*1.4+*: `@ExtendWith(NanologExtension.class)` on a test class prints the log of a test only when it fails, between `--- log of Class.method ---` and `--- end of the log of Class.method ---`; passing tests stay quiet. When a test fails, read that block first. The log of the class outside its tests (`@BeforeAll`, the Spring context started for a test instance) is held back too *1.5+* and printed after the tests as `--- log of class Class ---` when one of them or the class fails. `-Dnanolog.junit.output=all` prints every log as it is written.
 
 `MemoryLogger.installForwarding()` captures and still prints. `getEntries()`, `getEntries(level)`, `getMessages()`, `contains(level, text)` and `clear()` cover the usual assertions. *1.3+*: `assertNoneAtOrAbove(LogEntryLevel.WARN)`, `assertLogged(level, text)` and `assertTemplateLogged(level, "Retry {} of {}")` throw an `AssertionError` that lists every captured entry with its call site and stack trace, so a failing test shows the log without a rerun; `getEntries(SomeClass.class)` selects one source class.
 

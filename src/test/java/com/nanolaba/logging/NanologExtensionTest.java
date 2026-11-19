@@ -1,11 +1,16 @@
 package com.nanolaba.logging;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestInstancePostProcessor;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.platform.launcher.Launcher;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
@@ -19,6 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -140,10 +146,12 @@ class NanologExtensionTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_JUNIT_OUTPUT, " ALL ");
 
         assertEquals(2, run(Outcomes.class).getTotalFailureCount());
+        run(ClassSetup.class);
 
         String out = getOutAndClear();
         assertTrue(out.contains("INFO [NanologExtensionTest] noise of a passing test" + NL), out);
         assertTrue(out.contains("INFO [NanologExtensionTest] evidence" + NL), out);
+        assertTrue(out.contains("INFO [NanologExtensionTest] fixture loaded" + NL), out);
         assertFalse(out.contains("--- log of"), out);
     }
 
@@ -152,8 +160,167 @@ class NanologExtensionTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_JUNIT_OUTPUT, "none");
 
         run(Outcomes.class);
+        run(ClassWithAFailure.class);
+        run(BrokenClassSetup.class);
 
         assertEquals("", getOutAndClear());
+    }
+
+    // THE LOG OF THE CLASS
+
+    /**
+     * Stands for {@code SpringExtension}, which starts the application context when JUnit creates the test instance,
+     * before any {@code beforeEach} (#100).
+     */
+    static class ContextExtension implements TestInstancePostProcessor {
+
+        @Override
+        public void postProcessTestInstance(Object testInstance, ExtensionContext context) {
+            if (running) {
+                LOG.info("context of " + testInstance.getClass().getSimpleName());
+            }
+        }
+    }
+
+    @ExtendWith(ContextExtension.class)
+    abstract static class ContextTest {
+    }
+
+    @ExtendWith(NanologExtension.class)
+    static class ClassSetup extends ContextTest {
+
+        @BeforeAll
+        static void loadFixture() {
+            onlyThroughRun();
+            LOG.info("fixture loaded");
+        }
+
+        @AfterAll
+        static void removeFixture() {
+            if (running) {
+                LOG.info("fixture removed");
+            }
+        }
+
+        @Test
+        void first() {
+            onlyThroughRun();
+            LOG.info("first test");
+        }
+
+        @Test
+        void second() {
+            onlyThroughRun();
+            LOG.info("second test");
+        }
+    }
+
+    @Test
+    public void testTheLogOfAPassingClassGoesOnlyToTheRunLog() throws IOException {
+        runLogOn();
+
+        TestExecutionSummary summary = run(ClassSetup.class);
+
+        assertEquals(2, summary.getTestsSucceededCount(), String.valueOf(summary.getFailures()));
+        assertEquals("", getOutAndClear(), "the console stays quiet while the class passes");
+        List<String> lines = Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8);
+        assertEquals(6, lines.size(), String.join(NL, lines));
+        for (String message : new String[]{"fixture loaded", "first test", "second test", "fixture removed"}) {
+            assertEquals(1, lines.stream().filter(line -> line.endsWith("] " + message)).count(), message);
+        }
+        assertEquals(2, lines.stream().filter(line -> line.endsWith("] context of ClassSetup")).count(),
+                     "one test instance for each test");
+    }
+
+    @ExtendWith(NanologExtension.class)
+    static class ClassWithAFailure extends ContextTest {
+
+        @BeforeAll
+        static void loadFixture() {
+            onlyThroughRun();
+            LOG.info("fixture loaded");
+        }
+
+        @Test
+        void fails() {
+            onlyThroughRun();
+            LOG.info("evidence");
+            throw new AssertionError("failed on purpose");
+        }
+    }
+
+    @Test
+    public void testTheLogOfAClassIsPrintedWhenOneOfItsTestsFails() {
+        run(ClassWithAFailure.class);
+
+        assertEquals("--- log of ClassWithAFailure.fails ---" + NL +
+                     "INFO [NanologExtensionTest] evidence" + NL +
+                     "--- end of the log of ClassWithAFailure.fails ---" + NL +
+                     "--- log of class ClassWithAFailure ---" + NL +
+                     "INFO [NanologExtensionTest] fixture loaded" + NL +
+                     "INFO [NanologExtensionTest] context of ClassWithAFailure" + NL +
+                     "--- end of the log of class ClassWithAFailure ---" + NL, getOutAndClear());
+    }
+
+    @ExtendWith(NanologExtension.class)
+    static class BrokenClassSetup {
+
+        @BeforeAll
+        static void loadFixture() {
+            onlyThroughRun();
+            LOG.warn("database not reachable");
+            throw new IllegalStateException("no database");
+        }
+
+        @Test
+        void neverRuns() {
+            onlyThroughRun();
+        }
+    }
+
+    @Test
+    public void testTheLogOfAClassIsPrintedWhenItsSetupFails() {
+        TestExecutionSummary summary = run(BrokenClassSetup.class);
+
+        assertEquals(1, summary.getTotalFailureCount());
+        assertEquals("--- log of class BrokenClassSetup ---" + NL +
+                     "WARN [NanologExtensionTest] database not reachable" + NL +
+                     "--- end of the log of class BrokenClassSetup ---" + NL, getOutAndClear());
+    }
+
+    @ExtendWith(NanologExtension.class)
+    static class Outer {
+
+        @BeforeAll
+        static void setUpOuter() {
+            onlyThroughRun();
+            LOG.info("outer set up");
+        }
+
+        @Nested
+        @ExtendWith(ContextExtension.class)
+        class Inner {
+
+            @Test
+            void passes() {
+                onlyThroughRun();
+                LOG.info("inner test");
+            }
+        }
+    }
+
+    @Test
+    public void testANestedClassHoldsBackItsOwnLog() throws IOException {
+        runLogOn();
+
+        TestExecutionSummary summary = run(Outer.class);
+
+        assertEquals(1, summary.getTestsSucceededCount(), String.valueOf(summary.getFailures()));
+        assertEquals("", getOutAndClear());
+        List<String> lines = Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8);
+        assertTrue(lines.stream().anyMatch(line -> line.endsWith("] context of Inner")), String.join(NL, lines));
+        assertTrue(lines.stream().anyMatch(line -> line.endsWith("] inner test")), String.join(NL, lines));
+        assertEquals(new HashSet<>(lines).size(), lines.size(), "each entry is held back once: " + String.join(NL, lines));
     }
 
     @Test
@@ -187,6 +354,12 @@ class NanologExtensionTest extends AbstractLoggerTest {
     @ExtendWith(NanologExtension.class)
     static class Repeated {
 
+        @BeforeAll
+        static void setUpRepetitions() {
+            onlyThroughRun();
+            LOG.info("set up the repetitions");
+        }
+
         @RepeatedTest(2)
         void repeated() {
             onlyThroughRun();
@@ -202,6 +375,10 @@ class NanologExtensionTest extends AbstractLoggerTest {
         String out = getOutAndClear();
         assertTrue(out.startsWith("--- log of Repeated.repeated repetition 1 of 2 ---" + NL), out);
         assertTrue(out.contains("--- end of the log of Repeated.repeated repetition 2 of 2 ---" + NL), out);
+        assertTrue(out.endsWith("--- log of class Repeated ---" + NL +
+                                "INFO [NanologExtensionTest] set up the repetitions" + NL +
+                                "--- end of the log of class Repeated ---" + NL),
+                   "a repetition fails inside its template, inside the class: " + out);
     }
 
     @ExtendWith(NanologExtension.class)
@@ -273,13 +450,20 @@ class NanologExtensionTest extends AbstractLoggerTest {
         testTheRunLogGetsTheLogOfEveryTest();
     }
 
-    @Test
-    public void testTheRunLogGetsTheLogOfEveryTest() throws IOException {
+    /**
+     * Turns the run log on, in the temporary directory.
+     */
+    private void runLogOn() {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         LOG.init();
         getErrAndClear();
         getOutAndClear();
+    }
+
+    @Test
+    public void testTheRunLogGetsTheLogOfEveryTest() throws IOException {
+        runLogOn();
 
         run(Outcomes.class);
 

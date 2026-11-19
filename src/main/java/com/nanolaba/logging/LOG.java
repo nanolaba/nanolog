@@ -1,6 +1,7 @@
 package com.nanolaba.logging;
 
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -3147,6 +3148,35 @@ public class LOG {
     static void endCapture(MemoryLogger memory) {
         if (memory.capture.remove(memory)) {
             CAPTURES.decrementAndGet();
+        }
+    }
+
+    /**
+     * Takes the buffers of {@link NanologExtension} off the current thread, so that the buffer it opens next is the only
+     * one there and an entry is held back once (#100); for that extension.
+     *
+     * @return the buffers taken off, to put back with {@link #resumeBuffers} on the same thread
+     */
+    static List<MemoryLogger> pauseBuffers() {
+        List<MemoryLogger> paused = new ArrayList<>();
+        List<MemoryLogger> captures = captures();
+        if (captures != null) {
+            for (MemoryLogger capture : captures) {
+                if (!capture.everyLevel) {
+                    endCapture(capture);
+                    paused.add(capture);
+                }
+            }
+        }
+        return paused;
+    }
+
+    /**
+     * Puts back on the current thread the buffers that {@link #pauseBuffers()} took off it.
+     */
+    static void resumeBuffers(List<MemoryLogger> paused) {
+        for (MemoryLogger buffer : paused) {
+            startCapture(buffer);
         }
     }
 
