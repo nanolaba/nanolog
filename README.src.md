@@ -63,10 +63,6 @@ ${en:'Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](http
 implementation("${coords}:${stableVersion}")
 ```
 
-${widget:if(cond='endsWith(${devVersion}, -SNAPSHOT)')}
-${en:'`LOG.dbg` and agent mode are in the version under development,', ru:'`LOG.dbg` и агентский режим есть в версии в разработке,'} ${pom.version}${en:'; until its release take it from the snapshot repository, see', ru:'; до релиза берите её из репозитория снапшотов, см.'} [${en:'Using SNAPSHOT versions', ru:'Использование SNAPSHOT-версий'}](#${en:'using-snapshot-versions', ru:'использование-snapshot-версий'}).
-${widget:endIf}
-
 ${widget:import(path='${examples}/TryIt.java', region='tryit', wrap='true')}
 
 ```
