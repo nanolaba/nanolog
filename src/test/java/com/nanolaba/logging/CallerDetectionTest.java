@@ -171,6 +171,8 @@ class CallerDetectionTest {
         // a native image of GraalVM shows the frames of its method handles, which call the stack walker of Nanolog
         assertTrue(CallerDetection.isMachinery("com.oracle.svm.core.methodhandles.Util_java_lang_invoke_MethodHandle"));
         assertTrue(CallerDetection.isMachinery("java.lang.invoke.LambdaForm$DMH"));
+        assertTrue(CallerDetection.isMachinery("com.nanolaba.logging.CallerDetection$StackWalk$$InjectedInvoker/0x00000007c0cb6800"));
+        assertFalse(CallerDetection.isMachinery("com.acme.Invoker$Injected"));
         assertFalse(CallerDetection.isMachinery("java.lang.Integer"));
         assertFalse(CallerDetection.isMachinery("com.oracle.svmx.Caller"));
         assertFalse(CallerDetection.isMachinery("com.acme.java.lang.invoke.Handler"));

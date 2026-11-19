@@ -216,10 +216,12 @@ final class CallerDetection {
 
     /**
      * Whether a frame belongs to the method handles through which {@link StackWalk} calls the stack walker: hidden on
-     * a JVM, but shown in a native image of GraalVM, whose classes are in {@code com.oracle.svm}.
+     * a JVM, but shown in a native image of GraalVM. Their classes are in {@code java.lang.invoke} and
+     * {@code com.oracle.svm}, or are the hidden {@code $$InjectedInvoker} that the JDK makes for the caller-sensitive
+     * {@code StackWalker.getInstance}, named after the class of the lookup and without an enclosing class.
      */
     static boolean isMachinery(String className) {
-        return className.startsWith("java.lang.invoke.") || className.startsWith("com.oracle.svm.");
+        return className.startsWith("java.lang.invoke.") || className.startsWith("com.oracle.svm.") || className.contains("$$InjectedInvoker");
     }
 
     /**
