@@ -56,6 +56,14 @@ final class Settings {
     private static final String LEVEL_VARIABLE = toEnvironmentName(LEVEL_RULE);
 
     /**
+     * The property of a build that holds the version of Nanolog, {@code <version>${nanolog.version}</version>}, and its
+     * environment variable without {@code NANOLOG_}: not settings. Surefire passes {@code -Dnanolog.version=1.5} of the
+     * Maven command line to the JVMs of the tests as a system property.
+     */
+    private static final String VERSION = PROPERTY_PREFIX + "version";
+    private static final String VERSION_VARIABLE = toEnvironmentName(VERSION).substring(VARIABLE_PREFIX.length());
+
+    /**
      * The known keys without {@code nanolog.}, and the names of their environment variables without {@code NANOLOG_}.
      */
     private static final List<String> KEYS = new ArrayList<>();
@@ -105,7 +113,7 @@ final class Settings {
     }
 
     private static void property(String key, String source, List<String> findings) {
-        if (key.startsWith(PROPERTY_PREFIX) && !isKnown(key)) {
+        if (key.startsWith(PROPERTY_PREFIX) && !isKnown(key) && !key.equals(VERSION)) {
             String suggestion = suggestion(key);
             if (suggestion != null || isNanologNamespace(key.substring(PROPERTY_PREFIX.length()))) {
                 findings.add("Unknown setting \"" + key + "\" (" + source + ")" +
@@ -122,7 +130,7 @@ final class Settings {
                          toEnvironmentName(PROPERTY_LEVELS) + "=" + target + "=" + value);
         } else if (name.startsWith(VARIABLE_PREFIX)) {
             String rest = name.substring(VARIABLE_PREFIX.length());
-            if (!VARIABLES.contains(rest)) {
+            if (!VARIABLES.contains(rest) && !rest.equals(VERSION_VARIABLE)) {
                 String suggestion = closest(rest, VARIABLES);
                 if (suggestion != null || isNanologNamespace(rest.toLowerCase(Locale.ROOT).replace('_', '.'))) {
                     findings.add("Unknown environment variable " + name +

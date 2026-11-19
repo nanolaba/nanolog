@@ -174,6 +174,17 @@ class SettingsTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTheVersionOfTheDependencyIsNotASetting() {
+        // <version>${nanolog.version}</version>: Surefire passes -Dnanolog.version=1.5 to the JVMs of the tests
+        assertEquals(list(), system("nanolog.version", "1.5"));
+        assertEquals(list(), environment("NANOLOG_VERSION", "1.5"));
+        assertEquals(list(), file("nanolog.version", "1.5"));
+        assertEquals(list("Unknown setting \"nanolog.versions\" (system property)",
+                          "Unknown environment variable NANOLOG_VERSIONS"),
+                     Settings.findings(map("nanolog.versions", "1.5"), map("NANOLOG_VERSIONS", "1.5"), none(), FILE));
+    }
+
+    @Test
     public void testAKeyCopiedFromTheFileIsReportedOnceWithTheFile() {
         assertEquals(list("Unknown setting \"nanolog.levle\" (" + FILE + "); did you mean \"nanolog.level\"?"),
                      Settings.findings(map("nanolog.levle", "WARN"), none(), map("nanolog.levle", "WARN"), FILE));
