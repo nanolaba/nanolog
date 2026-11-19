@@ -183,11 +183,46 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
-    public void testACallWithAClassIsGroupedByTheClass() {
+    public void testACallWithAClassIsGroupedByTheClassAndTheMessage() {
         on();
         LOG.warn(String.class, "Explicit");
+        LOG.warn(String.class, "Other");
 
-        assertEquals("  WARN x1 at java.lang.String: Explicit", Summary.lines().get(1));
+        assertEquals(Arrays.asList("  WARN x1 at java.lang.String: Explicit", "  WARN x1 at java.lang.String: Other"),
+                     Summary.lines().subList(1, 3), "without a call site, two messages are two kinds");
+    }
+
+    @Test
+    public void testMessagesBuiltFromDataAtOneCallSiteAreOneKind() {
+        on();
+        int merge = lineOf(new Throwable()) + 2;
+        for (int id = 1; id <= 4; id++) {
+            LOG.warn("Merge of #" + id + " into #" + (id + 100) + " failed");
+        }
+        int delivery = lineOf(new Throwable()) + 2;
+        for (int id = 1; id <= 4; id++) {
+            LOG.warn("Delivery to {} failed", "user" + id + "@example.com");
+        }
+
+        assertEquals(Arrays.asList(
+                "Run summary: 8 entries: 8 WARN",
+                "  WARN x4 at " + FILE + merge + ": Merge of #1 into #101 failed (4 different messages)",
+                "  WARN x4 at " + FILE + delivery + ": Delivery to {} failed"), Summary.lines());
+    }
+
+    @Test
+    public void testTheDifferentMessagesOfACallSiteAreCountedUpToALimit() {
+        on();
+        for (int i = 0; i < Summary.MAX_MESSAGES; i++) {
+            LOG.warn("Exactly " + i);
+        }
+        for (int i = 0; i <= Summary.MAX_MESSAGES; i++) {
+            LOG.warn("More " + i);
+        }
+
+        List<String> lines = Summary.lines();
+        assertTrue(lines.get(1).endsWith(": Exactly 0 (" + Summary.MAX_MESSAGES + " different messages)"), lines.get(1));
+        assertTrue(lines.get(2).endsWith(": More 0 (" + Summary.MAX_MESSAGES + "+ different messages)"), lines.get(2));
     }
 
     @Test
@@ -225,7 +260,8 @@ class RunSummaryTest extends AbstractLoggerTest {
     public void testAtMostTenKindsAreShown() {
         on();
         for (int i = 0; i < Summary.MAX_SHOWN + 2; i++) {
-            LOG.warn("Warning " + i);
+            // with a class there is no call site: the kinds are told apart by the message
+            LOG.warn(RunSummaryTest.class, "Warning " + i);
         }
 
         List<String> lines = Summary.lines();
@@ -238,7 +274,7 @@ class RunSummaryTest extends AbstractLoggerTest {
     public void testTheKindsKeptAreBoundedButEveryEntryIsCounted() {
         on();
         for (int i = 0; i <= Summary.MAX_KEPT + 5; i++) {
-            LOG.warn("Warning " + i % (Summary.MAX_KEPT + 5));
+            LOG.warn(RunSummaryTest.class, "Warning " + i % (Summary.MAX_KEPT + 5));
         }
 
         List<String> lines = Summary.lines();
@@ -392,7 +428,7 @@ class RunSummaryTest extends AbstractLoggerTest {
     public void testExactlyTenKindsNeedNoMoreLine() {
         on();
         for (int i = 0; i < Summary.MAX_SHOWN; i++) {
-            LOG.warn("Warning " + i);
+            LOG.warn(RunSummaryTest.class, "Warning " + i);
         }
 
         assertEquals(1 + Summary.MAX_SHOWN, Summary.lines().size(), String.join(NL, Summary.lines()));

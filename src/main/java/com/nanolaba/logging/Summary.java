@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,8 +23,10 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.WARN;
  * a shutdown hook. Surefire drops what a shutdown hook of its forked JVM prints, so in a Maven test run only the
  * listeners are heard.
  * <p>
- * Counting keeps no entry: a counter per level, and per kind (level, call site and message template) a counter, of at
- * most {@link #MAX_KEPT} kinds. When the summary is off nothing is counted, and the end of the run lists only the
+ * Counting keeps no entry: a counter per level, and per kind (level and call site, or for a call with an explicit class
+ * level, class and message template) a counter, of at most {@link #MAX_KEPT} kinds. A call site that logs messages
+ * built from data, {@code "Merge of #" + id + " failed"}, is one kind: it shows its first message and how many
+ * different ones it logged, up to {@link #MAX_MESSAGES}. When the summary is off nothing is counted, and the end of the run lists only the
  * {@code LOG.dbg} calls that ran, as before.
  */
 final class Summary {
@@ -58,6 +61,10 @@ final class Summary {
      * The most characters of a message template shown.
      */
     static final int MAX_TEXT = 200;
+    /**
+     * The most different messages counted for one call site; more are shown as {@code 10+}.
+     */
+    static final int MAX_MESSAGES = 10;
     /**
      * The most lines of the trace of the first error shown.
      */
@@ -105,24 +112,46 @@ final class Summary {
     }
 
     /**
-     * One kind of warning or error: its level, where it was logged and its template, with a count.
+     * One kind of warning or error: its level and where it was logged, with its first message and a count.
      */
     private static final class Kind {
 
         final String key;
         final LogEntry.LogEntryLevel level;
         /**
-         * What follows the count: {@code at OrderService.java:87: Charge of {} failed}.
+         * What follows the count: {@code at OrderService.java:87: Charge of {} failed}, with the first message.
          */
         final String place;
         final int order;
         final AtomicLong count = new AtomicLong();
+        /**
+         * The hashes of the different messages, at most one more than {@link #MAX_MESSAGES}.
+         */
+        final Set<Integer> messages = ConcurrentHashMap.newKeySet();
 
         Kind(String key, LogEntry.LogEntryLevel level, String place, int order) {
             this.key = key;
             this.level = level;
             this.place = place;
             this.order = order;
+        }
+
+        void count(String message) {
+            count.incrementAndGet();
+            if (messages.size() <= MAX_MESSAGES) {
+                messages.add(message.hashCode());
+            }
+        }
+
+        /**
+         * {@code (4 different messages)} after the first message, when the call site logged more than one.
+         */
+        String messagesNote() {
+            int different = messages.size();
+            if (different > MAX_MESSAGES) {
+                return " (" + MAX_MESSAGES + "+ different messages)";
+            }
+            return different > 1 ? " (" + different + " different messages)" : "";
         }
     }
 
@@ -139,14 +168,17 @@ final class Summary {
         if (level.ordinal() < WARN.ordinal()) {
             return;
         }
-        String place = " at " + where(entry) + ": " + template(entry);
-        String key = level.name() + place;
+        String site = " at " + where(entry);
+        String template = template(entry);
+        String place = site + ": " + template;
+        // a call site is one kind, whatever messages it builds; without a call site the message tells kinds apart
+        String key = level.name() + (entry.getCaller() != null ? site : place);
         Kind kind = KINDS.get(key);
         if (kind == null && KINDS.size() < MAX_KEPT) {
             kind = KINDS.computeIfAbsent(key, k -> new Kind(k, level, place, ORDER.getAndIncrement()));
         }
         if (kind != null) {
-            kind.count.incrementAndGet();
+            kind.count(template);
         }
         if (level == ERROR && entry.getThrowable() != null && FIRST_ERROR.get() == null) {
             FIRST_ERROR.compareAndSet(null, new String[]{key, trace(entry.getThrowable())});
@@ -198,7 +230,7 @@ final class Summary {
         kinds.sort(Comparator.comparingInt((Kind kind) -> -kind.level.ordinal()).thenComparingInt(kind -> kind.order));
         String[] firstError = FIRST_ERROR.get();
         for (Kind kind : kinds.subList(0, Math.min(MAX_SHOWN, kinds.size()))) {
-            lines.add(INDENT + kind.level.name() + " x" + kind.count.get() + kind.place);
+            lines.add(INDENT + kind.level.name() + " x" + kind.count.get() + kind.place + kind.messagesNote());
             if (firstError != null && firstError[0].equals(kind.key)) {
                 addTrace(lines, firstError[1]);
             }
