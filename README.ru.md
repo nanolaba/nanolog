@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.3-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.3)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.4-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.4)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
@@ -35,15 +35,14 @@ Nanolog для Java (`com.nanolaba:nanolog`) не связан с [NanoLog](http
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.3</version>
+    <version>1.4</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("com.nanolaba:nanolog:1.3")
+implementation("com.nanolaba:nanolog:1.4")
 ```
 
-`LOG.dbg` и агентский режим есть в версии в разработке, 1.4-SNAPSHOT; до релиза берите её из репозитория снапшотов, см. [Использование SNAPSHOT-версий](#использование-snapshot-версий).
 
 ```java
 import com.nanolaba.logging.LOG;
@@ -98,7 +97,7 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 
 Как Nanolog выглядит рядом с tinylog, SLF4J, Log4j 2, Flogger и другими: [Похожие проекты](#похожие-проекты).
 
-Последняя стабильная версия — **1.3**; версия в разработке — **1.4-SNAPSHOT** (см. [Changelog](#changelog)).
+Последняя стабильная версия — **1.4**.
 
 <details>
 <summary>Содержание</summary>
@@ -149,20 +148,19 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 	- 21.1 [Обёртки над LOG](#обёртки-над-log)
 - 22 [Собственный логгер](#собственный-логгер)
 - 23 [Потокобезопасность и производительность](#потокобезопасность-и-производительность)
-- 24 [Использование SNAPSHOT-версий](#использование-snapshot-версий)
-- 25 [Похожие проекты](#похожие-проекты)
-	- 25.1 [Статические фасады](#статические-фасады)
-	- 25.2 [Распространённые логгеры](#распространённые-логгеры)
-	- 25.3 [Рядом с tinylog 2.8.1](#рядом-с-tinylog-281)
-	- 25.4 [Когда лучше подойдёт другой логгер](#когда-лучше-подойдёт-другой-логгер)
-- 26 [Changelog](#changelog)
-	- 26.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 26.2 [1.3](#13)
-	- 26.3 [1.2](#12)
-	- 26.4 [1.1](#11)
-	- 26.5 [1.0](#10)
-- 27 [Участие в разработке](#участие-в-разработке)
-- 28 [Лицензия](#лицензия)
+- 24 [Похожие проекты](#похожие-проекты)
+	- 24.1 [Статические фасады](#статические-фасады)
+	- 24.2 [Распространённые логгеры](#распространённые-логгеры)
+	- 24.3 [Рядом с tinylog 2.8.1](#рядом-с-tinylog-281)
+	- 24.4 [Когда лучше подойдёт другой логгер](#когда-лучше-подойдёт-другой-логгер)
+- 25 [Changelog](#changelog)
+	- 25.1 [1.4](#14)
+	- 25.2 [1.3](#13)
+	- 25.3 [1.2](#12)
+	- 25.4 [1.1](#11)
+	- 25.5 [1.0](#10)
+- 26 [Участие в разработке](#участие-в-разработке)
+- 27 [Лицензия](#лицензия)
 
 
 </details>
@@ -175,7 +173,7 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.3</version>
+    <version>1.4</version>
 </dependency>
 ```
 
@@ -183,14 +181,14 @@ DBG [TryIt.main(TryIt.java:11)] price.multiply(BigDecimal.valueOf(quantity)) = 1
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.3'
+    implementation 'com.nanolaba:nanolog:1.4'
 }
 ```
 
 <details>
 <summary>Скачивание вручную</summary>
 
-Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.3) и добавьте его в classpath.
+Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4) и добавьте его в classpath.
 
 </details>
 
@@ -290,7 +288,7 @@ ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать 
 | `LOG.installUncaughtExceptionHandler()` | записывать исключения, которые убивают потоки, и передавать их прежнему обработчику |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | универсальная точка входа, к которой сводятся все перегрузки |
 
-Каждый класс и метод описан в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), который IDE показывают и из jar с исходниками.
+Каждый класс и метод описан в [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4), который IDE показывают и из jar с исходниками.
 
 ## Меньше токенов: логи для ИИ-агентов
 
@@ -332,7 +330,7 @@ ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать 
 - **Привычки из SLF4J работают.** Те же плейсхолдеры `{}`, а исключение можно передать первым или последним: `LOG.error("Failed to load {}", id, e)` печатает трассировку стека так же, как SLF4J.
 - **Вызов лога не может уронить запуск.** Логирование никогда не бросает исключений: сломанный `toString()`, ленивое сообщение с падающей лямбдой, `null` или неверное число аргументов для `{}` превращаются в читаемое сообщение, а не в исключение. При этом в тестовых запусках `-Dnanolog.strict=true` сообщает о таких несовпадениях вместе с местом вызова, чтобы их исправили, а не оставили незамеченными.
 - **Повторяющиеся строки не вытесняют остальное.** Цикл повторов или переполненная очередь может напечатать одну и ту же строку тысячи раз и вытолкнуть нужную строку из контекстного окна. `LOG.once()` и `LOG.atMostEvery(10, TimeUnit.SECONDS)` сводят такую строку к одной или к одной за интервал, а следующая напечатанная запись сообщает `[skipped 241]`; см. [Ограничение частоты](#ограничение-частоты).
-- **Вся библиотека помещается в контекстное окно.** Один пакет небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
+- **Вся библиотека помещается в контекстное окно.** Один пакет небольших классов, одна точка входа, этот README и [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4). У каждого публичного метода есть Javadoc, поэтому IDE и jar с исходниками отвечают так же, как этот файл. Агент читает всё нужное за один проход, и ему не приходится сначала строить карту фреймворка.
 - **Зелёные тесты молчат.** `@ExtendWith(NanologExtension.class)` печатает лог теста, только если он упал, в рамке с его именем, поэтому прогон пятисот тестов показывает лог одного упавшего теста. См. [Логи в тестах](#логи-в-тестах-только-упавших).
 - **Для перехвата лога в тесте хватает одной строки.** `try (MemoryLogger log = MemoryLogger.install())` хранит записи в памяти и потом возвращает прежний логгер, поэтому записанное в лог проверяется без mock-фреймворка; см. [MemoryLogger и CompositeLogger](#memorylogger-и-compositelogger).
 - **Конец вывода говорит, что произошло.** В агентском режиме запуск заканчивается сводкой: число записей по уровням, каждый вид предупреждений и ошибок с местом вызова и числом повторений, трассировка первой ошибки и путь к полному логу. Она сохраняется, когда агент оставляет только хвост. См. [Сводка запуска](#сводка-запуска-часть-вывода-которая-переживает-обрезку).
@@ -1539,44 +1537,6 @@ public class CustomLogger implements ILogger {
 - Вызов уровня, выключенного для всех классов, стоит одну проверку `mayBeEnabled`, а с явным классом — одну проверку `isEnabled`. Если уровень включён для какого-то пакета или класса, вызов без явного класса стоит обхода стека и проверки `isEnabled` даже там, где уровень выключен: одно правило вроде `nanolog.level.com.acme.db=TRACE` заставляет каждый вызов `trace` без класса обходить стек. Форматирование сообщения и `Supplier` вычисляются только для включённых уровней.
 - Замеры JMH на JDK 17 (Ryzen 5 5600X, Windows 10): вызов уровня, выключенного для всех классов, занимает около 2 нс без класса и 7 нс с явным классом. Обход стека — цена вызова без класса для уровня, включённого хотя бы для одного класса, — стоит около 2,5 мкс у вершины стека и 3 мкс на глубине 100 кадров; на Java 8, где нет `StackWalker`, — около 5 и 8 мкс. Включённая строка через `ConsoleLogger` занимает меньше 1 мкс плюс обход, если класс не передан. Другие JDK и методика: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
-## Использование SNAPSHOT-версий
-
-Сборки версии в разработке публикуются в репозиторий снапшотов Sonatype. Подключите его и укажите версию с суффиксом `-SNAPSHOT`:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.4-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.4-SNAPSHOT'
-}
-```
 
 ## Похожие проекты
 
@@ -1740,7 +1700,7 @@ tinylog — ближайший аналог. Одни и те же вызовы,
 
 ## Changelog
 
-### 1.4-SNAPSHOT
+### 1.4
 
 - Агентский режим: когда окружение называет кодового агента (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), консоль логгера по умолчанию показывает `WARN` и выше, по строке на запись, без дат и цветов и с короткими трассировками стека, `LOG.dbg` печатает при любых уровнях, журнал запуска включён, а одна строка `[NANOLOG]` сообщает об этом и называет файл. Решает `nanolog.agent=auto|on|off`; явно заданные уровень или настройка вывода главнее.
 - Документация: что экономит агентский режим, в токенах. Четыре запуска небольшого проекта в `src/tokens` и скрипт, который их повторяет; упавший тестовый запуск напечатал 1 022 токена вместо 13 577 (o200k_base). См. [Меньше токенов](#меньше-токенов-логи-для-ии-агентов).

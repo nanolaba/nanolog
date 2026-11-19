@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.3-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.3)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.4-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.4)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
@@ -35,15 +35,14 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.3</version>
+    <version>1.4</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("com.nanolaba:nanolog:1.3")
+implementation("com.nanolaba:nanolog:1.4")
 ```
 
-`LOG.dbg` and agent mode are in the version under development, 1.4-SNAPSHOT; until its release take it from the snapshot repository, see [Using SNAPSHOT versions](#using-snapshot-versions).
 
 ```java
 import com.nanolaba.logging.LOG;
@@ -98,7 +97,7 @@ More in [Agent mode](#agent-mode-nanolog-detects-coding-agents) and [Fewer token
 
 How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related projects](#related-projects).
 
-The latest stable version is **1.3**; the version under development is **1.4-SNAPSHOT** (see [Changelog](#changelog)).
+The latest stable version is **1.4**.
 
 <details>
 <summary>Table of contents</summary>
@@ -149,20 +148,19 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 	- 21.1 [Logging helpers](#logging-helpers)
 - 22 [Writing your own logger](#writing-your-own-logger)
 - 23 [Thread safety and performance](#thread-safety-and-performance)
-- 24 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 25 [Related projects](#related-projects)
-	- 25.1 [Static facades](#static-facades)
-	- 25.2 [Mainstream loggers](#mainstream-loggers)
-	- 25.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 25.4 [When another logger fits better](#when-another-logger-fits-better)
-- 26 [Changelog](#changelog)
-	- 26.1 [1.4-SNAPSHOT](#14-snapshot)
-	- 26.2 [1.3](#13)
-	- 26.3 [1.2](#12)
-	- 26.4 [1.1](#11)
-	- 26.5 [1.0](#10)
-- 27 [Contributing](#contributing)
-- 28 [License](#license)
+- 24 [Related projects](#related-projects)
+	- 24.1 [Static facades](#static-facades)
+	- 24.2 [Mainstream loggers](#mainstream-loggers)
+	- 24.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 24.4 [When another logger fits better](#when-another-logger-fits-better)
+- 25 [Changelog](#changelog)
+	- 25.1 [1.4](#14)
+	- 25.2 [1.3](#13)
+	- 25.3 [1.2](#12)
+	- 25.4 [1.1](#11)
+	- 25.5 [1.0](#10)
+- 26 [Contributing](#contributing)
+- 27 [License](#license)
 
 
 </details>
@@ -175,7 +173,7 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.3</version>
+    <version>1.4</version>
 </dependency>
 ```
 
@@ -183,14 +181,14 @@ The latest stable version is **1.3**; the version under development is **1.4-SNA
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.3'
+    implementation 'com.nanolaba:nanolog:1.4'
 }
 ```
 
 <details>
 <summary>Manual download</summary>
 
-Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.3) and add it to the classpath.
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4) and add it to the classpath.
 
 </details>
 
@@ -290,7 +288,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
-Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3), which IDEs also show from the sources jar.
+Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4), which IDEs also show from the sources jar.
 
 ## Fewer tokens: logs for AI coding agents
 
@@ -332,7 +330,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of going unnoticed.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, or to one line per interval, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
-- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.3). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Green tests stay quiet.** `@ExtendWith(NanologExtension.class)` prints the log of a test only when the test fails, framed by its name, so a run of five hundred tests shows the log of the one that broke. See [Logs in tests](#logs-in-tests-only-the-failing-ones).
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The end of the output says what happened.** In agent mode the run ends with a summary: the counts by level, each kind of warning and error with its call site and count, the trace of the first error and the path of the full log. It survives when the agent keeps only the tail. See [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
@@ -1539,44 +1537,6 @@ A logger that throws does not break the code that logs. The first failure of eac
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. If a level is on for some package or class, a call at that level without an explicit class costs one stack walk and an `isEnabled` check even where the level is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 - Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 5 µs and 8 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
-## Using SNAPSHOT versions
-
-Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.4-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.4-SNAPSHOT'
-}
-```
 
 ## Related projects
 
@@ -1740,7 +1700,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 
 ## Changelog
 
-### 1.4-SNAPSHOT
+### 1.4
 
 - Agent mode: when the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT`, `CLINE_ACTIVE`), the console of the default logger shows `WARN` and above, one line per entry, without dates or colours and with short stack traces, `LOG.dbg` prints whatever the levels, the run log is on, and one `[NANOLOG]` line says so and names the file. `nanolog.agent=auto|on|off` decides; an explicitly set level or display setting wins.
 - Documentation: what agent mode saves, measured in tokens. Four runs of a small project in `src/tokens`, with the script that repeats them; a failing test run printed 1,022 tokens instead of 13,577 (o200k_base). See [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
