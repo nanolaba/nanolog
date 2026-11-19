@@ -12,7 +12,7 @@
 Maintainer note: this template generates llms.txt and skills/nanolog/SKILL.md during mvn compile. Edit it, never the outputs.<!--nrg.ignore-->
 ---<!--skill-->
 name: nanolog<!--skill-->
-description: Use when writing, reviewing or debugging Java code that logs through Nanolog (com.nanolaba:nanolog, the static com.nanolaba.logging.LOG class), when adding log calls to a project that depends on it, when reading its output as a coding agent, when asserting log output in its tests, or when the user asks to set up logging in a Java project or to cut what an agent reads from Maven or Gradle test output. Covers the call shapes, the rules that differ from SLF4J, print debugging with LOG.dbg, agent mode, which cuts the tokens an agent reads from a failing test run from 13,577 to 1,022 (o200k_base), the run summary and the run log, settings without code changes and capturing entries in tests.<!--skill-->
+description: Use when writing, reviewing or debugging Java code that logs through Nanolog (com.nanolaba:nanolog, the static com.nanolaba.logging.LOG class), when adding log calls to a project that depends on it, when reading its output as a coding agent, when asserting log output in its tests, or when the user asks to set up logging in a Java project or to cut what an agent reads from Maven or Gradle test output. Covers the call shapes, the rules that differ from SLF4J, print debugging with LOG.dbg, agent mode, which cuts the tokens an agent reads from a failing test run from 13,577 to 1,058 (o200k_base), the run summary and the run log, settings without code changes and capturing entries in tests.<!--skill-->
 ---<!--skill-->
 <!--skill-->
 # Nanolog
@@ -101,8 +101,8 @@ When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `G
 [NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /app/target/nanolog/latest.log, WARN and ERROR also in /app/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
 ```
 
-- Read `latest.log` (every level, thread, call site, whole stack traces) instead of running again with another level or filter.
-- The run ends with `[NANOLOG] Run summary: ...`, printed last: the counts by level, each kind of `WARN` and `ERROR` with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of `latest.log`; with several Surefire forks, each fork's own file under `runs/` *1.5+*. Read it first; it survives `| tail`. `NANOLOG_SUMMARY=on` prints it outside agent mode too, `errors` only after a `WARN` or `ERROR`, `off` never.
+- Read the file that line names (every level, thread, call site, whole stack traces) instead of running again with another level or filter: `latest.log`, or, in tests run by Maven or Gradle, the fork's own file under `runs/` *1.5+*.
+- The run ends with `[NANOLOG] Run summary: ...`, printed last: the counts by level, each kind of `WARN` and `ERROR` with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the full log. Read it first; it survives `| tail`. `NANOLOG_SUMMARY=on` prints it outside agent mode too, `errors` only after a `WARN` or `ERROR`, `off` never.
 - `LOG.dbg` prints whatever the levels. `NANOLOG_LEVEL=DEBUG` brings more to the console.
 - `NANOLOG_AGENT=off` turns agent mode off; `NANOLOG_AGENT=on` turns it on where the variables do not reach (`sudo`, `docker run`, `ssh`).
 - A test that reads the console output of the default logger sees less under an agent: capture entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM.

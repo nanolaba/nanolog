@@ -1,16 +1,16 @@
 # What agent mode saves a coding agent
 
-Measured on 2026-11-18 with `src/tokens/measure.py`, Nanolog 1.4-SNAPSHOT at commit `c783d3c`; measured again on 2026-11-19 at commit `dab574c`, before the 1.4 release, with the same counts. Environment: Windows 10, JDK 1.8.0_421, Maven 3.9.16, Surefire 3.2.5, Python 3.10.6, `tiktoken` 0.14.0. The project lives in `P:\github\nanolaba\nanolog\src\tokens\shop`, and its absolute paths appear in the output. Nanolog runs with its default settings, so the level is `TRACE`.
+Measured on 2026-11-18 with `src/tokens/measure.py`, Nanolog 1.4-SNAPSHOT at commit `c783d3c`; measured again on 2026-11-19 at commit `dab574c`, before the 1.4 release, with the same counts; and on 2026-11-19 at Nanolog 1.5-SNAPSHOT with the fix of #96, where a Surefire fork names its own file under `runs/` instead of `latest.log` in the agent line and the run summary: 36 tokens more in each run with agent mode, the same counts without it. Environment: Windows 10, JDK 1.8.0_421, Maven 3.9.16, Surefire 3.2.5, Python 3.10.6, `tiktoken` 0.14.0. The project lives in `P:\github\nanolaba\nanolog\src\tokens\shop`, and its absolute paths appear in the output. Nanolog runs with its default settings, so the level is `TRACE`.
 
 Each row compares the whole output of `mvn -q test -Dtest=<class>`, stdout and stderr together, which is what an agent reads. The first value is without agent mode, the second with `AI_AGENT=claude-code` and `CLAUDECODE=1` set, as Claude Code sets them.
 
 | Scenario | Lines | Characters | Tokens, o200k_base |
 |---|---|---|---|
-| a. A test logs 200 orders and fails on order 150 (a deadlock with a cause) | 558 → 43 (13.0×) | 39,355 → 3,771 (10.4×) | 13,577 → 1,022 (13.3×) |
-| b. A green test of a job that logs `INFO` and `DEBUG` for each of 300 records | 602 → 2 (301×) | 44,513 → 459 (97×) | 16,550 → 142 (117×) |
-| c. A green test whose retry loop logs the same `WARN` 300 times | 301 → 5 (60×) | 31,881 → 776 (41×) | 9,925 → 223 (44.5×) |
-| d. A test fails with an exception thrown inside a stream pipeline | 120 → 45 (2.7×) | 10,862 → 3,739 (2.9×) | 2,427 → 1,016 (2.4×) |
-| All four | 1,581 → 95 | 126,611 → 8,745 | 42,479 → 2,403 (17.7×) |
+| a. A test logs 200 orders and fails on order 150 (a deadlock with a cause) | 558 → 43 (13.0×) | 39,355 → 3,843 (10.2×) | 13,577 → 1,058 (12.8×) |
+| b. A green test of a job that logs `INFO` and `DEBUG` for each of 300 records | 602 → 2 (301×) | 44,513 → 531 (84×) | 16,550 → 178 (93×) |
+| c. A green test whose retry loop logs the same `WARN` 300 times | 301 → 5 (60×) | 31,881 → 848 (38×) | 9,925 → 259 (38.3×) |
+| d. A test fails with an exception thrown inside a stream pipeline | 120 → 45 (2.7×) | 10,862 → 3,811 (2.9×) | 2,427 → 1,052 (2.3×) |
+| All four | 1,581 → 95 | 126,611 → 9,033 | 42,479 → 2,547 (16.7×) |
 
 ## Reading the numbers
 

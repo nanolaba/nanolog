@@ -17,7 +17,7 @@
 **Nanolog** is a zero-dependency logging library for Java 8+ that keeps console output short when an AI
 coding agent runs your code. Under Claude Code, Codex, Gemini CLI or Cursor CLI the console keeps
 warnings, errors and `LOG.dbg`, one line each, and the run ends with a summary; the full log goes
-to a file. A failing test run printed 1,022 tokens instead of 13,577 (o200k_base, see
+to a file. A failing test run printed 1,058 tokens instead of 13,577 (o200k_base, see
 [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents)). Without an agent the console prints every level.
 
 Every call goes through the static methods of `LOG`, and the source class is detected automatically,
@@ -80,7 +80,7 @@ More in [Agent mode](#agent-mode-nanolog-detects-coding-agents) and [Fewer token
 
 ## Why Nanolog
 
-- **Fewer tokens for AI coding agents.** *Since 1.4.* When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`. A failing test run printed 1,022 tokens instead of 13,577, the run summary included, and a green one 142 instead of 16,550 (o200k_base); see [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
+- **Fewer tokens for AI coding agents.** *Since 1.4.* When Claude Code, Gemini CLI, Codex, Cursor CLI or another agent that sets `AI_AGENT` runs the program, the console keeps `WARN`, `ERROR` and `LOG.dbg`, and the full log goes to `target/nanolog/latest.log`. A failing test run printed 1,058 tokens instead of 13,577, the run summary included, and a green one 178 instead of 16,550 (o200k_base); see [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents).
 - **A summary that survives truncation.** *Since 1.4.* Agents often keep only the head and the tail of a long output; in agent mode the run ends with the counts by level, each kind of warning and error with its call site, and the trace of the first error; see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 - **Print debugging that names its values.** *Since 1.4.* `LOG.dbg(order.total())` prints `order.total() = 129.90 (BigDecimal)` with the file and line of the call and returns the value, like `dbg!` in Rust and icecream in Python; objects without `toString()` are shown field by field instead of `Order@2f92e0f4`; see [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 - **Wide events, one line per request.** *Since 1.4.* `LOG.unit("checkout")` writes one canonical log line per request or job when it ends: outcome, duration, your fields and the count of warnings and errors logged inside it, `checkout ok 182 ms orderId=A-17 warn=1`; failed units carry a stable error key; see [Wide events](#wide-events-one-line-per-request-canonical-log-lines).
@@ -299,12 +299,12 @@ A coding agent pays for every token of output it reads, and a test run competes 
 
 | Run | Lines | Tokens, o200k_base |
 |---|---|---|
-| A test logs 200 orders and fails; the error has a cause | 558 → 43 | 13,577 → 1,022 (13.3×) |
-| A green test of a job that logs `INFO` and `DEBUG` for each of 300 records | 602 → 2 | 16,550 → 142 (117×) |
-| A green test whose retry loop logs the same `WARN` 300 times | 301 → 5 | 9,925 → 223 (44.5×) |
-| A test fails with an exception thrown inside a stream pipeline | 120 → 45 | 2,427 → 1,016 (2.4×) |
+| A test logs 200 orders and fails; the error has a cause | 558 → 43 | 13,577 → 1,058 (12.8×) |
+| A green test of a job that logs `INFO` and `DEBUG` for each of 300 records | 602 → 2 | 16,550 → 178 (93×) |
+| A green test whose retry loop logs the same `WARN` 300 times | 301 → 5 | 9,925 → 259 (38.3×) |
+| A test fails with an exception thrown inside a stream pipeline | 120 → 45 | 2,427 → 1,052 (2.3×) |
 
-Measured on 2026-11-18 on Windows 10, JDK 8, Maven 3.9 and Surefire 3.2.5, with the default settings. The counts include everything Maven printed, Surefire's report of a failure too, and agent mode leaves that report as it is; that is why the last run saves the least. o200k_base is the tokenizer of OpenAI's GPT-4o and later models; Claude tokens have not been counted yet. The project, the script and the full table with character counts are in [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` repeats the runs, and counts Claude tokens as well when an Anthropic API key is set.
+Measured on 2026-11-19 on Windows 10, JDK 8, Maven 3.9 and Surefire 3.2.5, with the default settings. The counts include everything Maven printed, Surefire's report of a failure too, and agent mode leaves that report as it is; that is why the last run saves the least. o200k_base is the tokenizer of OpenAI's GPT-4o and later models; Claude tokens have not been counted yet. The project, the script and the full table with character counts are in [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` repeats the runs, and counts Claude tokens as well when an Anthropic API key is set.
 
 Where the tokens go:
 
@@ -348,19 +348,19 @@ Coding agents read program output through a narrow window: a long output is cut 
 A test that logs 200 orders and fails on order 150 prints this under Claude Code:
 
 ```
-[NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /home/me/shop/target/nanolog/latest.log, WARN and ERROR also in /home/me/shop/target/nanolog/latest.errors.log; nanolog.agent=off turns it off
+[NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; the full log is in /home/me/shop/target/nanolog/runs/20261117-101502-311-4821.log, WARN and ERROR also in /home/me/shop/target/nanolog/runs/20261117-101502-311-4821.errors.log; nanolog.agent=off turns it off
 WARN [OrderService] Order 150: stock of SKU A-7 below the threshold
 ERROR [OrderServiceTest] The batch failed java.lang.IllegalStateException: Cannot reserve stock for order 150\n	at com.acme.shop.OrderService.reserve(OrderService.java:32)\n	at com.acme.shop.OrderService.process(OrderService.java:20)\n	at com.acme.shop.OrderServiceTest.processesTheDailyBatch(OrderServiceTest.java:16)\n	... 71 frames excluded\nCaused by: java.sql.SQLException: Deadlock found when trying to get lock; order 150\n	at com.acme.shop.OrderService.update(OrderService.java:38)\n	at com.acme.shop.OrderService.reserve(OrderService.java:30)\n	... 73 more
 ```
 
 The run then ends with the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
 
-Without agent mode the same run printed 530 lines of **Nanolog** output: three lines per order with dates, then the stack trace with every frame of JUnit, Surefire and reflection. The whole `mvn -q test` output went from 558 lines, 39,355 characters and 13,577 tokens to 43 lines, 3,771 characters and 1,022 tokens, the run summary included (JDK 8, Maven 3.9, Surefire 3.2.5, on Windows, with long absolute paths), and `latest.log` still holds all 451 entries. The project of this example is in [`src/tokens`](src/tokens); [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents) has three more runs.
+Without agent mode the same run printed 530 lines of **Nanolog** output: three lines per order with dates, then the stack trace with every frame of JUnit, Surefire and reflection. The whole `mvn -q test` output went from 558 lines, 39,355 characters and 13,577 tokens to 43 lines, 3,843 characters and 1,058 tokens, the run summary included (JDK 8, Maven 3.9, Surefire 3.2.5, on Windows, with long absolute paths), and `latest.log` still holds all 451 entries. The project of this example is in [`src/tokens`](src/tokens); [Fewer tokens](#fewer-tokens-logs-for-ai-coding-agents) has three more runs.
 
 - **Detection.** Agent mode is on when one of these variables is set to anything but `0`, `false`, `no` or `off`: `AI_AGENT` and `AGENT`, the convention proposed in [agents.md #136](https://github.com/agentsmd/agents.md/issues/136), then `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `CODEX_CI`, `CURSOR_AGENT`, `VSCODE_AGENT` and `CLINE_ACTIVE`. Claude Code, for one, sets `AI_AGENT` and `CLAUDECODE`. Environment variables are lost across `sudo`, `docker run` and `ssh`, so detection is a hint: `nanolog.agent=on` or `off` (`NANOLOG_AGENT`) decides instead.
 - **The console.** `WARN` and above, unless `nanolog.level` or a package rule says otherwise. One line per entry, with line breaks written as `\n`, a Windows line separator as `\r\n` (`nanolog.console.multiline=escape`), no date and no colours, and consecutive repeats collapsed into one line with a count (`nanolog.console.repeats=collapse`), unless these settings are given. Stack traces collapse runs of frames of the JDK, Kotlin, test runners, build tools and common frameworks and servers (Spring, Tomcat, Jetty, Netty, Hibernate), print at most 20 frames per throwable and keep every cause; `nanolog.exception.exclude` and `nanolog.exception.maxFrames` replace these defaults.
 - **`LOG.dbg` prints whatever the levels**: the agent put it there to see the value. `nanolog.dbg=off` still silences it.
-- **The run log is on** and keeps every level, the date, the thread, the call site and the whole stack trace, so the agent reads `latest.log` instead of running again with another level; `nanolog.run=off` turns it off. See [Run log](#run-log).
+- **The run log is on** and keeps every level, the date, the thread, the call site and the whole stack trace, so the agent reads it instead of running again with another level; `nanolog.run=off` turns it off. See [Run log](#run-log).
 - **One line says what happened**, once per JVM: what turned agent mode on, what the console shows and where the full log is.
 - **The run ends with a summary**: see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation); `nanolog.summary=off` turns it off.
 - **Only Nanolog's own output changes.** The defaults above apply to the default logger, `ConsoleLogger` or `JsonLogger`; a logger set with `LOG.init(logger)`, or another class named by `nanolog.logger`, keeps its settings. A test that reads what the default logger prints to the console sees less under an agent: capture the entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM (`environmentVariables` of Surefire).
@@ -372,7 +372,7 @@ Without agent mode the same run printed 530 lines of **Nanolog** output: three l
 A coding agent often sees only the start and the end of a long output. Claude Code shows a failing command as an excerpt of its head and tail, about 10,000 characters ([tools reference](https://code.claude.com/docs/en/tools-reference)); Cursor cuts the output of a command at 20,000 characters ([forum](https://forum.cursor.com/t/the-20k-40k-character-loss-zone-for-the-shell-tool/163017)); agents add `| tail -30` themselves and rarely ask for the rest ([Agents Don't Paginate](https://arxiv.org/abs/2608.26130)). The error that matters is often in the part that was dropped. **Nanolog** prints a summary of the run last, where it survives.
 
 ```
-[NANOLOG] Run summary: 451 entries: 1 ERROR, 1 WARN, 150 INFO, 299 DEBUG; the full log is in /home/me/shop/target/nanolog/latest.log
+[NANOLOG] Run summary: 451 entries: 1 ERROR, 1 WARN, 150 INFO, 299 DEBUG; the full log is in /home/me/shop/target/nanolog/runs/20261117-101502-311-4821.log
 [NANOLOG]   ERROR x1 at OrderServiceTest.java:19: The batch failed
 [NANOLOG]       java.lang.IllegalStateException: Cannot reserve stock for order 150
 [NANOLOG]           at com.acme.shop.OrderService.reserve(OrderService.java:32)
@@ -405,7 +405,7 @@ With `nanolog.run=on` (`NANOLOG_RUN=on`) every entry of the run also goes to a f
 
 - **Where.** `target/nanolog` in a Maven module, `build/nanolog` in a Gradle one, `.nanolog` otherwise, which gets a `.gitignore`; `nanolog.run.dir` names another directory. The absolute path is printed when `LOG` initialises, because search tools often skip ignored `*.log` files.
 - **What.** `latest.log` holds every entry, with the thread and the call site; `nanolog.run.format=json` writes the lines of `JsonLogger` instead, ready for `jq`. `latest.errors.log` holds each `WARN` and `ERROR` as one line, cheap to follow with `tail -f`.
-- **History.** Each run writes `runs/<time>-<pid>.log`, and `latest.log` is a second name of the newest one, a hard link, so it shows the run live and is written once. The last 10 runs are kept (`nanolog.run.keep`); a file stops at 100 MB with a note (`nanolog.run.maxSize`). Where hard links are not supported, or once a later run in the same directory has taken `latest.log`, such as another Surefire fork with `forkCount` above 1, the path of the run's own file is printed instead of `latest.log`, in the run summary as well: each fork names the file with its own entries.
+- **History.** Each run writes `runs/<time>-<pid>.log`, and `latest.log` is a second name of the newest one, a hard link, so it shows the run live and is written once. The last 10 runs are kept (`nanolog.run.keep`); a file stops at 100 MB with a note (`nanolog.run.maxSize`). Where hard links are not supported, or once a later run in the same directory has taken `latest.log`, the path of the run's own file is printed instead of `latest.log`, in the run summary as well. A JVM in which Maven Surefire or Failsafe or Gradle runs tests prints the path of its own file from the start: several of them may run in one module, side by side (`forkCount` above 1) or one after another (`reuseForks=false`), and each takes `latest.log` from the one before, so each fork names the file with its own entries.
 - **Levels.** The run log reads `nanolog.level` and the package rules as `ConsoleLogger` does, but keeps levels of its own: `LOG.setLevel` changes both, and a console that shows less leaves the file complete.
 - **Safe.** An entry is on disk as soon as it is logged, even if the JVM is killed. An I/O error prints one `[NANOLOG]` line and turns the run log off; logging goes on. The file is opened once per JVM: `LOG.init()` keeps writing it, and so does a logger installed with `LOG.init(logger)` or `MemoryLogger.install()`, Spring's `Slf4jLogger` for one: the run log is added to it, and `LOG.getLogger()` returns a `CompositeLogger` of both. A decorator that passes each entry on to the logger `LOG.getLogger()` returned, and `MemoryLogger.installForwarding()`, write each entry to the file once.
 
@@ -1746,7 +1746,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 - "Logger replaced" no longer attributes a reflective `LOG.init` to `jdk.internal.reflect`: a call through reflection belongs to the code that made it, and the fallback caller detection passes over the frames of reflection as the stack walker does. A container named in `nanolog.caller.skip`, such as `org.springframework` for `MethodInvokingBean`, installs the logger for the application, and its calls are never reported.
 - Run summary: warnings and errors are grouped by level and call site, so a call site that builds its messages from data is one kind, shown with its first message and `(4 different messages)`, up to `(10+ different messages)`, instead of filling the list with one kind per value. A call with an explicit class, which has no call site, is still told apart by its message.
 - `nanolog.version`, the Maven property that holds the version of the dependency, no longer prints `Unknown setting` when it is set on the command line, where Surefire passes it to the JVMs of the tests as a system property. `NANOLOG_VERSION` is not reported either.
-- Run log with `forkCount` above 1: a Surefire fork whose `latest.log` a later fork has taken names its own file, `runs/<time>-<pid>.log`, in its run summary, so each fork points to the file with its own entries. Before, every fork pointed to `latest.log`, which held only the fork that started last. The summary is printed in one piece, so the summaries of two forks that end together no longer mix line by line.
+- Run log in tests run by Maven or Gradle: a JVM in which Surefire, Failsafe or Gradle runs tests names its own file, `runs/<time>-<pid>.log`, at the start and in the run summary, so with `forkCount` above 1 or `reuseForks=false` each fork points to the file with its own entries for the whole run. Before, every fork pointed to `latest.log`, which held only the fork that started last. Elsewhere a run names `latest.log` while it is the file of the run, and its own file once a later run has taken it. The summary is printed in one piece, so the summaries of two forks that end together no longer mix line by line.
 
 ### 1.4
 

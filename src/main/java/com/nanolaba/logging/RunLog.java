@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.*;
 
@@ -26,7 +27,8 @@ import static com.nanolaba.logging.DefaultLoggerCreator.*;
  * Each run writes {@code runs/<time>-<pid>.log} and {@code runs/<time>-<pid>.errors.log} in the directory;
  * {@code latest.log} and {@code latest.errors.log} are hard links to them, so they are written once and show the run
  * live. A run names {@code latest.log} while it is a name of its file, and its own file once a later run in the same
- * directory has taken {@code latest.log}, such as another fork of Surefire (#93). The last {@code nanolog.run.keep}
+ * directory has taken {@code latest.log} (#93); a test JVM of Maven or Gradle names its own file from the start, since
+ * another fork of the same module may take {@code latest.log} at any moment (#96). The last {@code nanolog.run.keep}
  * runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
  * <p>
  * The run log is a {@link ConsoleLogger} with its own levels, read from the same settings, so a console kept short
@@ -45,6 +47,10 @@ final class RunLog extends ConsoleLogger {
     private static final String[] GRADLE_FILES = {"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"};
     private static final String TRUNCATED = "The run log reached " + PROPERTY_RUN_MAX_SIZE + "; later entries are not written";
     private static final long MB = 1024 * 1024;
+    private static final String SUREFIRE_BOOTER = "org.apache.maven.surefire.booter.ForkedBooter";
+    private static final String GRADLE_WORKER = "worker.org.gradle.process.internal.worker.GradleWorkerMain";
+    // the manifest-only jar of Surefire, target/surefire/surefirebooter-20261119171605286_3.jar, and its arguments
+    private static final Pattern SUREFIRE_JAR = Pattern.compile("(?s).*[\\\\/]surefirebooter[^\\\\/]*\\.jar(\\s.*)?");
 
     /**
      * Creates {@code latest.log} as a second name of the file of the run. Tests replace it to make it fail and must
@@ -71,6 +77,8 @@ final class RunLog extends ConsoleLogger {
     // latest.log and latest.errors.log, or the files of the run without hard links
     private Path latest;
     private Path latestErrors;
+    // a test JVM of a build tool, which names the files of the run from the start
+    private boolean own;
 
     // guarded by this
     private OutputStream out;
@@ -148,6 +156,20 @@ final class RunLog extends ConsoleLogger {
         } catch (Throwable t) {
             return "r" + Integer.toHexString(0x10000 + ThreadLocalRandom.current().nextInt(0x10000)).substring(1);
         }
+    }
+
+    /**
+     * Whether the JVM is one in which a build tool runs tests: a fork of Maven Surefire or Failsafe, or a test worker of
+     * Gradle. Several of them may run in one module, side by side ({@code forkCount} above 1, {@code maxParallelForks})
+     * or one after another ({@code reuseForks=false}), and each takes {@code latest.log} from the one before, so a path
+     * printed at the start of a fork would soon lead to the entries of another one (#96).
+     *
+     * @param command the main class or jar of the JVM and its arguments, {@code sun.java.command}; {@code null} if not
+     *                known
+     */
+    static boolean testWorker(String command) {
+        return command != null && (command.startsWith(SUREFIRE_BOOTER) || command.startsWith(GRADLE_WORKER) ||
+                                   SUREFIRE_JAR.matcher(command).matches());
     }
 
     // OPENING
@@ -240,6 +262,7 @@ final class RunLog extends ConsoleLogger {
                 current = open(directory, "json".equals(readChoice(PROPERTY_RUN_FORMAT, "text", "json")),
                                readPositive(PROPERTY_RUN_KEEP, 10), readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB,
                                id(System.currentTimeMillis(), pid()));
+                current.own = testWorker(System.getProperty("sun.java.command"));
                 if (!agent) {
                     DefaultLoggerCreator.printNotice("Run log: " + current.shownFile().toAbsolutePath() + "; WARN and ERROR also in " +
                                     current.shownErrorsFile().toAbsolutePath());
@@ -359,17 +382,19 @@ final class RunLog extends ConsoleLogger {
     /**
      * The path that names the log of this run: {@code latest.log} while it is a name of the file of this run, otherwise
      * the file itself. Another fork of Surefire that starts later in the same directory takes {@code latest.log}, and
-     * the summary of this fork would send the reader to the entries of the other one (#93).
+     * the summary of this fork would send the reader to the entries of the other one (#93). A {@link #testWorker test
+     * JVM} names the file itself from the start: a path printed at the start must stay true for the whole run, and any
+     * other fork may take {@code latest.log} later (#96).
      */
     Path shownFile() {
-        return shown(latest, file);
+        return own ? file : shown(latest, file);
     }
 
     /**
      * The path that names the warnings and errors of this run, as {@link #shownFile()}.
      */
     Path shownErrorsFile() {
-        return shown(latestErrors, errorsFile);
+        return own ? errorsFile : shown(latestErrors, errorsFile);
     }
 
     private static Path shown(Path link, Path target) {

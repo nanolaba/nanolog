@@ -474,6 +474,44 @@ class RunLogTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testATestJvmOfABuildToolIsKnownByItsCommand() {
+        assertTrue(RunLog.testWorker("org.apache.maven.surefire.booter.ForkedBooter /home/me/shop/target/surefire " +
+                                     "2026-11-19T17-16-05_286-jvmRun1 surefire-123tmp surefire_0-456tmp"));
+        // the manifest-only jar of Surefire, in a directory with a space
+        assertTrue(RunLog.testWorker("C:\\Users\\Jo Smith\\shop\\target\\surefire\\surefirebooter-20261119171605286_3.jar " +
+                                     "C:\\Users\\Jo Smith\\shop\\target\\surefire 2026-11-19T17-16-05_286-jvmRun1 " +
+                                     "surefire-123tmp surefire_0-456tmp"));
+        assertTrue(RunLog.testWorker("/home/me/shop/target/surefire/surefirebooter1234.jar"));
+        assertTrue(RunLog.testWorker("worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 1'"));
+
+        assertFalse(RunLog.testWorker(null));
+        assertFalse(RunLog.testWorker(""));
+        assertFalse(RunLog.testWorker("com.acme.shop.Main"));
+        assertFalse(RunLog.testWorker("/home/me/shop/target/shop.jar --port 8080"));
+        assertFalse(RunLog.testWorker("/home/me/shop/target/surefirebooter.jar.bak"));
+        assertFalse(RunLog.testWorker("com.intellij.rt.junit.JUnitStarter -ideVersion5 -junit5 com.acme.shop.OrderServiceTest"));
+    }
+
+    @Test
+    public void testATestJvmOfABuildToolNamesItsOwnFilesFromTheStart() throws IOException {
+        // several forks may run in one module, side by side or one after another, and each takes latest.log (#96)
+        System.setProperty(COMMAND, "org.apache.maven.surefire.booter.ForkedBooter /home/me/shop/target/surefire " +
+                                    "2026-11-19T17-16-05_286-jvmRun1 surefire-123tmp surefire_0-456tmp");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        getErrAndClear();
+
+        RunLog.attach(new ConsoleLogger(), false);
+
+        // runs() sorts the names: <id>.errors.log, then <id>.log
+        Path ownErrors = root.resolve("runs").resolve(runs().get(0)).toAbsolutePath();
+        Path own = root.resolve("runs").resolve(runs().get(1)).toAbsolutePath();
+        assertEquals("[NANOLOG] Run log: " + own + "; WARN and ERROR also in " + ownErrors + NL, getErrAndClear());
+        assertTrue(Files.isSameFile(root.resolve("latest.log"), own), "latest.log is the newest run still");
+        assertTrue(Files.isSameFile(root.resolve("latest.errors.log"), ownErrors));
+    }
+
+    @Test
     public void testLogWritesThroughTheRunLog() throws IOException {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, " ON ");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
