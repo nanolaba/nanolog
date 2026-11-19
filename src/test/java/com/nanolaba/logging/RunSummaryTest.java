@@ -172,6 +172,46 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testAnEntryThatACaptureKeepsFromTheLoggerIsNotCounted() {
+        on();
+        LOG.info("before the capture");
+        try (MemoryLogger capture = MemoryLogger.capture()) {
+            LOG.warn("a warning the test provokes and asserts on");
+            assertEquals(1, capture.getEntries().size());
+        }
+        LOG.info("after the capture");
+
+        assertEquals(Arrays.asList("Run summary: 2 entries: 2 INFO"), Summary.lines(),
+                     "the summary counts what reaches the logger and the run log, as #97 asks");
+    }
+
+    /**
+     * A logger with {@code DEBUG} off.
+     */
+    private static final class WithoutDebug extends MemoryLogger {
+        @Override
+        public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+            return level != LogEntry.LogEntryLevel.DEBUG;
+        }
+    }
+
+    @Test
+    public void testAnEntryThatACapturePassesOnIsCounted() {
+        Summary.mode = Summary.Mode.ON;
+        LOG.init(new WithoutDebug());
+        int line;
+        try (MemoryLogger capture = MemoryLogger.captureForwarding()) {
+            LOG.debug("only the capture takes it");
+            line = lineOf(new Throwable()) + 1;
+            LOG.warn("passed on to the logger");
+            assertEquals(2, capture.getEntries().size());
+        }
+
+        assertEquals(Arrays.asList("Run summary: 1 entry: 1 WARN", "  WARN x1 at " + FILE + line + ": passed on to the logger"),
+                     Summary.lines());
+    }
+
+    @Test
     public void testOnlyTheFirstErrorWithAnExceptionShowsItsTrace() {
         on();
         LOG.warn(new IllegalStateException("a warning"), "Not shown");

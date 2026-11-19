@@ -94,7 +94,7 @@ When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `G
 ```
 
 - Read the file that line names (every level, thread, call site, whole stack traces) instead of running again with another level or filter: `latest.log`, or, in tests run by Maven or Gradle, the fork's own file under `runs/` *1.5+*.
-- The run ends with `[NANOLOG] Run summary: ...`, printed last: the counts by level, each kind of `WARN` and `ERROR` with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the full log. Read it first; it survives `| tail`. `NANOLOG_SUMMARY=on` prints it outside agent mode too, `errors` only after a `WARN` or `ERROR`, `off` never.
+- The run ends with `[NANOLOG] Run summary: ...`, printed last: the counts by level, each kind of `WARN` and `ERROR` with its call site and count, the trace of the first error, the `LOG.dbg` calls that ran and the path of the full log. Read it first; it survives `| tail`. A warning that a test provokes inside `MemoryLogger.capture()` is not counted *1.5+*. `NANOLOG_SUMMARY=on` prints it outside agent mode too, `errors` only after a `WARN` or `ERROR`, `off` never.
 - `LOG.dbg` prints whatever the levels. `NANOLOG_LEVEL=DEBUG` brings more to the console.
 - `NANOLOG_AGENT=off` turns agent mode off; `NANOLOG_AGENT=on` turns it on where the variables do not reach (`sudo`, `docker run`, `ssh`).
 - A test that reads the console output of the default logger sees less under an agent: capture entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM.

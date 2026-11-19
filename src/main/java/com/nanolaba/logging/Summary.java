@@ -156,7 +156,8 @@ final class Summary {
     }
 
     /**
-     * Counts an entry that is written; called by {@code LOG} for every entry while the summary is on.
+     * Counts an entry that reaches the logger or is held back for it; called by {@code LOG} while the summary is on.
+     * An entry that a capture keeps from the logger is not counted, so the summary describes the run log it names (#97).
      */
     static void count(LogEntry entry) {
         TOTAL.incrementAndGet();

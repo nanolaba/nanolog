@@ -2826,9 +2826,6 @@ public class LOG {
      * Hands an entry whose level is enabled to the logger, and writes it to {@code System.err} if the logger throws.
      */
     private static void write(ILogger current, LogEntry entry) {
-        if (Summary.mode != Summary.Mode.OFF) {
-            Summary.count(entry);
-        }
         Units.Scope unit = entry.getUnit();
         if (unit != null) {
             unit.count(entry);
@@ -2838,15 +2835,23 @@ public class LOG {
             // the levels may have been passed only for a capture that takes every level: ask the logger itself
             boolean accepted = entry.isDbg() && Dbg.ignoreLevels || Breadcrumbs.buffers(entry) ||
                                accepts(current, entry.getLevel(), entry.getSourceClass(), entry.getTag());
+            // held back by NanologExtension, which writes the entry to the logger or the run log when the test ends
+            boolean heldBack = false;
             for (MemoryLogger capture : captures) {
                 if (capture.everyLevel || accepted) {
                     capture.log(entry);
+                    heldBack |= !capture.everyLevel;
                 }
             }
             if (!accepted || keeps(captures, current)) {
+                // the summary counts what reaches the logger, not an entry a test captures and keeps from it (#97)
+                if (heldBack) {
+                    countInSummary(entry);
+                }
                 return;
             }
         }
+        countInSummary(entry);
         if (Breadcrumbs.buffers(entry)) {
             Breadcrumbs.keep(entry);
             return;
@@ -2856,6 +2861,15 @@ public class LOG {
             deliver(current, Breadcrumbs.drainThread());
         }
         deliver(current, entry);
+    }
+
+    /**
+     * Counts an entry in the run summary while it is on.
+     */
+    private static void countInSummary(LogEntry entry) {
+        if (Summary.mode != Summary.Mode.OFF) {
+            Summary.count(entry);
+        }
     }
 
     /**

@@ -61,6 +61,7 @@ class NanologExtensionTest extends AbstractLoggerTest {
         System.clearProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR);
         NanologExtension.reset();
         RunLog.reset();
+        Summary.mode = Summary.Mode.OFF;
         Summary.reset();
         Summary.shutdownHooks = originalHooks;
         LOG.init();
@@ -288,5 +289,37 @@ class NanologExtensionTest extends AbstractLoggerTest {
             assertEquals(1, lines.stream().filter(line -> line.endsWith("] " + message)).count(), message);
         }
         assertFalse(getOutAndClear().contains("noise"));
+    }
+
+    @ExtendWith(NanologExtension.class)
+    static class Provoked {
+
+        @Test
+        void assertsOnAWarning() {
+            onlyThroughRun();
+            LOG.info("before the capture");
+            try (MemoryLogger log = MemoryLogger.capture()) {
+                LOG.warn("provoked on purpose");
+
+                log.assertLogged(LogEntry.LogEntryLevel.WARN, "provoked on purpose");
+            }
+        }
+    }
+
+    @Test
+    public void testTheRunSummaryCountsWhatTheExtensionHoldsBackForTheRunLog() throws IOException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        Summary.mode = Summary.Mode.ON;
+        getErrAndClear();
+        getOutAndClear();
+
+        run(Provoked.class);
+
+        List<String> lines = Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8);
+        assertEquals(2, lines.size(), "the buffer of the test passes the captured warning on: " + String.join(NL, lines));
+        String header = Summary.lines().get(0);
+        assertTrue(header.startsWith("Run summary: 2 entries: 1 WARN, 1 INFO;"), header);
     }
 }
