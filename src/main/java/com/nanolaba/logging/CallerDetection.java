@@ -141,11 +141,11 @@ final class CallerDetection {
         private String boundary;
 
         /**
-         * Whether a frame is skipped: it belongs to Nanolog, to the method handles that call its stack walker, or to a
-         * skipped class.
+         * Whether a frame is skipped: it belongs to Nanolog, to the method handles that call its stack walker, to
+         * reflection, or to a skipped class.
          */
         boolean skips(Class frameClass, Class sourceClass) {
-            if (isNanolog(sourceClass) || isMachinery(frameClass.getName())) {
+            if (isNanolog(sourceClass) || isMachinery(frameClass.getName()) || isReflection(frameClass.getName())) {
                 boundary = null;
                 return true;
             }
@@ -222,6 +222,22 @@ final class CallerDetection {
      */
     static boolean isMachinery(String className) {
         return className.startsWith("java.lang.invoke.") || className.startsWith("com.oracle.svm.") || className.contains("$$InjectedInvoker");
+    }
+
+    /**
+     * Whether a frame belongs to reflection, {@code Method.invoke} and its implementation: a {@code Throwable} records
+     * these frames, while {@code StackWalker} hides them. A call made through reflection belongs to the code that
+     * called the reflection, a container that installs a logger with {@code LOG.init} for one.
+     */
+    static boolean isReflection(String className) {
+        return className.startsWith("jdk.internal.reflect.") || className.startsWith("java.lang.reflect.") || className.startsWith("sun.reflect.");
+    }
+
+    /**
+     * Whether {@code nanolog.caller.skip} or {@link LOG#skipCaller(Class[])} names the class of a frame.
+     */
+    static boolean isSkipped(Class frameClass) {
+        return skip.matches(frameClass);
     }
 
     /**

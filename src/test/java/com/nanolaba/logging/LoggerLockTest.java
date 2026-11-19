@@ -1,5 +1,6 @@
 package com.nanolaba.logging;
 
+import org.example.vendor.Container;
 import org.example.vendor.Sdk;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +93,77 @@ class LoggerLockTest extends AbstractLoggerTest {
                      NL, getErrAndClear());
         LOG.init(new JsonLogger());
         assertEquals("", getErrAndClear(), "LOG.init() installs the logger of the configuration");
+    }
+
+    @Test
+    public void testAReflectiveCallBelongsToTheCodeThatCalledTheReflection() throws ReflectiveOperationException {
+        LOG.class.getMethod("init", ILogger.class).invoke(null, new ConsoleLogger());
+        LOG.init(new JsonLogger());
+        assertEquals("", getErrAndClear(), "both calls belong to com.nanolaba");
+
+        String application = nextLine();
+        LOG.class.getMethod("init", ILogger.class).invoke(null, new ConsoleLogger());
+        String library = Sdk.install(new JsonLogger());
+        assertEquals("[NANOLOG] Logger replaced: " + CONSOLE + " (installed at " + application + ") -> " + JSON + " (installed at " + library + ")" +
+                     NL, getErrAndClear());
+    }
+
+    @Test
+    public void testAContainerOfAnotherOrganizationIsNamedByItsFrame() throws ReflectiveOperationException {
+        String container = Container.install(new ConsoleLogger());
+        String application = nextLine();
+        LOG.init(new JsonLogger());
+
+        assertEquals("[NANOLOG] Logger replaced: " + CONSOLE + " (installed at " + container + ") -> " + JSON + " (installed at " + application + ")" +
+                     NL, getErrAndClear());
+    }
+
+    @Test
+    public void testAContainerNamedInCallerSkipInstallsForTheApplication() throws ReflectiveOperationException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP, "org.example.vendor.Container");
+        try {
+            LOG.init();
+            getErrAndClear();
+
+            Container.install(new ConsoleLogger());
+            LOG.init(new JsonLogger());
+            assertEquals("", getErrAndClear(), "the container installed the logger for the application");
+
+            LOG.init(new ConsoleLogger());
+            Container.install(new JsonLogger());
+            assertEquals("", getErrAndClear(), "nor is its replacement of the logger of the application reported");
+
+            Sdk.install(new ConsoleLogger());
+            assertEquals("", getErrAndClear(), "a logger installed through the container belongs to no organization: LOG.lock() protects it");
+        } finally {
+            System.clearProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP);
+            LOG.init();
+        }
+    }
+
+    @Test
+    public void testTheOriginPassesOverMachineryUnknownClassesAndReflection() {
+        StackTraceElement caller = new StackTraceElement(Sdk.class.getName(), "install", "Sdk.java", 17);
+        CallerDetection.ThrowableWalk.stackTraceOf = t -> new StackTraceElement[]{
+                new StackTraceElement(LOG.class.getName(), "init", "LOG.java", 150),
+                new StackTraceElement("java.lang.invoke.MethodHandle", "invokeExact", null, -1),
+                new StackTraceElement("no.such.Container", "call", "Container.java", 7),
+                new StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 498),
+                caller};
+
+        LOG.Origin origin = LOG.Origin.ofCaller();
+
+        assertEquals(caller.toString(), origin.site);
+        assertEquals("org.example", origin.organization);
+    }
+
+    @Test
+    public void testTheFramesOfReflection() {
+        assertTrue(CallerDetection.isReflection("jdk.internal.reflect.DirectMethodHandleAccessor"));
+        assertTrue(CallerDetection.isReflection("java.lang.reflect.Method"));
+        assertTrue(CallerDetection.isReflection("sun.reflect.NativeMethodAccessorImpl"));
+        assertTrue(!CallerDetection.isReflection("java.lang.Runnable"));
+        assertTrue(!CallerDetection.isReflection("com.acme.reflect.Mirror"));
     }
 
     @Test

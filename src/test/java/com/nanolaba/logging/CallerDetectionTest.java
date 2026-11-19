@@ -182,6 +182,18 @@ class CallerDetectionTest {
         assertFalse(walk.skips(CallerDetectionTest.class, CallerDetectionTest.class));
     }
 
+    @ParameterizedTest
+    @MethodSource("locators")
+    public void testACallThroughReflectionBelongsToTheCodeThatMadeIt(CallerDetection.Locator locator) throws ReflectiveOperationException {
+        LOG.callerLocator = locator;
+        try (MemoryLogger memory = MemoryLogger.install()) {
+            LOG.class.getMethod("info", Object.class).invoke(null, "through reflection");
+
+            assertFrame(memory.getEntries().get(0), CallerDetectionTest.class.getName(), "testACallThroughReflectionBelongsToTheCodeThatMadeIt");
+        }
+        assertTrue(new CallerDetection.Walk().skips(java.lang.reflect.Method.class, java.lang.reflect.Method.class));
+    }
+
     private static void assertFrame(LogEntry entry, String className, String methodName) {
         assertEquals(className, entry.getCaller().getClassName());
         assertEquals(methodName, entry.getCaller().getMethodName());

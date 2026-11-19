@@ -260,12 +260,22 @@ public class LOG {
         }
 
         /**
-         * The caller of {@code LOG}, found by the {@code Throwable} walk: an {@code init} call is rare, and walking
-         * through {@link #callerLocator} would count as a walk of a logging call.
+         * The caller of {@code LOG}, found in the frames of a {@code Throwable}: an {@code init} call is rare, and
+         * walking through {@link #callerLocator} would count as a walk of a logging call. The frames of reflection are
+         * passed over, so a call through {@code Method.invoke} belongs to the code that made it. A class named in
+         * {@code nanolog.caller.skip} acts for the application, as a container that installs the logger of the
+         * application does: its call has no organization, so it is neither reported as replaced nor as replacing.
          */
         static Origin ofCaller() {
-            StackTraceElement frame = CallerDetection.ThrowableWalk.INSTANCE.find().frame;
-            return frame == null ? new Origin(UNKNOWN_PLACE, UNKNOWN_PLACE) : new Origin(frame.toString(), organizationOf(frame.getClassName()));
+            for (StackTraceElement element : CallerDetection.ThrowableWalk.stackTraceOf.apply(new Throwable())) {
+                String name = element.getClassName();
+                Class frameClass = CallerDetection.ThrowableWalk.resolveClass(name);
+                if (frameClass != null && !CallerDetection.isNanolog(CallerDetection.topLevel(frameClass)) && !CallerDetection.isMachinery(name) &&
+                    !CallerDetection.isReflection(name)) {
+                    return new Origin(element.toString(), CallerDetection.isSkipped(frameClass) ? null : organizationOf(name));
+                }
+            }
+            return new Origin(UNKNOWN_PLACE, UNKNOWN_PLACE);
         }
 
         /**
@@ -298,7 +308,7 @@ public class LOG {
     }
 
     private static void reportReplacement(ILogger previous, Origin previousOrigin, ILogger next, Origin origin) {
-        if (previousOrigin != null && !previousOrigin.organization.equals(origin.organization) && RunLog.unwrap(previous) != RunLog.unwrap(next)) {
+        if (previousOrigin != null && differ(previousOrigin.organization, origin.organization) && RunLog.unwrap(previous) != RunLog.unwrap(next)) {
             DefaultLoggerCreator.printDiagnostic("Logger replaced: " + describeInstall(previous, previousOrigin) + " -> " + className(next) +
                                                  " (installed at " + origin.site + ")");
         }
@@ -307,6 +317,13 @@ public class LOG {
     private static void refuse(String call, Origin origin) {
         DefaultLoggerCreator.printDiagnostic("Logger locked: " + describeInstall(logger, installedBy) + " stays; " + call + " at " +
                                              origin.site + " is ignored");
+    }
+
+    /**
+     * Whether two organizations differ; a call through a class named in {@code nanolog.caller.skip} has none.
+     */
+    private static boolean differ(String organization, String other) {
+        return organization != null && other != null && !organization.equals(other);
     }
 
     private static String describeInstall(ILogger installed, Origin origin) {
