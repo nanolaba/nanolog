@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -213,6 +214,93 @@ class RunLogTest extends AbstractLoggerTest {
 
         assertEquals(root.resolve("runs/1.log"), log.shownFile());
         assertEquals(root.resolve("runs/1.errors.log"), log.shownErrorsFile());
+    }
+
+    // THE LIST OF THE RUN SUMMARY
+
+    @Test
+    public void testTheListOfTheSummaryIsWrittenNextToTheLogOfTheRun() throws IOException {
+        RunLog log = open("1");
+        List<String> kinds = Arrays.asList("ERROR x1 at A.java:1: a", "WARN x2 at B.java:2: b");
+
+        assertEquals(root.resolve("latest.summary.log"), log.writeSummary(kinds));
+        assertEquals(kinds, lines(root.resolve("runs/1.summary.log")));
+        assertTrue(Files.isSameFile(root.resolve("latest.summary.log"), root.resolve("runs/1.summary.log")));
+    }
+
+    @Test
+    public void testARunWhoseLatestWasTakenLeavesLatestSummaryToTheNewerRun() throws IOException {
+        // latest.summary.log is the list of the run in latest.log, the one that started last (#99)
+        RunLog first = open("1");
+        RunLog second = open("2");
+
+        assertEquals(root.resolve("runs/1.summary.log"), first.writeSummary(Arrays.asList("first")));
+        assertFalse(Files.exists(root.resolve("latest.summary.log")));
+
+        assertEquals(root.resolve("latest.summary.log"), second.writeSummary(Arrays.asList("second")));
+        assertEquals(Arrays.asList("second"), lines(root.resolve("latest.summary.log")));
+    }
+
+    @Test
+    public void testANewRunRemovesLatestSummaryOfTheRunBefore() throws IOException {
+        open("1").writeSummary(Arrays.asList("first"));
+
+        open("2");
+
+        assertFalse(Files.exists(root.resolve("latest.summary.log")), "it would not be the list of the run in latest.log");
+        assertEquals(Arrays.asList("first"), lines(root.resolve("runs/1.summary.log")));
+    }
+
+    @Test
+    public void testWithoutHardLinksTheListIsNamedByItsFile() throws IOException {
+        RunLog.linker = (link, target) -> {
+            throw new IOException("not supported");
+        };
+        RunLog log = open("1");
+
+        assertEquals(root.resolve("runs/1.summary.log"), log.writeSummary(Arrays.asList("one")));
+        assertFalse(Files.exists(root.resolve("latest.summary.log")));
+    }
+
+    @Test
+    public void testATestJvmOfABuildToolNamesItsOwnList() throws IOException {
+        System.setProperty(COMMAND, "org.apache.maven.surefire.booter.ForkedBooter /home/me/shop/target/surefire " +
+                                    "2026-11-19T17-16-05_286-jvmRun1 surefire-123tmp surefire_0-456tmp");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false);
+        getErrAndClear();
+
+        Path shown = RunLog.current().writeSummary(Arrays.asList("one"));
+
+        assertEquals(root.resolve("runs"), shown.getParent());
+        assertTrue(shown.getFileName().toString().endsWith(".summary.log"), shown.toString());
+        assertTrue(Files.isSameFile(root.resolve("latest.summary.log"), shown), "latest.log is still the log of this run");
+    }
+
+    @Test
+    public void testAListThatCannotBeWrittenIsNotNamed() throws IOException {
+        RunLog log = open("1");
+        Files.createDirectory(root.resolve("runs/1.summary.log"));
+        getErrAndClear();
+
+        assertNull(log.writeSummary(Arrays.asList("one")));
+        String printed = getErrAndClear();
+        assertTrue(printed.startsWith("[NANOLOG] Cannot write the list of the run summary " + root.resolve("runs/1.summary.log") +
+                                      ": "), printed);
+        assertFalse(Files.exists(root.resolve("latest.summary.log")));
+    }
+
+    @Test
+    public void testTheListsGoWithTheirRuns() throws IOException {
+        for (int run = 1; run <= 5; run++) {
+            RunLog log = open("2026-" + run, false, 3, MB);
+            log.writeSummary(Arrays.asList("run " + run));
+            log.close();
+        }
+
+        assertEquals(Arrays.asList("2026-3.errors.log", "2026-3.log", "2026-3.summary.log", "2026-4.errors.log", "2026-4.log",
+                                   "2026-4.summary.log", "2026-5.errors.log", "2026-5.log", "2026-5.summary.log"), runs());
     }
 
     // WHAT IS WRITTEN

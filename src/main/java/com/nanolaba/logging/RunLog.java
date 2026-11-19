@@ -28,8 +28,10 @@ import static com.nanolaba.logging.DefaultLoggerCreator.*;
  * {@code latest.log} and {@code latest.errors.log} are hard links to them, so they are written once and show the run
  * live. A run names {@code latest.log} while it is a name of its file, and its own file once a later run in the same
  * directory has taken {@code latest.log} (#93); a test JVM of Maven or Gradle names its own file from the start, since
- * another fork of the same module may take {@code latest.log} at any moment (#96). The last {@code nanolog.run.keep}
- * runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
+ * another fork of the same module may take {@code latest.log} at any moment (#96). At the end of the run the run
+ * summary writes every kind of warning and error to {@code runs/<time>-<pid>.summary.log}, with
+ * {@code latest.summary.log} as a second name while {@code latest.log} is the log of the run (#99). The last
+ * {@code nanolog.run.keep} runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
  * <p>
  * The run log is a {@link ConsoleLogger} with its own levels, read from the same settings, so a console kept short
  * leaves the file complete. Text lines show the thread and the call site. The file is opened once per JVM and is
@@ -43,6 +45,8 @@ final class RunLog extends ConsoleLogger {
     static final String RUNS = "runs";
     static final String LOG_SUFFIX = ".log";
     static final String ERRORS_SUFFIX = ".errors.log";
+    static final String LATEST_SUMMARY = "latest.summary.log";
+    static final String SUMMARY_SUFFIX = ".summary.log";
 
     private static final String[] GRADLE_FILES = {"build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"};
     private static final String TRUNCATED = "The run log reached " + PROPERTY_RUN_MAX_SIZE + "; later entries are not written";
@@ -79,6 +83,9 @@ final class RunLog extends ConsoleLogger {
     private Path latestErrors;
     // a test JVM of a build tool, which names the files of the run from the start
     private boolean own;
+    // the list of the run summary, written at the end of the run, and latest.summary.log or the list itself
+    private Path summaryFile;
+    private Path latestSummary;
 
     // guarded by this
     private OutputStream out;
@@ -192,6 +199,10 @@ final class RunLog extends ConsoleLogger {
         RunLog log = quietly(() -> new RunLog(file, out, errorsFile, errors, json, maxSize));
         log.latest = link(directory.resolve(LATEST), file);
         log.latestErrors = link(directory.resolve(LATEST_ERRORS), errorsFile);
+        log.summaryFile = runs.resolve(id + SUMMARY_SUFFIX);
+        // the list of the run before would not be the list of the run in latest.log
+        log.latestSummary = directory.resolve(LATEST_SUMMARY);
+        deleteQuietly(log.latestSummary);
         prune(runs, keep);
         return log;
     }
@@ -213,14 +224,16 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
-     * Deletes the oldest runs beyond {@code keep}. A file another process still holds is left for a later run.
+     * Deletes the oldest runs beyond {@code keep}, with their errors files and lists. A file another process still holds
+     * is left for a later run.
      */
     private static void prune(Path runs, int keep) throws IOException {
         // in the order of the names, which start with the time; a directory lists them in any order
         Set<Path> sorted = new TreeSet<>();
         try (DirectoryStream<Path> files = Files.newDirectoryStream(runs, "*" + LOG_SUFFIX)) {
             for (Path file : files) {
-                if (!file.getFileName().toString().endsWith(ERRORS_SUFFIX)) {
+                String name = file.getFileName().toString();
+                if (!name.endsWith(ERRORS_SUFFIX) && !name.endsWith(SUMMARY_SUFFIX)) {
                     sorted.add(file);
                 }
             }
@@ -228,8 +241,10 @@ final class RunLog extends ConsoleLogger {
         List<Path> logs = new ArrayList<>(sorted);
         for (int i = 0; i < logs.size() - keep; i++) {
             String name = logs.get(i).getFileName().toString();
+            String id = name.substring(0, name.length() - LOG_SUFFIX.length());
             deleteQuietly(logs.get(i));
-            deleteQuietly(runs.resolve(name.substring(0, name.length() - LOG_SUFFIX.length()) + ERRORS_SUFFIX));
+            deleteQuietly(runs.resolve(id + ERRORS_SUFFIX));
+            deleteQuietly(runs.resolve(id + SUMMARY_SUFFIX));
         }
     }
 
@@ -404,6 +419,29 @@ final class RunLog extends ConsoleLogger {
             // deleted, or not to be read
             return target;
         }
+    }
+
+    /**
+     * Writes the list of the run summary, one kind of warning or error a line, to {@code runs/<id>.summary.log}, and
+     * makes {@code latest.summary.log} a second name of it while {@code latest.log} is the log of this run: a run that
+     * ends after a later one has started leaves {@code latest.summary.log} to that one (#99). An I/O error prints one
+     * diagnostic.
+     *
+     * @param kinds the lines of the list
+     * @return the path that names the list, as {@link #shownFile()} names the log; {@code null} if it could not be
+     * written
+     */
+    synchronized Path writeSummary(List<String> kinds) {
+        try {
+            Files.write(summaryFile, kinds, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            printDiagnostic("Cannot write the list of the run summary " + summaryFile + ": " + e);
+            return null;
+        }
+        if (shown(latest, file) == latest) {
+            latestSummary = link(latestSummary, summaryFile);
+        }
+        return own ? summaryFile : shown(latestSummary, summaryFile);
     }
 
     long maxSize() {

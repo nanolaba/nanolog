@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.stream.Stream;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -467,6 +469,73 @@ class RunSummaryTest extends AbstractLoggerTest {
         } finally {
             later.close();
         }
+    }
+
+    /**
+     * Turns the summary and the run log on, in the temporary directory.
+     */
+    private void withRunLog() {
+        System.setProperty(PROPERTY_SUMMARY, "on");
+        System.setProperty(PROPERTY_RUN, "on");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+    }
+
+    @Test
+    public void testEveryKindIsListedInAFileThatTheSummaryNamesWhenItLeavesKindsOut() throws IOException {
+        withRunLog();
+        for (int i = Summary.MAX_SHOWN; i > 0; i--) {
+            // the list follows the level and the line, not the order of the run, so two runs can be compared (#99)
+            LOG.warn(RunSummaryTest.class, "Warning " + (char) ('a' + i));
+        }
+        int site = lineOf(new Throwable()) + 2;
+        for (int id = 1; id <= 2; id++) {
+            LOG.warn("Merge of #" + id + " failed");
+        }
+        LOG.error(RunSummaryTest.class, "Failed");
+        getErrAndClear();
+        getOutAndClear();
+
+        Summary.printOnce();
+
+        Path list = root.resolve("latest.summary.log");
+        String printed = getErrAndClear();
+        assertTrue(printed.endsWith("[NANOLOG]   ... and 2 more kinds of WARN and ERROR; the full list is in " +
+                                    list.toAbsolutePath() + NL), printed);
+        List<String> expected = new ArrayList<>();
+        expected.add("ERROR x1 at com.nanolaba.logging.RunSummaryTest: Failed");
+        expected.add("WARN x2 at " + FILE + site + ": Merge of #1 failed (2 different messages)");
+        for (int i = 1; i <= Summary.MAX_SHOWN; i++) {
+            expected.add("WARN x1 at com.nanolaba.logging.RunSummaryTest: Warning " + (char) ('a' + i));
+        }
+        assertEquals(expected, Files.readAllLines(list, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void testTheListIsWrittenButNotNamedWhenEveryKindIsShown() throws IOException {
+        withRunLog();
+        LOG.warn(RunSummaryTest.class, "Careful");
+        getErrAndClear();
+        getOutAndClear();
+
+        Summary.printOnce();
+
+        String printed = getErrAndClear();
+        assertFalse(printed.contains("summary.log"), printed);
+        assertEquals(Arrays.asList("WARN x1 at com.nanolaba.logging.RunSummaryTest: Careful"),
+                     Files.readAllLines(root.resolve("latest.summary.log"), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void testWithoutTheSummaryNoListIsWritten() {
+        System.setProperty(PROPERTY_RUN, "on");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        LOG.warn(RunSummaryTest.class, "Careful");
+
+        Summary.printOnce();
+
+        assertFalse(Files.exists(root.resolve("latest.summary.log")));
     }
 
     @Test

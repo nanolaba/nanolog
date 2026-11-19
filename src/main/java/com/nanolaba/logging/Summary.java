@@ -1,5 +1,6 @@
 package com.nanolaba.logging;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +29,9 @@ import static com.nanolaba.logging.LogEntry.LogEntryLevel.WARN;
  * built from data, {@code "Merge of #" + id + " failed"}, is one kind: it shows its first message and how many
  * different ones it logged, up to {@link #MAX_MESSAGES}. When the summary is off nothing is counted, and the end of the run lists only the
  * {@code LOG.dbg} calls that ran, as before.
+ * <p>
+ * With the run log on, every kind counted is also written to a list next to it, by level and call site, and the line
+ * that counts the kinds not shown names it (#99).
  */
 final class Summary {
 
@@ -144,6 +148,14 @@ final class Summary {
         }
 
         /**
+         * {@code WARN x3 at OrderService.java:87: Charge of {} failed (3 different messages)}: the line of the kind in
+         * the summary and in its list.
+         */
+        String line() {
+            return level.name() + " x" + count.get() + place + messagesNote();
+        }
+
+        /**
          * {@code (4 different messages)} after the first message, when the call site logged more than one.
          */
         String messagesNote() {
@@ -246,9 +258,19 @@ final class Summary {
     }
 
     /**
-     * The lines of the summary, without the {@code [NANOLOG]} prefix.
+     * The lines of the summary, without the {@code [NANOLOG]} prefix and without naming a list of the kinds.
      */
     static List<String> lines() {
+        return lines(null);
+    }
+
+    /**
+     * The lines of the summary, without the {@code [NANOLOG]} prefix.
+     *
+     * @param list the path that names the list of every kind, named when some kinds are not shown; {@code null} if
+     *             there is none
+     */
+    static List<String> lines(Path list) {
         List<String> lines = new ArrayList<>();
         lines.add(header());
         List<Kind> kinds = new ArrayList<>(KINDS.values());
@@ -256,19 +278,40 @@ final class Summary {
         kinds.sort(Comparator.comparingInt((Kind kind) -> -kind.level.ordinal()).thenComparingInt(kind -> kind.order));
         String[] firstError = FIRST_ERROR.get();
         for (Kind kind : kinds.subList(0, Math.min(MAX_SHOWN, kinds.size()))) {
-            lines.add(INDENT + kind.level.name() + " x" + kind.count.get() + kind.place + kind.messagesNote());
+            lines.add(INDENT + kind.line());
             if (firstError != null && firstError[0].equals(kind.key)) {
                 addTrace(lines, firstError[1]);
             }
         }
         if (kinds.size() > MAX_SHOWN) {
-            lines.add(INDENT + "... and " + (kinds.size() - MAX_SHOWN) + " more kinds of WARN and ERROR");
+            lines.add(INDENT + "... and " + (kinds.size() - MAX_SHOWN) + " more kinds of WARN and ERROR" +
+                      (list == null ? "" : "; the full list is in " + list.toAbsolutePath()));
         }
         String calls = Dbg.callsLine();
         if (calls != null) {
             lines.add(INDENT + calls);
         }
         return lines;
+    }
+
+    /**
+     * Writes every kind to the list next to the run log, by level and then by call site rather than in the order of the
+     * run, so the lists of two runs can be compared with {@code diff} (#99).
+     *
+     * @return the path that names the list; {@code null} without a run log, or if the list could not be written
+     */
+    private static Path writeList() {
+        RunLog runLog = RunLog.current();
+        if (runLog == null) {
+            return null;
+        }
+        List<Kind> kinds = new ArrayList<>(KINDS.values());
+        kinds.sort(Comparator.comparingInt((Kind kind) -> -kind.level.ordinal()).thenComparing(kind -> kind.place));
+        List<String> list = new ArrayList<>();
+        for (Kind kind : kinds) {
+            list.add(kind.line());
+        }
+        return runLog.writeSummary(list);
     }
 
     private static String header() {
@@ -361,7 +404,7 @@ final class Summary {
             Mode current = mode;
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
             if (current == Mode.ON || current == Mode.ERRORS && warned) {
-                DefaultLoggerCreator.printNotices(lines());
+                DefaultLoggerCreator.printNotices(lines(writeList()));
             } else {
                 Dbg.printCalls();
             }
