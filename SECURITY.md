@@ -12,7 +12,7 @@ Fixes are released for the latest version only; older versions get no backports.
 
 | Version | Supported |
 |---|---|
-| `1.4` | yes |
+| `1.4.1` | yes |
 | older | no |
 
 ## Reporting a vulnerability

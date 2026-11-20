@@ -6,7 +6,7 @@
 
 [![CI build status](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml/badge.svg)](https://github.com/nanolaba/nanolog/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.nanolaba/nanolog?label=Maven%20Central)](https://central.sonatype.com/artifact/com.nanolaba/nanolog)
-[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.4-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.4)
+[![API documentation on javadoc.io](https://img.shields.io/badge/javadoc-1.4.1-blue.svg)](https://javadoc.io/doc/com.nanolaba/nanolog/1.4.1)
 [![Java 8 or newer](https://img.shields.io/badge/java-8+-blue.svg)](https://adoptium.net/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
@@ -35,12 +35,12 @@ Nanolog for Java (`com.nanolaba:nanolog`) is not related to [NanoLog](https://gi
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.4</version>
+    <version>1.4.1</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("com.nanolaba:nanolog:1.4")
+implementation("com.nanolaba:nanolog:1.4.1")
 ```
 
 ```java
@@ -96,7 +96,7 @@ More in [Agent mode](#agent-mode-nanolog-detects-coding-agents) and [Fewer token
 
 How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related projects](#related-projects).
 
-The latest stable version is **1.4**; the version under development is **1.5-SNAPSHOT** (see [Changelog](#changelog)).
+The latest stable version is **1.4.1**.
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -145,21 +145,20 @@ The latest stable version is **1.4**; the version under development is **1.5-SNA
 	- 21.1 [Logging helpers](#logging-helpers)
 - 22 [Writing your own logger](#writing-your-own-logger)
 - 23 [Thread safety and performance](#thread-safety-and-performance)
-- 24 [Using SNAPSHOT versions](#using-snapshot-versions)
-- 25 [Related projects](#related-projects)
-	- 25.1 [Static facades](#static-facades)
-	- 25.2 [Mainstream loggers](#mainstream-loggers)
-	- 25.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 25.4 [When another logger fits better](#when-another-logger-fits-better)
-- 26 [Changelog](#changelog)
-	- 26.1 [1.5-SNAPSHOT](#15-snapshot)
-	- 26.2 [1.4](#14)
-	- 26.3 [1.3](#13)
-	- 26.4 [1.2](#12)
-	- 26.5 [1.1](#11)
-	- 26.6 [1.0](#10)
-- 27 [Contributing](#contributing)
-- 28 [License](#license)
+- 24 [Related projects](#related-projects)
+	- 24.1 [Static facades](#static-facades)
+	- 24.2 [Mainstream loggers](#mainstream-loggers)
+	- 24.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 24.4 [When another logger fits better](#when-another-logger-fits-better)
+- 25 [Changelog](#changelog)
+	- 25.1 [1.4.1](#141)
+	- 25.2 [1.4](#14)
+	- 25.3 [1.3](#13)
+	- 25.4 [1.2](#12)
+	- 25.5 [1.1](#11)
+	- 25.6 [1.0](#10)
+- 26 [Contributing](#contributing)
+- 27 [License](#license)
 
 
 ## Installation
@@ -170,7 +169,7 @@ The latest stable version is **1.4**; the version under development is **1.5-SNA
 <dependency>
     <groupId>com.nanolaba</groupId>
     <artifactId>nanolog</artifactId>
-    <version>1.4</version>
+    <version>1.4.1</version>
 </dependency>
 ```
 
@@ -178,14 +177,14 @@ The latest stable version is **1.4**; the version under development is **1.5-SNA
 
 ```groovy
 dependencies {
-    implementation 'com.nanolaba:nanolog:1.4'
+    implementation 'com.nanolaba:nanolog:1.4.1'
 }
 ```
 
 <details>
 <summary>Manual download</summary>
 
-Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4) and add it to the classpath.
+Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4.1) and add it to the classpath.
 
 </details>
 
@@ -286,7 +285,7 @@ Every level has the same set of overloads; `info` below stands for `trace`, `deb
 | `LOG.installUncaughtExceptionHandler()` | log the exceptions that kill threads, then pass them to the previous handler |
 | `LOG.log(level, sourceClass, throwable, supplier, args)` | the universal entry point every overload delegates to |
 
-Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4), which IDEs also show from the sources jar.
+Every class and method is documented in the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4.1), which IDEs also show from the sources jar.
 
 ## Fewer tokens: logs for AI coding agents
 
@@ -328,7 +327,7 @@ one short loop repeats many times: edit, run, read the output, edit again.
 - **SLF4J habits carry over.** The same `{}` placeholders, and the exception may go first or last: `LOG.error("Failed to load {}", id, e)` logs the stack trace exactly as SLF4J does.
 - **A log call cannot fail the run.** Logging never throws: a broken `toString()`, a lazy message whose lambda throws, a `null` or a wrong number of `{}` arguments ends up as a readable message, not as an exception. In test runs, `-Dnanolog.strict=true` still reports such mismatches with the call site, so they get fixed instead of going unnoticed.
 - **Repeated lines do not crowd out the rest.** A retry loop or a full queue can print the same line thousands of times and push the line that matters out of the context window. `LOG.once()` and `LOG.atMostEvery(10, TimeUnit.SECONDS)` keep such a statement to one line, or to one line per interval, and the next one that gets through says `[skipped 241]`; see [Rate limiting](#rate-limiting).
-- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
+- **The whole library fits in a context window.** One package of small classes, one entry point, this README and the [Javadoc](https://javadoc.io/doc/com.nanolaba/nanolog/1.4.1). Every public method has Javadoc, so the IDE and the sources jar give the same answers as this file. An agent reads everything it needs in one pass and does not have to map a framework first.
 - **Green tests stay quiet.** `@ExtendWith(NanologExtension.class)` prints the log of a test only when the test fails, framed by its name, so a run of five hundred tests shows the log of the one that broke. See [Logs in tests](#logs-in-tests-only-the-failing-ones).
 - **Capturing the log in a test takes one line.** `try (MemoryLogger log = MemoryLogger.install())` keeps the entries in memory and puts the previous logger back afterwards, so what was logged is asserted without a mocking framework; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **The end of the output says what happened.** In agent mode the run ends with a summary: the counts by level, each kind of warning and error with its call site and count, the trace of the first error and the path of the full log. It survives when the agent keeps only the tail. See [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation).
@@ -387,7 +386,7 @@ In the failing `mvn -q test` run of the [agent mode](#agent-mode-nanolog-detects
 
 - **What.** The number of entries by level; each kind of warning and error, by level and call site, with how often it was logged, errors first: a call site that builds its messages from data, `"Merge of #" + id + " failed"`, is one kind with its first message and `(4 different messages)`, and a call with an explicit class, which has no call site, is told apart by its message; a message of several lines shows its first line, followed by `...`; the stack trace of the first error with an exception, without the frames of agent mode and with every cause; the `LOG.dbg` calls that ran; the path of the [run log](#run-log). It counts the entries that reach the logger: a warning that a test provokes inside `MemoryLogger.capture()`, which keeps it from the logger, is neither in the summary nor in the run log.
 - **Bounded.** At most 10 kinds and 15 lines of the trace are shown; the rest is counted (`... and 7 more kinds of WARN and ERROR`). Counting keeps no entry, only a counter per level and per kind, for at most 1000 kinds, and costs nothing while the summary is off.
-- **Every kind in a file.** With the [run log](#run-log) on, the summary also writes every kind it counted to `runs/<time>-<pid>.summary.log`, one line each as above, ordered by level and call site rather than as the run went, so the lists of two runs can be compared with `diff`. When kinds are left out, the line that counts them names the list: `... and 7 more kinds of WARN and ERROR; the full list is in /home/me/shop/target/nanolog/latest.summary.log`. `latest.summary.log` is a second name of the list of the run in `latest.log`, once that run has ended; a JVM in which Surefire, Failsafe or Gradle runs tests names its own list, as it names its own log.
+- **Every kind in a file.** With the [run log](#run-log) on, the summary also writes every kind it counted to `runs/<time>-<pid>.summary.log`, one line each as above, ordered by level and call site rather than as the run went, so the lists of two runs can be compared with `diff`. When kinds are left out, the line that counts them names the list: `... and 7 more kinds of WARN and ERROR; the full list is in /home/me/shop/target/nanolog/latest.summary.log`. `latest.summary.log` is a second name of the list of the run in `latest.log`, once that run has ended; a JVM in which Surefire, Failsafe or Gradle runs tests names its own list, as it names its own log. Since 1.4.1.
 - **When.** `nanolog.summary=on` (`NANOLOG_SUMMARY`), the default in agent mode; `errors` prints it only after a `WARN` or `ERROR`; `off`, the default otherwise. It goes to `System.err` once per JVM: when JUnit has run the tests of that JVM, through `SummarySessionListener` and `SummaryListener`, which the JUnit Platform loads by itself in Maven, Gradle and the IDE; otherwise when the JVM exits. A Surefire fork that runs several test classes, with `forkCount` above 1, prints one summary after the last of them, in one piece, so the summaries of two forks that end together do not mix. Surefire drops what a shutdown hook of its forked JVM prints, which is why test runs need the listeners. Gradle prints the output of tests only with `testLogging.showStandardStreams = true`.
 - **A jar of your own.** `SummaryListener` and `SummarySessionListener` are compiled against the JUnit Platform Launcher API, which a test run provides, so **Nanolog** still has no dependencies. A shaded jar that keeps `META-INF/services/org.junit.platform.launcher.TestExecutionListener` or `org.junit.platform.launcher.LauncherSessionListener` must keep the class it names too, or JUnit stops with a `ServiceConfigurationError`.
 
@@ -587,7 +586,7 @@ LOG.unit("import", () -> importFile(file)); // an exception fails the unit and i
 ```
 
 - **The line** is `<name> <outcome> <duration> ms`, then the fields of `put(...)` and the counts of warnings (`warn`) and errors (`error`) logged inside the unit, in any thread it was carried into. Its fields are `unit`, `outcome`, `duration_ms` and the rest, so `JsonLogger` writes `"fields":{"unit":"checkout","outcome":"ok","duration_ms":182,...}` and `jq` selects the failed units by `.fields.outcome`.
-- **The outcome** is `ok`, an `INFO` line, or `error`, an `ERROR` line, once an `ERROR` entry was logged inside the unit or `fail(e)` was called. A failed unit adds `error.type`, `error.message` and `error.key`: eight hexadecimal digits made from the template and call site of the first error, the same in every run, so failures of one kind can be counted. `LOG.unit(WARN, "sync")` writes the line of a failed or interrupted unit at another level, for work whose failures are expected and handled elsewhere, a job that is retried or a call to a service that is often down, where every `ERROR` would raise an alert: `ok` stays `INFO`, and the outcome, the counts and the `error.*` fields do not change, so `outcome=error` still finds the unit.
+- **The outcome** is `ok`, an `INFO` line, or `error`, an `ERROR` line, once an `ERROR` entry was logged inside the unit or `fail(e)` was called. A failed unit adds `error.type`, `error.message` and `error.key`: eight hexadecimal digits made from the template and call site of the first error, the same in every run, so failures of one kind can be counted. `LOG.unit(WARN, "sync")`, since 1.4.1, writes the line of a failed or interrupted unit at another level, for work whose failures are expected and handled elsewhere, a job that is retried or a call to a service that is often down, where every `ERROR` would raise an alert: `ok` stays `INFO`, and the outcome, the counts and the `error.*` fields do not change, so `outcome=error` still finds the unit.
 - **Exceptions.** `close()` cannot see an exception that leaves a try-with-resources block: catch it and call `u.fail(e)`, or let `run(...)` do it. `LOG.unit("import", () -> importFile(file))` and `LOG.unit("report").put("month", m).run(() -> build(m))` mark the unit failed, attach the exception to its line and rethrow it.
 - **Nesting.** A unit opened inside another names it as `parent`, and an entry counts in every unit around it. `LOG.wrap(task)` carries the open unit into a task for an executor together with the [context](#context-tag-the-lines-of-one-request), so the tasks of a request count in its unit.
 - **Not lost.** A unit still open when its thread dies of an uncaught exception, with [`LOG.installUncaughtExceptionHandler()`](#catching-exceptions), or when the run ends (the JVM exits or JUnit has run the tests) is written with the outcome `interrupted`. That happens before the [run summary](#run-summary-the-part-of-the-output-that-survives-truncation), which therefore counts it and lists a failed unit as `unit <name>`.
@@ -1018,7 +1017,7 @@ WARN 17.11.2026 10:15:02 [PaymentService] Charge of 42 failed, retrying
 ```
 
 - **What is held back.** What the thread of the test writes to the logger of `LOG`, at the levels of that logger, from the `@BeforeEach` methods to the `@AfterEach` ones. When the test fails, it is written to that logger after all, between the two lines above; when it passes or is aborted, it goes only to the [run log](#run-log), if that is on. A failed test that logged nothing prints nothing.
-- **The log of the class.** What the class logs outside its tests is held back too: its `@BeforeAll` and `@AfterAll` methods, and the creation of each test instance, where `SpringExtension` starts the application context and the beans log their start-up. When a test of the class fails, or the class itself does, as when a `@BeforeAll` method throws, it is printed after the tests of the class, between `--- log of class PaymentServiceTest ---` and `--- end of the log of class PaymentServiceTest ---`; otherwise it goes only to the run log. Spring caches the context, so the class that happens to start it holds its log. With `@TestInstance(Lifecycle.PER_CLASS)` JUnit creates the instance before the extension starts, so what is logged then is printed as usual.
+- **The log of the class.** What the class logs outside its tests is held back too: its `@BeforeAll` and `@AfterAll` methods, and the creation of each test instance, where `SpringExtension` starts the application context and the beans log their start-up. When a test of the class fails, or the class itself does, as when a `@BeforeAll` method throws, it is printed after the tests of the class, between `--- log of class PaymentServiceTest ---` and `--- end of the log of class PaymentServiceTest ---`; otherwise it goes only to the run log. Spring caches the context, so the class that happens to start it holds its log. With `@TestInstance(Lifecycle.PER_CLASS)` JUnit creates the instance before the extension starts, so what is logged then is printed as usual. Since 1.4.1.
 - **Parallel tests.** Each test holds back the entries of its own thread, so tests that JUnit runs in parallel keep their logs apart. Entries that the code under test logs from a thread pool are not held back.
 - **MemoryLogger works as usual.** A test that installs a `MemoryLogger` or opens `MemoryLogger.capture()` sees its entries; see [MemoryLogger and CompositeLogger](#memorylogger-and-compositelogger).
 - **Settings.** `nanolog.junit.output` (`NANOLOG_JUNIT_OUTPUT`): `failed`, the default, `all` (every log, as it is written) or `none`. With `junit.jupiter.extensions.autodetection.enabled=true` in `junit-platform.properties` JUnit registers the extension for every test class, without `@ExtendWith`.
@@ -1539,44 +1538,6 @@ A logger that throws does not break the code that logs. The first failure of eac
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. If a level is on for some package or class, a call at that level without an explicit class costs one stack walk and an `isEnabled` check even where the level is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 - Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 5 µs and 8 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
-## Using SNAPSHOT versions
-
-Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
-
-**Maven (pom.xml)**
-
-```xml
-<repositories>
-    <repository>
-        <id>central.sonatype.com-snapshot</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots</url>
-        <snapshots>
-            <enabled>true</enabled>
-            <updatePolicy>always</updatePolicy>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.nanolaba</groupId>
-    <artifactId>nanolog</artifactId>
-    <version>1.5-SNAPSHOT</version>
-</dependency>
-```
-
-**Gradle (build.gradle)**
-
-```groovy
-repositories {
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots'
-    }
-}
-
-dependencies {
-    implementation 'com.nanolaba:nanolog:1.5-SNAPSHOT'
-}
-```
 
 ## Related projects
 
@@ -1740,7 +1701,7 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 
 ## Changelog
 
-### 1.5-SNAPSHOT
+### 1.4.1
 
 - Run summary with `forkCount` above 1: a Surefire fork that runs several test classes prints one summary after the last of them, through the new `SummarySessionListener` (JUnit Platform 1.8+). Before, it printed after the first class and missed the rest of the fork.
 - The run log keeps every entry after `LOG.init(logger)`: a logger the application installs, Spring with `Slf4jLogger` for one, or `MemoryLogger.install()` gets the run log added, and `LOG.getLogger()` returns a `CompositeLogger` of both. A decorator that passes each entry on to the logger `LOG.getLogger()` returned writes each entry to the file once. Before, the run log stopped at that call, while the run summary still called it the full log.
