@@ -220,4 +220,32 @@ class JulLoggerTest extends AbstractLoggerTest {
         assertEquals("Configured", single().getMessage());
         assertEquals(Level.WARNING, single().getLevel());
     }
+
+    @Test
+    public void testInAgentModeADbgEntryThatJulDropsIsPrintedOnTheConsole() {
+        StackTraceElement frame = new StackTraceElement(JulLoggerTest.class.getName(), "checkout", "JulLoggerTest.java", 9);
+        LogEntry dbg = LogEntry.createDbg(JulLoggerTest.class, frame, "cart.size() = 2 (Integer)", 0, LogEntry.LOG_BOUNDARY);
+        JulLogger logger = new JulLogger();
+        jul.setLevel(Level.INFO);
+        getOutAndClear();
+
+        logger.log(dbg);
+        assertEquals("", getOutAndClear(), "outside agent mode the levels decide");
+
+        Dbg.ignoreLevels = true;
+        try {
+            logger.log(dbg);
+            assertEquals("DBG [JulLoggerTest.checkout(JulLoggerTest.java:9)] cart.size() = 2 (Integer)" + System.lineSeparator(),
+                         getOutAndClear());
+            logger.log(LogEntry.create(DEBUG, JulLoggerTest.class, frame, null, "plain", new Object[0], 0));
+            assertEquals("", getOutAndClear(), "only an entry of LOG.dbg");
+            jul.setLevel(Level.ALL);
+            logger.log(dbg);
+            assertEquals("", getOutAndClear(), "JUL writes what it takes");
+        } finally {
+            Dbg.ignoreLevels = false;
+        }
+        assertEquals(1, records.size());
+        assertEquals("cart.size() = 2 (Integer)", single().getMessage());
+    }
 }

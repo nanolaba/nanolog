@@ -483,9 +483,14 @@ class AgentModeTest extends AbstractLoggerTest {
             assertTrue(LOG.isInfoEnabled());
             assertFalse(LOG.isDebugEnabled(), "the levels of JUL, as without agent mode (#103)");
             LOG.info("in the file");
+            int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+            LOG.dbg("seen");
 
+            String out = getOutAndClear();
+            assertEquals("DBG [AgentModeTest.testALoggerOfItsOwnKeepsItsLevelsWithTheRunLog(AgentModeTest.java:" + line + ")] " +
+                         "\"seen\" = \"seen\"" + NL, out, "JUL would drop it (#105)");
             String log = String.join(NL, Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8));
-            assertTrue(log.contains("in the file"), log);
+            assertTrue(log.contains("in the file") && log.contains("seen"), log);
         } finally {
             jul.setLevel(null);
             jul.setUseParentHandlers(true);

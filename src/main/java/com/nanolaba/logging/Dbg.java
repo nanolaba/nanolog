@@ -58,6 +58,31 @@ final class Dbg {
     private Dbg() {/**/}
 
     /**
+     * Prints an entry of {@code dbg} on the console of agent mode, the line the default logger prints for it, on
+     * {@code System.out} unless {@code nanolog.console.stream} says otherwise. For the bridges to other logging systems
+     * in agent mode, whose backend would drop an entry of a level it has off for the class: the agent would conclude
+     * that the line never ran (#105).
+     *
+     * @param entry the entry
+     */
+    static void print(LogEntry entry) {
+        Console.LOGGER.log(entry);
+    }
+
+    /**
+     * The console of {@link #print}, created on first use with the settings and the defaults of agent mode. Repeats are
+     * not collapsed: the lines of the backend come in between, and no one would write the count.
+     */
+    private static final class Console {
+
+        static final ConsoleLogger LOGGER = DefaultLoggerCreator.quietly(() -> {
+            ConsoleLogger console = new ConsoleLogger();
+            console.useAgentDefaults();
+            return console.setRepeats("keep");
+        });
+    }
+
+    /**
      * Remembers that a {@code dbg} call site wrote an entry, for the end of the run ({@link Summary#printOnce()}), and
      * makes sure that the end is printed.
      *

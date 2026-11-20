@@ -144,6 +144,35 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         assertEquals(line, call.location.getLineNumber());
     }
 
+    @Test
+    public void testInAgentModeADbgEntryThatTheBackendDropsIsPrintedOnTheConsole() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        recorder.debug = false;
+        Slf4jLogger logger = new Slf4jLogger(recorder::loggerFor);
+        StackTraceElement frame = new StackTraceElement(InfoObject.class.getName(), "checkout", "InfoObject.java", 9);
+        LogEntry dbg = LogEntry.createDbg(InfoObject.class, frame, "cart.size() = 2 (Integer)", 0, LogEntry.LOG_BOUNDARY);
+        getOutAndClear();
+
+        logger.log(dbg);
+        assertEquals(1, recorder.calls.size(), "outside agent mode the backend decides");
+
+        Dbg.ignoreLevels = true;
+        try {
+            logger.log(dbg);
+            assertEquals("DBG [InfoObject.checkout(InfoObject.java:9)] cart.size() = 2 (Integer)" + System.lineSeparator(),
+                         getOutAndClear());
+            assertEquals(1, recorder.calls.size(), "not passed to a backend that would drop it (#105)");
+            logger.log(LogEntry.create(LogEntry.LogEntryLevel.DEBUG, InfoObject.class, frame, null, "plain", new Object[0], 0));
+            assertEquals(2, recorder.calls.size(), "only an entry of LOG.dbg");
+            recorder.debug = true;
+            logger.log(dbg);
+            assertEquals(3, recorder.calls.size(), "a backend with DEBUG on prints it, with its call site");
+            assertEquals("", getOutAndClear());
+        } finally {
+            Dbg.ignoreLevels = false;
+        }
+    }
+
     /**
      * A plain SLF4J logger, not location-aware: records the calls of its level methods.
      */
@@ -402,6 +431,8 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         final List<Call> calls = new ArrayList<>();
         final List<String> names = new ArrayList<>();
         final Logger logger = (Logger) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{LocationAwareLogger.class}, this);
+        // what isDebugEnabled answers; every other level is on
+        boolean debug = true;
 
         Logger loggerFor(String name) {
             names.add(name);
@@ -419,7 +450,7 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             if (method.getName().startsWith("is")) {
-                return true;
+                return debug || !method.getName().equals("isDebugEnabled");
             }
             if (method.getName().equals("log") && args.length == 6) {
                 Call call = new Call();

@@ -18,6 +18,9 @@ import java.util.logging.Logger;
  * them. The record names the call site as its source class and method, so a formatter with {@code %2$s} shows the code
  * that called {@code LOG}.
  * <p>
+ * In agent mode {@code LOG.dbg} prints whatever the levels: an entry of it that JUL would drop is printed on the
+ * console of agent mode, on {@code System.out}, instead.
+ * <p>
  * Do not combine it with {@link NanologHandler}, which sends JUL to Nanolog: the two make a loop, which is reported
  * once and cut. On the module path the application needs the module {@code java.logging}.
  */
@@ -36,7 +39,9 @@ public class JulLogger implements ILogger {
     }
 
     /**
-     * Writes the entry to the JUL logger of its source class, if JUL logs its level there.
+     * Writes the entry to the JUL logger of its source class, if JUL logs its level there. In agent mode an entry of
+     * {@code LOG.dbg} that JUL would drop is printed on the console of agent mode instead, since {@code LOG.dbg} prints
+     * whatever the levels there.
      *
      * @param entry the entry
      */
@@ -45,6 +50,10 @@ public class JulLogger implements ILogger {
         Logger logger = loggerOf(entry.getSourceClass());
         Level level = levelOf(entry.getLevel());
         if (!logger.isLoggable(level)) {
+            if (entry.isDbg() && Dbg.ignoreLevels) {
+                // in agent mode LOG.dbg prints whatever the levels, and JUL would drop it
+                Dbg.print(entry);
+            }
             return;
         }
         LogRecord record = new LogRecord(level, message(entry));

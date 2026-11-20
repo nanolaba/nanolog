@@ -26,6 +26,9 @@ import java.util.function.Function;
  * is appended to the message as {@code [skipped N]}, and then the fields of {@link LOG#kv(String, Object)} that no
  * placeholder took, as {@code key=value}, as {@link ConsoleLogger} writes them. SLF4J markers are not supported.
  * <p>
+ * In agent mode {@code LOG.dbg} prints whatever the levels: an entry of it that the backend would drop, its class
+ * having {@code DEBUG} off, is printed on the console of agent mode, on {@code System.out}, instead of being passed on.
+ * <p>
  * The context of {@link LOG#context(String, Object)} is put into the MDC while an entry is forwarded, each value
  * written like a {@code {}} argument, and taken out afterwards; values the MDC held for those keys are put back.
  * Backends that support MDC (Logback, Log4j 2) print it through their patterns, such as {@code %X{requestId}}, as
@@ -67,12 +70,19 @@ public class Slf4jLogger implements ILogger {
     }
 
     /**
-     * Passes the entry to the SLF4J logger of its source class at the same level, with its context in the MDC.
+     * Passes the entry to the SLF4J logger of its source class at the same level, with its context in the MDC. In
+     * agent mode an entry of {@code LOG.dbg} whose class has {@code DEBUG} off in the backend is printed on the console
+     * of agent mode instead, since {@code LOG.dbg} prints whatever the levels there.
      *
      * @param entry the entry; an entry without a message is passed with an empty one
      */
     @Override
     public void log(LogEntry entry) {
+        if (entry.isDbg() && Dbg.ignoreLevels && !isEnabled(LogEntry.LogEntryLevel.DEBUG, entry.getSourceClass())) {
+            // in agent mode LOG.dbg prints whatever the levels, and the backend would drop it
+            Dbg.print(entry);
+            return;
+        }
         Map<String, Object> context = entry.getContext();
         String[] previous = new String[context.size()];
         int i = 0;
