@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.ERROR;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
@@ -306,6 +307,19 @@ class UnitTest extends AbstractLoggerTest {
                 throw failed;
             })));
             assertSame(failed, last(memory).getThrowable());
+            assertEquals("error", last(memory).getFields().get("outcome"));
+
+            assertSame(boom, assertThrows(IllegalStateException.class, () -> LOG.unit("job", (Runnable) () -> {
+                throw boom;
+            })));
+            assertSame(boom, last(memory).getThrowable());
+            assertEquals("error", last(memory).getFields().get("outcome"));
+
+            assertSame(failed, assertThrows(AssertionError.class, () -> LOG.unit("calc").run((Supplier<Object>) () -> {
+                throw failed;
+            })));
+            assertSame(failed, last(memory).getThrowable());
+            assertEquals("error", last(memory).getFields().get("outcome"));
 
             assertEquals(42, (int) LOG.unit("answer").put("q", "life").run(() -> {
                 now[0] += ms(3);

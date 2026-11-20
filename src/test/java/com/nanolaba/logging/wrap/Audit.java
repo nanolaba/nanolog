@@ -21,6 +21,14 @@ public final class Audit {
         Inner.record(message);
     }
 
+    public static void timed(String name, Runnable body) {
+        LOG.timed(name, body);
+    }
+
+    public static void unit(String name, Runnable body) {
+        LOG.unit(name, body);
+    }
+
     public static <T> T dbg(T value) {
         return LOG.dbg(value);
     }

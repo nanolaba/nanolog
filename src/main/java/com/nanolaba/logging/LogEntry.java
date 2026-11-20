@@ -247,10 +247,13 @@ public class LogEntry {
 
     /**
      * Creates the line of a unit of {@code LOG.unit(...)}: its arguments are the fields of the unit, and it counts in
-     * no unit. A location-aware SLF4J backend looks past the frames of the unit for the call site.
+     * no unit.
+     *
+     * @param callerBoundary the class whose frames end Nanolog's part of the stack, see {@link #getCallerBoundary()}
      */
-    static LogEntry createUnitLine(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object[] args) {
-        return new LogEntry(level, sourceClass, caller, throwable, Units.TEMPLATE, args, 0, Units.Scope.class.getName(), false, true, null);
+    static LogEntry createUnitLine(LogEntryLevel level, Class sourceClass, StackTraceElement caller, Throwable throwable, Object[] args,
+                                   String callerBoundary) {
+        return new LogEntry(level, sourceClass, caller, throwable, Units.TEMPLATE, args, 0, callerBoundary, false, true, null);
     }
 
     /**

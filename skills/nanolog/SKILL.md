@@ -105,7 +105,7 @@ When the environment names a coding agent (`AI_AGENT`, `AGENT`, `CLAUDECODE`, `G
 - `-Dnanolog.logger=com.nanolaba.logging.JulLogger` *1.4+*: the entries in `java.util.logging`, which decides the levels. The other way, `NanologHandler.install()` turns the records of JUL and `System.Logger` into Nanolog entries; never both at once.
 - `-Dnanolog.logger=com.nanolaba.logging.FileLogger -Dnanolog.file=logs/app.log` *1.4+*: the entries in a file, appended and written through at once; `nanolog.file.maxSize=10MB` rolls it over to `app.log.1`. A file of the run during development is the run log below, which needs no setting.
 - `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` *1.2+*: one JSON object per line with `ts`, `level`, `logger`, `thread`, `message`, `template`, `args`, `fields` and `context` *1.4+*, `caller` and `exception`. Add `-Dnanolog.console.stream=out` *1.3+* before piping into `jq`: by default `ERROR` lines go to `System.err` and miss the pipe.
-- `-Dnanolog.logger=com.nanolaba.logging.Slf4jLogger`: forwards to SLF4J; add `slf4j-api` and a backend to the project, since Nanolog declares it `provided`. Logback and Log4j 2 report the real call site in `%file:%line` / `%l` *1.2+*.
+- `-Dnanolog.logger=com.nanolaba.logging.Slf4jLogger`: forwards to SLF4J; add `slf4j-api` and a backend to the project, since Nanolog declares it `provided`. Logback and Log4j 2 report the real call site in `%file:%line` / `%l` *1.2+*; for a timer or a unit closed by try-with-resources, the line where the block ends.
 - The same keys work in a `nanolog.properties` file on the classpath and, *1.2+*, as environment variables: `nanolog.logger` is `NANOLOG_LOGGER`. Precedence: `LOG.init(logger)`, `-D`, environment, file.
 
 ## Settings without code changes *1.2+*

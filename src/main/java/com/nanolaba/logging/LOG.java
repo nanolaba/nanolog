@@ -1714,7 +1714,15 @@ public class LOG {
      * @param body the work of the unit
      */
     public static void unit(String name, Runnable body) {
-        Units.open(name, findCaller()).run(body);
+        Units.Scope unit = Units.open(name, findCaller());
+        try {
+            body.run();
+        } catch (Throwable t) {
+            unit.fail(t);
+            endUnit(unit);
+            throw t;
+        }
+        endUnit(unit);
     }
 
     /**
@@ -1727,16 +1735,43 @@ public class LOG {
      * @return the value of the body
      */
     public static <T> T unit(String name, Supplier<T> body) {
-        return Units.open(name, findCaller()).run(body);
+        Units.Scope unit = Units.open(name, findCaller());
+        T value;
+        try {
+            value = body.get();
+        } catch (Throwable t) {
+            unit.fail(t);
+            endUnit(unit);
+            throw t;
+        }
+        endUnit(unit);
+        return value;
     }
 
     /**
-     * Writes the line of a unit, if its level is enabled for the class that opened the unit.
+     * Closes a unit of {@code unit(name, body)} and writes its line here, not through {@link Unit#close()}: only frames
+     * of {@code LOG} are between the call of {@code unit} and the logger, so a location-aware SLF4J backend finds that
+     * call after them (#102).
      */
-    static void writeUnit(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable throwable, Object[] args) {
-        ILogger current = logger;
-        if (isEnabled(current, level, sourceClass)) {
-            write(current, LogEntry.createUnitLine(level, sourceClass, frame, throwable, args));
+    private static void endUnit(Units.Scope unit) {
+        writeUnit(unit.end(), unit.bodyBoundary);
+    }
+
+    /**
+     * Writes the line of a unit that ended, if its level is enabled for the class that opened the unit, and after it
+     * the breadcrumbs held back inside a failed unit.
+     *
+     * @param ending   what the unit writes; {@code null} writes nothing
+     * @param boundary the caller boundary of the line, see {@link LogEntry#getCallerBoundary()}
+     */
+    static void writeUnit(Units.Ending ending, String boundary) {
+        if (ending != null) {
+            ILogger current = logger;
+            if (isEnabled(current, ending.level, ending.sourceClass)) {
+                write(current, LogEntry.createUnitLine(ending.level, ending.sourceClass, ending.frame, ending.failure, ending.arguments,
+                                                       boundary));
+            }
+            deliver(current, ending.breadcrumbs);
         }
     }
 
@@ -1987,10 +2022,14 @@ public class LOG {
      * @param body the work to time
      */
     public static void timed(String name, Runnable body) {
-        Timers.run(time(INFO, name), () -> {
+        Timer timer = time(INFO, name);
+        try {
             body.run();
-            return null;
-        });
+        } catch (Throwable t) {
+            endTimed(timer, t);
+            throw t;
+        }
+        endTimed(timer, null);
     }
 
     /**
@@ -2004,17 +2043,39 @@ public class LOG {
      * @return the value of the body
      */
     public static <T> T timed(String name, Supplier<T> body) {
-        return Timers.run(time(INFO, name), body);
+        Timer timer = time(INFO, name);
+        T value;
+        try {
+            value = body.get();
+        } catch (Throwable t) {
+            endTimed(timer, t);
+            throw t;
+        }
+        endTimed(timer, null);
+        return value;
     }
 
     /**
-     * Writes the line of a timer, if its level is still enabled for its class.
+     * Writes the line of a timer of {@code timed(name, body)}. Only frames of {@code LOG} are between the call of
+     * {@code timed} and the logger, so a location-aware SLF4J backend finds that call after them (#102).
      */
-    static void writeTimer(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable error, String template,
-                           Object[] args) {
+    private static void endTimed(Timer timer, Throwable error) {
+        if (timer instanceof Timers.Timing && ((Timers.Timing) timer).stop()) {
+            Timers.Timing timing = (Timers.Timing) timer;
+            writeTimer(timing, error, timing.timedBoundary);
+        }
+    }
+
+    /**
+     * Writes the line of a stopped timer, if its level is still enabled for its class.
+     *
+     * @param boundary the caller boundary of the line, see {@link LogEntry#getCallerBoundary()}
+     */
+    static void writeTimer(Timers.Timing timing, Throwable error, String boundary) {
         ILogger current = logger;
-        if (isEnabled(current, level, sourceClass)) {
-            write(current, LogEntry.create(level, sourceClass, frame, error, template, args, 0, Timers.Timing.class.getName()));
+        if (isEnabled(current, timing.level, timing.sourceClass)) {
+            write(current, LogEntry.create(timing.level, timing.sourceClass, timing.frame, error, error == null ? Timers.TOOK : Timers.FAILED,
+                                           timing.fields(), 0, boundary));
         }
     }
 
@@ -2874,12 +2935,8 @@ public class LOG {
     }
 
     /**
-     * Writes the breadcrumbs of a failed unit to the installed logger: they were counted when they were held back.
+     * Writes entries held back as breadcrumbs: they were counted when they were held back.
      */
-    static void deliver(List<LogEntry> entries) {
-        deliver(logger, entries);
-    }
-
     private static void deliver(ILogger current, List<LogEntry> entries) {
         for (LogEntry entry : entries) {
             deliver(current, entry);

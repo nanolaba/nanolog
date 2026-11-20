@@ -128,7 +128,7 @@ final class Units {
      */
     static void interruptThread() {
         for (Scope unit = Contexts.unit(); unit != null; unit = unit.parent) {
-            unit.finish(true);
+            unit.interrupt();
         }
     }
 
@@ -139,7 +139,7 @@ final class Units {
         List<Scope> open = new ArrayList<>(OPEN);
         open.sort(Comparator.comparingInt((Scope unit) -> -unit.depth));
         for (Scope unit : open) {
-            unit.finish(true);
+            unit.interrupt();
         }
     }
 
@@ -184,15 +184,49 @@ final class Units {
     }
 
     /**
+     * What a unit writes when it ends: its line, and the breadcrumbs held back inside a failed unit.
+     */
+    static final class Ending {
+
+        final LogEntry.LogEntryLevel level;
+        final Class sourceClass;
+        final StackTraceElement frame;
+        final Throwable failure;
+        final Object[] arguments;
+        final List<LogEntry> breadcrumbs;
+
+        Ending(LogEntry.LogEntryLevel level, Class sourceClass, StackTraceElement frame, Throwable failure, Object[] arguments,
+               List<LogEntry> breadcrumbs) {
+            this.level = level;
+            this.sourceClass = sourceClass;
+            this.frame = frame;
+            this.failure = failure;
+            this.arguments = arguments;
+            this.breadcrumbs = breadcrumbs;
+        }
+    }
+
+    /**
      * An open or closed unit.
      */
     static final class Scope implements LOG.Unit {
+
+        /**
+         * The caller boundary of the line that the unit writes itself: the frame after those of the unit is the code
+         * that closes it, the end of a try-with-resources block, or the call of {@link #run(Runnable)}.
+         */
+        static final String BOUNDARY = Scope.class.getName();
 
         private final String name;
         private final Scope parent;
         private final int depth;
         private final Class sourceClass;
         private final StackTraceElement frame;
+        /**
+         * The caller boundary of the line that {@code LOG.unit(name, body)} writes, from frames of {@code LOG} only:
+         * the skipped helper that called it, or {@code LOG}.
+         */
+        final String bodyBoundary;
         private final long start;
 
         /**
@@ -215,6 +249,7 @@ final class Units {
             this.depth = parent == null ? 0 : parent.depth + 1;
             this.sourceClass = caller.sourceClass;
             this.frame = caller.frame;
+            this.bodyBoundary = caller.boundaryOr(LogEntry.LOG_BOUNDARY);
             this.start = start;
         }
 
@@ -261,8 +296,22 @@ final class Units {
 
         @Override
         public void close() {
+            LOG.writeUnit(end(), BOUNDARY);
+        }
+
+        /**
+         * Closes the unit without writing its line: what the caller writes, see {@link #end(boolean)}.
+         */
+        Ending end() {
             Contexts.leave(this);
-            finish(false);
+            return end(false);
+        }
+
+        /**
+         * Writes the line of the unit with the outcome {@code interrupted}, unless it is closed already.
+         */
+        void interrupt() {
+            LOG.writeUnit(end(true), BOUNDARY);
         }
 
         /**
@@ -309,24 +358,25 @@ final class Units {
         }
 
         /**
-         * Writes the line of the unit, once: unless sampling drops a unit that succeeded fast. A failed unit writes the
-         * breadcrumbs held back inside it after its line; a successful one drops them.
+         * Ends the unit, once: what it writes, or {@code null} when it has ended already or sampling drops a unit that
+         * succeeded fast. A failed unit writes the breadcrumbs held back inside it after its line; a successful one
+         * drops them. The caller writes the ending through {@link LOG#writeUnit}, so that the frames of the unit are
+         * not on the stack while a location-aware backend looks for the call site.
          */
-        void finish(boolean interrupted) {
-            if (closed.compareAndSet(false, true)) {
-                OPEN.remove(this);
-                long nanos = LOG.nanoClock.getAsLong() - start;
-                String outcome = interrupted ? INTERRUPTED : errors.get() > 0 || failure.get() != null ? ERROR : OK;
-                List<LogEntry> breadcrumbs = takeBreadcrumbs();
-                if (outcome.equals(OK) && nanos < slowNanos && random.getAsDouble() >= sample) {
-                    return;
-                }
-                LOG.writeUnit(outcome.equals(OK) ? LogEntry.LogEntryLevel.INFO : LogEntry.LogEntryLevel.ERROR,
-                              sourceClass, frame, failure.get(), arguments(outcome, nanos / 1_000_000));
-                if (!outcome.equals(OK)) {
-                    LOG.deliver(breadcrumbs);
-                }
+        Ending end(boolean interrupted) {
+            if (!closed.compareAndSet(false, true)) {
+                return null;
             }
+            OPEN.remove(this);
+            long nanos = LOG.nanoClock.getAsLong() - start;
+            String outcome = interrupted ? INTERRUPTED : errors.get() > 0 || failure.get() != null ? ERROR : OK;
+            List<LogEntry> breadcrumbs = takeBreadcrumbs();
+            boolean ok = outcome.equals(OK);
+            if (ok && nanos < slowNanos && random.getAsDouble() >= sample) {
+                return null;
+            }
+            return new Ending(ok ? LogEntry.LogEntryLevel.INFO : LogEntry.LogEntryLevel.ERROR, sourceClass, frame, failure.get(),
+                              arguments(outcome, nanos / 1_000_000), ok ? Collections.<LogEntry>emptyList() : breadcrumbs);
         }
 
         private Object[] arguments(String outcome, long millis) {

@@ -1,7 +1,6 @@
 package com.nanolaba.logging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static com.nanolaba.logging.LOG.kv;
 
@@ -23,30 +22,25 @@ final class Timers {
     private Timers() {/**/}
 
     /**
-     * Runs a body with a timer and closes it; an exception the body throws is written with the line and thrown on.
-     */
-    static <T> T run(LOG.Timer timer, Supplier<T> body) {
-        try {
-            return body.get();
-        } catch (Throwable t) {
-            if (timer instanceof Timing) {
-                ((Timing) timer).finish(t);
-            }
-            throw t;
-        } finally {
-            timer.close();
-        }
-    }
-
-    /**
      * A running timer.
      */
     static final class Timing implements LOG.Timer {
 
-        private final LogEntry.LogEntryLevel level;
+        /**
+         * The caller boundary of the line that {@link #close()} writes: the frame after those of the timer is the code
+         * that closes it, the end of a try-with-resources block.
+         */
+        static final String BOUNDARY = Timing.class.getName();
+
+        final LogEntry.LogEntryLevel level;
+        final Class sourceClass;
+        final StackTraceElement frame;
+        /**
+         * The caller boundary of the line that {@code LOG.timed} writes, from frames of {@code LOG} only: the skipped
+         * helper that called it, or {@code LOG}.
+         */
+        final String timedBoundary;
         private final String name;
-        private final Class sourceClass;
-        private final StackTraceElement frame;
         private final long start;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -55,25 +49,30 @@ final class Timers {
             this.name = name;
             this.sourceClass = caller.sourceClass;
             this.frame = caller.frame;
+            this.timedBoundary = caller.boundaryOr(LogEntry.LOG_BOUNDARY);
             this.start = start;
         }
 
         @Override
         public void close() {
-            finish(null);
+            if (stop()) {
+                LOG.writeTimer(this, null, BOUNDARY);
+            }
         }
 
         /**
-         * Writes the line, once.
-         *
-         * @param error the exception that ended the block; {@code null} if it ended normally
+         * Stops the timer: {@code true} the first time only, and then the caller writes the line.
          */
-        void finish(Throwable error) {
-            if (closed.compareAndSet(false, true)) {
-                long millis = (LOG.nanoClock.getAsLong() - start) / 1_000_000;
-                LOG.writeTimer(level, sourceClass, frame, error, error == null ? TOOK : FAILED,
-                               new Object[]{kv("timer", name), kv("duration_ms", millis)});
-            }
+        boolean stop() {
+            return closed.compareAndSet(false, true);
+        }
+
+        /**
+         * The fields of the line: the name and the milliseconds since the start.
+         */
+        Object[] fields() {
+            long millis = (LOG.nanoClock.getAsLong() - start) / 1_000_000;
+            return new Object[]{kv("timer", name), kv("duration_ms", millis)};
         }
     }
 }

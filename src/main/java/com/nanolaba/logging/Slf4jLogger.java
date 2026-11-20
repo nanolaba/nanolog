@@ -20,9 +20,11 @@ import java.util.function.Function;
  * <p>
  * The message is passed already formatted. A location-aware backend is told that the call site is the first frame
  * after {@link LOG} (after {@link LOG.Limited} for a rate-limited call), so its {@code %file:%line} or {@code %l}
- * shows the code that called {@code LOG}. The number of calls a rate-limited statement skipped is appended to the
- * message as {@code [skipped N]}, and then the fields of {@link LOG#kv(String, Object)} that no placeholder took, as
- * {@code key=value}, as {@link ConsoleLogger} writes them. SLF4J markers are not supported.
+ * shows the code that called {@code LOG}. A timer or a unit of work writes its line when it ends, and the backend
+ * reads the stack then: it finds the call of {@code LOG.timed} or {@code LOG.unit(name, body)}, but for a timer or a
+ * unit closed by try-with-resources only the end of the block. The number of calls a rate-limited statement skipped
+ * is appended to the message as {@code [skipped N]}, and then the fields of {@link LOG#kv(String, Object)} that no
+ * placeholder took, as {@code key=value}, as {@link ConsoleLogger} writes them. SLF4J markers are not supported.
  * <p>
  * The context of {@link LOG#context(String, Object)} is put into the MDC while an entry is forwarded, each value
  * written like a {@code {}} argument, and taken out afterwards; values the MDC held for those keys are put back.

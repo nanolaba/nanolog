@@ -14,10 +14,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Slf4jLoggerTest extends AbstractLoggerTest {
@@ -234,6 +236,134 @@ public class Slf4jLoggerTest extends AbstractLoggerTest {
         LOG.info((Class) null, "three");
 
         assertEquals(Arrays.asList("com.nanolaba.logging.util.InfoObject", "ROOT", "ROOT"), recorder.names);
+    }
+
+    @Test
+    public void testTheLinesOfTimedAndOfAUnitWithABodyHaveTheirCallSite() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.timed("runnable", Slf4jLoggerTest::work);
+        LOG.timed("supplier", (Supplier<Integer>) Slf4jLoggerTest::one);
+        LOG.unit("runnable", Slf4jLoggerTest::work);
+        LOG.unit("supplier", (Supplier<Integer>) Slf4jLoggerTest::one);
+
+        // #102: the line is written after the body, and only frames of LOG are left between the call and the logger
+        assertEquals(4, recorder.calls.size());
+        for (int i = 0; i < 4; i++) {
+            LocationAwareRecorder.Call call = recorder.calls.get(i);
+            assertEquals(LOG.class.getName(), call.fqcn, call.message);
+            assertEquals(Slf4jLoggerTest.class.getName(), call.location.getClassName(), call.message);
+            assertEquals("testTheLinesOfTimedAndOfAUnitWithABodyHaveTheirCallSite", call.location.getMethodName(), call.message);
+            assertEquals(line + i, call.location.getLineNumber(), call.message);
+        }
+    }
+
+    @Test
+    public void testTheLinesOfTimedAndOfAUnitWhoseBodyThrowsHaveTheirCallSite() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+
+        List<Throwable> thrown = new ArrayList<>();
+        thrown.add(assertThrows(IllegalStateException.class, () -> LOG.timed("runnable", Slf4jLoggerTest::fail)));
+        thrown.add(assertThrows(IllegalStateException.class, () -> LOG.timed("supplier", (Supplier<Integer>) Slf4jLoggerTest::failWithValue)));
+        thrown.add(assertThrows(IllegalStateException.class, () -> LOG.unit("runnable", Slf4jLoggerTest::fail)));
+        thrown.add(assertThrows(IllegalStateException.class, () -> LOG.unit("supplier", (Supplier<Integer>) Slf4jLoggerTest::failWithValue)));
+
+        assertEquals(4, recorder.calls.size());
+        for (int i = 0; i < 4; i++) {
+            LocationAwareRecorder.Call call = recorder.calls.get(i);
+            assertSame(thrown.get(i), call.throwable);
+            assertEquals(LOG.class.getName(), call.fqcn, call.message);
+            // the frame that called LOG, as the stack trace of the exception shows it
+            assertEquals(frameAfterLog(thrown.get(i)), call.location, call.message);
+        }
+    }
+
+    @Test
+    public void testATimerOrAUnitClosedByTheCodeHasTheCallSiteOfTheClose() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        LOG.init(new Slf4jLogger(recorder::loggerFor));
+        LOG.Timer timer = LOG.time("timer");
+        LOG.Unit unit = LOG.unit("unit");
+
+        // the call of LOG.time or LOG.unit is no longer on the stack: a backend can only find the code that closes
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        timer.close();
+        unit.close();
+        LOG.unit("run").run(Slf4jLoggerTest::work);
+
+        assertEquals(Arrays.asList(Timers.Timing.BOUNDARY, Units.Scope.BOUNDARY, Units.Scope.BOUNDARY), fqcns(recorder));
+        for (int i = 0; i < 3; i++) {
+            LocationAwareRecorder.Call call = recorder.calls.get(i);
+            assertEquals(Slf4jLoggerTest.class.getName(), call.location.getClassName(), call.message);
+            assertEquals("testATimerOrAUnitClosedByTheCodeHasTheCallSiteOfTheClose", call.location.getMethodName(), call.message);
+            assertEquals(line + i, call.location.getLineNumber(), call.message);
+        }
+    }
+
+    @Test
+    public void testTimedAndAUnitWithABodyCalledByASkippedHelperHaveTheCallSiteOfTheHelper() {
+        LocationAwareRecorder recorder = new LocationAwareRecorder();
+        System.setProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP, Audit.class.getName());
+        try {
+            LOG.init();
+            LOG.init(new Slf4jLogger(recorder::loggerFor));
+
+            int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+            Audit.timed("timed", Slf4jLoggerTest::work);
+            Audit.unit("unit", Slf4jLoggerTest::work);
+
+            assertEquals(Arrays.asList(Audit.class.getName(), Audit.class.getName()), fqcns(recorder));
+            for (int i = 0; i < 2; i++) {
+                LocationAwareRecorder.Call call = recorder.calls.get(i);
+                assertEquals("testTimedAndAUnitWithABodyCalledByASkippedHelperHaveTheCallSiteOfTheHelper", call.location.getMethodName());
+                assertEquals(line + i, call.location.getLineNumber(), call.message);
+            }
+        } finally {
+            System.clearProperty(DefaultLoggerCreator.PROPERTY_CALLER_SKIP);
+            LOG.init();
+        }
+    }
+
+    private static void work() {
+        // the body of a timer or a unit
+    }
+
+    private static int one() {
+        return 1;
+    }
+
+    private static void fail() {
+        throw new IllegalStateException("boom");
+    }
+
+    private static int failWithValue() {
+        throw new IllegalStateException("boom");
+    }
+
+    /**
+     * The first frame after those of {@code LOG} in the stack trace of an exception thrown inside a body.
+     */
+    private static StackTraceElement frameAfterLog(Throwable thrown) {
+        boolean inLog = false;
+        for (StackTraceElement element : thrown.getStackTrace()) {
+            if (element.getClassName().equals(LOG.class.getName())) {
+                inLog = true;
+            } else if (inLog) {
+                return element;
+            }
+        }
+        throw new AssertionError("no frame of LOG");
+    }
+
+    private static List<String> fqcns(LocationAwareRecorder recorder) {
+        List<String> result = new ArrayList<>();
+        for (LocationAwareRecorder.Call call : recorder.calls) {
+            result.add(call.fqcn);
+        }
+        return result;
     }
 
     @Test
