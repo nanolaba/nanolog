@@ -16,6 +16,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static com.nanolaba.logging.LogEntry.LogEntryLevel.DEBUG;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.ERROR;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.INFO;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.WARN;
@@ -445,6 +446,94 @@ class UnitTest extends AbstractLoggerTest {
             u.fail(new IllegalStateException("boom"));
         }
         assertTrue(getErrAndClear().startsWith("ERROR [UnitTest] loud error 0 ms error.type=java.lang.IllegalStateException"));
+    }
+
+    // THE LEVEL OF A FAILED UNIT
+
+    @Test
+    public void testAFailureLevelReplacesErrorForTheOutcomesThatDoNotSucceed() {
+        IllegalStateException boom = new IllegalStateException("bad row");
+        try (MemoryLogger memory = MemoryLogger.install()) {
+            int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+            try (LOG.Unit u = LOG.unit(WARN, "import")) {
+                u.fail(boom);
+            }
+            LogEntry failed = last(memory);
+            assertEquals(WARN, failed.getLevel());
+            assertEquals(line, failed.getCaller().getLineNumber());
+            assertSame(boom, failed.getThrowable());
+            assertEquals("error", failed.getFields().get("outcome"), "a script still finds a failed unit by its outcome");
+            assertEquals("java.lang.IllegalStateException", failed.getFields().get("error.type"));
+            assertEquals("bad row", failed.getFields().get("error.message"));
+
+            try (LOG.Unit u = LOG.unit(WARN, "sync")) {
+                LOG.error("the remote side is down");
+            }
+            assertEquals(ERROR, memory.getEntries().get(1).getLevel(), "an entry inside keeps its level");
+            assertEquals(WARN, last(memory).getLevel());
+            assertEquals(map("unit", "sync", "outcome", "error", "duration_ms", 0L, "error", 1, "error.message", "the remote side is down",
+                             "error.key", key(last(memory))), last(memory).getFields());
+
+            LOG.unit(WARN, "fine").close();
+            assertEquals(INFO, last(memory).getLevel(), "ok stays INFO");
+
+            try (LOG.Unit u = LOG.unit(null, "default")) {
+                u.fail(boom);
+            }
+            assertEquals(ERROR, last(memory).getLevel(), "null keeps ERROR");
+
+            LOG.Unit server = LOG.unit(WARN, "server");
+            Units.interruptOpen();
+            assertEquals("WARN [UnitTest] server interrupted 0 ms", console(last(memory)));
+            server.close();
+        }
+    }
+
+    @Test
+    public void testTheFormsWithABodyTakeAFailureLevel() {
+        IllegalStateException boom = new IllegalStateException("boom");
+        try (MemoryLogger memory = MemoryLogger.install()) {
+            assertSame(boom, assertThrows(IllegalStateException.class, () -> LOG.unit(WARN, "job", (Runnable) () -> {
+                throw boom;
+            })));
+            assertEquals(WARN, last(memory).getLevel());
+            assertSame(boom, last(memory).getThrowable());
+
+            assertSame(boom, assertThrows(IllegalStateException.class, () -> LOG.unit(DEBUG, "calc", () -> {
+                throw boom;
+            })));
+            assertEquals(DEBUG, last(memory).getLevel());
+            assertSame(boom, last(memory).getThrowable());
+
+            assertSame(boom, assertThrows(IllegalStateException.class, () -> LOG.unit(WARN, "step").run((Runnable) () -> {
+                throw boom;
+            })));
+            assertEquals(WARN, last(memory).getLevel());
+
+            int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+            assertEquals("v", LOG.unit(WARN, "value", () -> "v"));
+            assertEquals(INFO, last(memory).getLevel());
+            assertEquals(line, last(memory).getCaller().getLineNumber());
+            LOG.unit(WARN, "void", () -> LOG.info("inside"));
+            assertEquals(map("unit", "void", "outcome", "ok", "duration_ms", 0L), last(memory).getFields());
+            assertEquals(line + 3, last(memory).getCaller().getLineNumber());
+            assertEquals(INFO, last(memory).getLevel());
+        }
+        assertNull(Contexts.CURRENT.get());
+    }
+
+    @Test
+    public void testAFailureLevelThatIsOffWritesNoLine() {
+        LOG.init(new ConsoleLogger().setShowDate(false).setLevel(UnitTest.class.getName(), INFO));
+        try (LOG.Unit u = LOG.unit(DEBUG, "expected")) {
+            u.fail(new IllegalStateException("retried later"));
+        }
+        assertEquals("", getOutAndClear() + getErrAndClear(), "a failed unit at a level that is off");
+        try (LOG.Unit u = LOG.unit(WARN, "visible")) {
+            u.fail(new IllegalStateException("retried later"));
+        }
+        assertTrue(getOutAndClear().startsWith("WARN [UnitTest] visible error 0 ms error.type=java.lang.IllegalStateException"),
+                   "WARN goes to System.out, so an appender of ERROR does not alert");
     }
 
     // SAMPLING

@@ -55,11 +55,14 @@ object KotlinCallers {
         LOG.unit("checkout").use { unit -> unit.put("items", 3) }
         LOG.unit("import") { LOG.info("in a unit") }
         val imported: Int = LOG.unit("import", Supplier { 4 })
+        LOG.unit(LogEntry.LogEntryLevel.WARN, "retried").use { unit -> unit.put("attempt", 2) }
+        LOG.unit(LogEntry.LogEntryLevel.WARN, "retried") { LOG.info("in a unit that fails at WARN") }
+        val retried: Int = LOG.unit(LogEntry.LogEntryLevel.WARN, "retried", Supplier { 0 })
         LOG.catching { LOG.info("best effort") }
         val parsed: Int = LOG.catching({ "5".toInt() }, -1)
         LOG.wrap(Runnable { LOG.info("task") }).run()
         val called: Int = LOG.wrap(Callable { 6 }).call()
-        return counted + imported + parsed + called
+        return counted + imported + retried + parsed + called
     }
 
     /**

@@ -1689,7 +1689,8 @@ public class LOG {
      * Closing the unit writes one entry, {@code <name> <outcome> <duration> ms}, whose fields are {@code unit},
      * {@code outcome}, {@code duration_ms}, the fields of {@link Unit#put}, and the counts {@code warn} and
      * {@code error} of the entries logged inside it. The outcome is {@code ok} at {@code INFO}, or {@code error} at
-     * {@code ERROR} once an {@code ERROR} entry was logged inside or {@link Unit#fail} was called; a failed unit adds
+     * {@code ERROR} once an {@code ERROR} entry was logged inside or {@link Unit#fail} was called, at another level with
+     * {@link #unit(LogEntry.LogEntryLevel, String)}; a failed unit adds
      * {@code error.type}, {@code error.message} and {@code error.key}, a key of the template and call site of the first
      * error that stays the same between runs. The line has the source class and call site of this call and the
      * context of the thread that closes it.
@@ -1703,7 +1704,31 @@ public class LOG {
      * @return the unit to close
      */
     public static Unit unit(String name) {
-        return Units.open(name, findCaller());
+        return Units.open(ERROR, name, findCaller());
+    }
+
+    /**
+     * Opens a unit of work whose line has another level than {@code ERROR} when the unit does not succeed: for work
+     * whose failures are expected and handled elsewhere, such as a job that is retried or a call to a service that is
+     * often down, where every {@code ERROR} would raise an alert. {@code ok} stays at {@code INFO}. The outcomes
+     * {@code error} and {@code interrupted}, the counts and the {@code error.*} fields do not change, so
+     * {@code outcome=error} still finds a failed unit:
+     * <pre>{@code
+     * try (LOG.Unit u = LOG.unit(LogEntryLevel.WARN, "import")) {
+     *     ...
+     * }
+     * // WARN 16.11.2026 10:15:02 [Importer] import error 12 ms error.type=java.io.IOException ...
+     * }</pre>
+     * A level that is off for the class writes no line for a failed unit, as a timer of
+     * {@link #time(LogEntry.LogEntryLevel, String)} writes none. See {@link #unit(String)}.
+     *
+     * @param failureLevel the level of the line of the outcomes {@code error} and {@code interrupted}, such as
+     *                     {@code WARN}; {@code null} for {@code ERROR}
+     * @param name         the name of the unit
+     * @return the unit to close
+     */
+    public static Unit unit(LogEntry.LogEntryLevel failureLevel, String name) {
+        return Units.open(failureLevel, name, findCaller());
     }
 
     /**
@@ -1714,7 +1739,21 @@ public class LOG {
      * @param body the work of the unit
      */
     public static void unit(String name, Runnable body) {
-        Units.Scope unit = Units.open(name, findCaller());
+        unit(ERROR, name, body);
+    }
+
+    /**
+     * Runs a body as a unit of work whose line has another level than {@code ERROR} when the unit does not succeed:
+     * {@code LOG.unit(failureLevel, name).run(body)}. An exception the body throws fails the unit and is thrown on. See
+     * {@link #unit(LogEntry.LogEntryLevel, String)}.
+     *
+     * @param failureLevel the level of the line of the outcomes {@code error} and {@code interrupted}; {@code null}
+     *                     for {@code ERROR}
+     * @param name         the name of the unit
+     * @param body         the work of the unit
+     */
+    public static void unit(LogEntry.LogEntryLevel failureLevel, String name, Runnable body) {
+        Units.Scope unit = Units.open(failureLevel, name, findCaller());
         try {
             body.run();
         } catch (Throwable t) {
@@ -1735,7 +1774,23 @@ public class LOG {
      * @return the value of the body
      */
     public static <T> T unit(String name, Supplier<T> body) {
-        Units.Scope unit = Units.open(name, findCaller());
+        return unit(ERROR, name, body);
+    }
+
+    /**
+     * Runs a body that returns a value as a unit of work whose line has another level than {@code ERROR} when the unit
+     * does not succeed: {@code LOG.unit(failureLevel, name).run(body)}. An exception the body throws fails the unit and
+     * is thrown on. See {@link #unit(LogEntry.LogEntryLevel, String)}.
+     *
+     * @param failureLevel the level of the line of the outcomes {@code error} and {@code interrupted}; {@code null}
+     *                     for {@code ERROR}
+     * @param name         the name of the unit
+     * @param body         the work of the unit
+     * @param <T>          the type of the value
+     * @return the value of the body
+     */
+    public static <T> T unit(LogEntry.LogEntryLevel failureLevel, String name, Supplier<T> body) {
+        Units.Scope unit = Units.open(failureLevel, name, findCaller());
         T value;
         try {
             value = body.get();
@@ -1749,7 +1804,7 @@ public class LOG {
     }
 
     /**
-     * Closes a unit of {@code unit(name, body)} and writes its line here, not through {@link Unit#close()}: only frames
+     * Closes a unit of {@code unit(failureLevel, name, body)} and writes its line here, not through {@link Unit#close()}: only frames
      * of {@code LOG} are between the call of {@code unit} and the logger, so a location-aware SLF4J backend finds that
      * call after them (#102).
      */

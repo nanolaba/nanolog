@@ -113,9 +113,12 @@ final class Units {
 
     /**
      * Opens a unit in the current thread, inside the unit open there, if any.
+     *
+     * @param failureLevel the level of the line of a unit that does not succeed; {@code null} for {@code ERROR}
      */
-    static Scope open(String name, CallerDetection.Caller caller) {
-        Scope unit = new Scope(String.valueOf(name), Contexts.unit(), caller, LOG.nanoClock.getAsLong());
+    static Scope open(LogEntry.LogEntryLevel failureLevel, String name, CallerDetection.Caller caller) {
+        Scope unit = new Scope(failureLevel == null ? LogEntry.LogEntryLevel.ERROR : failureLevel, String.valueOf(name), Contexts.unit(),
+                               caller, LOG.nanoClock.getAsLong());
         OPEN.add(unit);
         Contexts.enter(unit);
         Summary.registerHook();
@@ -217,6 +220,7 @@ final class Units {
          */
         static final String BOUNDARY = Scope.class.getName();
 
+        private final LogEntry.LogEntryLevel failureLevel;
         private final String name;
         private final Scope parent;
         private final int depth;
@@ -243,7 +247,8 @@ final class Units {
          */
         private Breadcrumbs.Ring ring;
 
-        Scope(String name, Scope parent, CallerDetection.Caller caller, long start) {
+        Scope(LogEntry.LogEntryLevel failureLevel, String name, Scope parent, CallerDetection.Caller caller, long start) {
+            this.failureLevel = failureLevel;
             this.name = name;
             this.parent = parent;
             this.depth = parent == null ? 0 : parent.depth + 1;
@@ -375,7 +380,7 @@ final class Units {
             if (ok && nanos < slowNanos && random.getAsDouble() >= sample) {
                 return null;
             }
-            return new Ending(ok ? LogEntry.LogEntryLevel.INFO : LogEntry.LogEntryLevel.ERROR, sourceClass, frame, failure.get(),
+            return new Ending(ok ? LogEntry.LogEntryLevel.INFO : failureLevel, sourceClass, frame, failure.get(),
                               arguments(outcome, nanos / 1_000_000), ok ? Collections.<LogEntry>emptyList() : breadcrumbs);
         }
 
