@@ -286,12 +286,18 @@ final class RunLog extends ConsoleLogger {
                 printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
             }
         }
-        return current == null ? logger : new Tee(logger, current);
+        // only the console that agent mode shortened leaves levels to the run log
+        return current == null ? logger : new Tee(logger, current, agent && Agent.isConsole(logger));
     }
 
     /**
      * A logger together with the run log of this JVM. {@link LOG} installs one for every logger while the run log is
      * open, so the file keeps every entry of the run whichever logger the application installs (#90).
+     * <p>
+     * The run log writes the entries its logger takes, and the levels are those of the logger: {@code LOG.isXxxEnabled}
+     * and the lazy arguments of a call answer as they would without the run log, also under an agent (#103). Only the
+     * console that agent mode shortened adds the levels of the run log, which reads the same settings: the file keeps
+     * what the short console leaves out, and the levels are those the console has without agent mode.
      * <p>
      * A Tee may reach another one through its logger: a decorator passes each entry on to {@link LOG#getLogger()}, the
      * Tee it replaced, and so does {@link MemoryLogger#installForwarding()}. The inner Tee then passes the entry to its
@@ -303,10 +309,23 @@ final class RunLog extends ConsoleLogger {
         private static final ThreadLocal<LogEntry> PASSING = new ThreadLocal<>();
 
         private final ILogger logger;
+        // whether the levels of the run log count too: for the console that agent mode shortened
+        private final boolean widened;
 
-        Tee(ILogger logger, RunLog runLog) {
+        Tee(ILogger logger, RunLog runLog, boolean widened) {
             super(logger, runLog);
             this.logger = logger;
+            this.widened = widened;
+        }
+
+        @Override
+        public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+            return widened ? super.isEnabled(level, sourceClass, tag) : CompositeLogger.isEnabled(logger, level, sourceClass, tag);
+        }
+
+        @Override
+        public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+            return widened ? super.mayBeEnabled(level) : CompositeLogger.mayBeEnabled(logger, level);
         }
 
         @Override
@@ -338,7 +357,7 @@ final class RunLog extends ConsoleLogger {
         if (runLog == null || logger == null || writes(logger, runLog)) {
             return logger;
         }
-        return new Tee(logger, runLog);
+        return new Tee(logger, runLog, false);
     }
 
     private static boolean writes(ILogger logger, RunLog runLog) {

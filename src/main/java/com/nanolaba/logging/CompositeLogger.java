@@ -293,7 +293,10 @@ public class CompositeLogger implements ILogger, ILevelControl {
 
     private static final String DELEGATE_NOTE = "the other loggers of the CompositeLogger still receive its entries";
 
-    private static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
+    /**
+     * Asks one delegate whether it takes an entry; a delegate whose check throws is reported and counts as enabled.
+     */
+    static boolean isEnabled(ILogger logger, LogEntry.LogEntryLevel level, Class sourceClass, String tag) {
         try {
             return logger.isEnabled(level, sourceClass, tag);
         } catch (Throwable t) {
@@ -302,7 +305,10 @@ public class CompositeLogger implements ILogger, ILevelControl {
         }
     }
 
-    private static boolean mayBeEnabled(ILogger logger, LogEntry.LogEntryLevel level) {
+    /**
+     * Asks one delegate whether it may take a level, with the guard of {@link #isEnabled(ILogger, LogEntry.LogEntryLevel, Class, String)}.
+     */
+    static boolean mayBeEnabled(ILogger logger, LogEntry.LogEntryLevel level) {
         try {
             return logger.mayBeEnabled(level);
         } catch (Throwable t) {

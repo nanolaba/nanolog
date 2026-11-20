@@ -82,13 +82,20 @@ final class Agent {
      * @return what the console shows, for the line of {@link #announce}; {@code null} for another logger
      */
     static String shorten(ILogger logger) {
-        // a file keeps every entry; only a console is shortened
-        if (!(logger instanceof ConsoleLogger) || logger instanceof FileLogger) {
+        if (!isConsole(logger)) {
             return null;
         }
         return ((ConsoleLogger) logger).useAgentDefaults()
                ? "the console keeps " + PROPERTY_LEVEL + " and shows every LOG.dbg"
                : "the console shows WARN, ERROR and every LOG.dbg";
+    }
+
+    /**
+     * Whether a logger is the console of Nanolog, which {@link #shorten} shortens: a {@link ConsoleLogger} or a
+     * subclass, except a {@link FileLogger}, since a file keeps every entry.
+     */
+    static boolean isConsole(ILogger logger) {
+        return logger instanceof ConsoleLogger && !(logger instanceof FileLogger);
     }
 
     /**

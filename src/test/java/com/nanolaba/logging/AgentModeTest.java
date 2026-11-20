@@ -5,8 +5,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static com.nanolaba.logging.DefaultLoggerCreator.*;
 import static com.nanolaba.logging.LogEntry.LogEntryLevel.DEBUG;
@@ -443,5 +448,47 @@ class AgentModeTest extends AbstractLoggerTest {
         assertEquals("", getErrAndClear());
         System.setProperty(PROPERTY_RUN, "off");
         assertSame(console, RunLog.attach(console, true));
+    }
+
+    // LEVELS WITH THE RUN LOG
+
+    @Test
+    public void testTheRunLogKeepsWhatTheShortConsoleLeavesOut() throws IOException {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        getErrAndClear();
+
+        assertTrue(LOG.isInfoEnabled(), "the levels the console has without agent mode");
+        LOG.info("only in the file");
+
+        assertEquals("", getOutAndClear());
+        String log = String.join(NL, Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8));
+        assertTrue(log.contains("only in the file"), log);
+    }
+
+    @Test
+    public void testALoggerOfItsOwnKeepsItsLevelsWithTheRunLog() throws IOException {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        System.setProperty(PROPERTY_LOGGER_CLASS, JulLogger.class.getName());
+        // a strong reference: java.util.logging forgets the level of a logger that is collected
+        Logger jul = Logger.getLogger(AgentModeTest.class.getName());
+        jul.setLevel(Level.INFO);
+        jul.setUseParentHandlers(false);
+        try {
+            LOG.init();
+            getErrAndClear();
+
+            assertTrue(LOG.isInfoEnabled());
+            assertFalse(LOG.isDebugEnabled(), "the levels of JUL, as without agent mode (#103)");
+            LOG.info("in the file");
+
+            String log = String.join(NL, Files.readAllLines(root.resolve("latest.log"), StandardCharsets.UTF_8));
+            assertTrue(log.contains("in the file"), log);
+        } finally {
+            jul.setLevel(null);
+            jul.setUseParentHandlers(true);
+        }
     }
 }

@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -724,6 +725,69 @@ class RunLogTest extends AbstractLoggerTest {
         List<String> log = lines(root.resolve("latest.log"));
         assertEquals(2, log.size(), String.join(NL, log));
         assertTrue(log.get(0).contains("captured"), log.get(0));
+    }
+
+    /**
+     * A logger with levels of its own: WARN and above for every class, and INFO the lowest level it may take.
+     */
+    private static final class Leveled implements ILogger {
+
+        final List<LogEntry> entries = new ArrayList<>();
+        int asked;
+
+        @Override
+        public void log(LogEntry entry) {
+            entries.add(entry);
+        }
+
+        @Override
+        public boolean isEnabled(LogEntry.LogEntryLevel level, Class sourceClass) {
+            asked++;
+            return level.ordinal() >= WARN.ordinal();
+        }
+
+        @Override
+        public boolean mayBeEnabled(LogEntry.LogEntryLevel level) {
+            return level.ordinal() >= INFO.ordinal();
+        }
+    }
+
+    @Test
+    public void testAnInstalledLoggerKeepsItsLevelsWithTheRunLog() throws IOException {
+        runLogOn();
+        Leveled application = new Leveled();
+        AtomicInteger built = new AtomicInteger();
+
+        LOG.init(application);
+
+        assertFalse(LOG.isDebugEnabled());
+        assertEquals(0, application.asked, "a level the logger never takes walks no stack");
+        assertFalse(LOG.isInfoEnabled(), "the run log takes every level, the logger does not (#103)");
+        assertFalse(LOG.isInfoEnabled(RunLogTest.class));
+        assertTrue(LOG.isWarnEnabled());
+        LOG.info("not built {}", LOG.lazy(built::incrementAndGet));
+        assertEquals(0, built.get(), "nor is a lazy argument");
+        LOG.warn("taken");
+
+        assertEquals(1, application.entries.size());
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(1, log.size(), String.join(NL, log));
+        assertTrue(log.get(0).contains("taken"), log.get(0));
+    }
+
+    @Test
+    public void testWithoutAgentModeTheRunLogFollowsTheLevelsOfTheConsole() throws IOException {
+        runLogOn();
+        ((ConsoleLogger) ((CompositeLogger) LOG.getLogger()).getLoggers().get(0)).setDebugEnabled(false);
+        getOutAndClear();
+
+        assertFalse(LOG.isDebugEnabled());
+        LOG.debug("not logged");
+        LOG.info("logged");
+
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(1, log.size(), String.join(NL, log));
+        assertTrue(log.get(0).contains("logged"), log.get(0));
     }
 
     @Test
