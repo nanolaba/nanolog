@@ -96,7 +96,7 @@ More in [Agent mode](#agent-mode-nanolog-detects-coding-agents) and [Fewer token
 
 How Nanolog compares with tinylog, SLF4J, Log4j 2, Flogger and others: [Related projects](#related-projects).
 
-The latest stable version is **1.4.1**.
+The latest stable version is **1.4.1**; the version under development is **1.5-SNAPSHOT** (see [Changelog](#changelog)).
 
 ## Table of contents
 - 1 [Installation](#installation)
@@ -145,20 +145,21 @@ The latest stable version is **1.4.1**.
 	- 21.1 [Logging helpers](#logging-helpers)
 - 22 [Writing your own logger](#writing-your-own-logger)
 - 23 [Thread safety and performance](#thread-safety-and-performance)
-- 24 [Related projects](#related-projects)
-	- 24.1 [Static facades](#static-facades)
-	- 24.2 [Mainstream loggers](#mainstream-loggers)
-	- 24.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
-	- 24.4 [When another logger fits better](#when-another-logger-fits-better)
-- 25 [Changelog](#changelog)
-	- 25.1 [1.4.1](#141)
-	- 25.2 [1.4](#14)
-	- 25.3 [1.3](#13)
-	- 25.4 [1.2](#12)
-	- 25.5 [1.1](#11)
-	- 25.6 [1.0](#10)
-- 26 [Contributing](#contributing)
-- 27 [License](#license)
+- 24 [Using SNAPSHOT versions](#using-snapshot-versions)
+- 25 [Related projects](#related-projects)
+	- 25.1 [Static facades](#static-facades)
+	- 25.2 [Mainstream loggers](#mainstream-loggers)
+	- 25.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
+	- 25.4 [When another logger fits better](#when-another-logger-fits-better)
+- 26 [Changelog](#changelog)
+	- 26.1 [1.4.1](#141)
+	- 26.2 [1.4](#14)
+	- 26.3 [1.3](#13)
+	- 26.4 [1.2](#12)
+	- 26.5 [1.1](#11)
+	- 26.6 [1.0](#10)
+- 27 [Contributing](#contributing)
+- 28 [License](#license)
 
 
 ## Installation
@@ -1538,6 +1539,44 @@ A logger that throws does not break the code that logs. The first failure of eac
 - A call at a level that is off for every class costs one `mayBeEnabled` check, or one `isEnabled` check with an explicit class. If a level is on for some package or class, a call at that level without an explicit class costs one stack walk and an `isEnabled` check even where the level is off, so a single rule such as `nanolog.level.com.acme.db=TRACE` makes every `trace` call without a class walk the stack. Message formatting and `Supplier` evaluation happen only for enabled levels.
 - Measured with JMH on JDK 17 (Ryzen 5 5600X, Windows 10): a call at a level that is off for every class takes about 2 ns without a class and 7 ns with one. The stack walk, the price of a call without a class at a level enabled for some class, takes about 2.5 µs near the top of the stack and 3 µs at 100 frames; Java 8, which has no `StackWalker`, needs about 5 µs and 8 µs. An enabled line through `ConsoleLogger` takes under 1 µs, plus the walk if the class is not given. Other JDKs and the method: [src/jmh/RESULTS.md](src/jmh/RESULTS.md).
 
+## Using SNAPSHOT versions
+
+Development builds are published to the Sonatype snapshot repository. Add it and depend on the `-SNAPSHOT` version:
+
+**Maven (pom.xml)**
+
+```xml
+<repositories>
+    <repository>
+        <id>central.sonatype.com-snapshot</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots</url>
+        <snapshots>
+            <enabled>true</enabled>
+            <updatePolicy>always</updatePolicy>
+        </snapshots>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.nanolaba</groupId>
+    <artifactId>nanolog</artifactId>
+    <version>1.5-SNAPSHOT</version>
+</dependency>
+```
+
+**Gradle (build.gradle)**
+
+```groovy
+repositories {
+    maven {
+        url 'https://central.sonatype.com/repository/maven-snapshots'
+    }
+}
+
+dependencies {
+    implementation 'com.nanolaba:nanolog:1.5-SNAPSHOT'
+}
+```
 
 ## Related projects
 
