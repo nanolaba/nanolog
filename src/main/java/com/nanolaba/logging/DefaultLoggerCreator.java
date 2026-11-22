@@ -498,7 +498,8 @@ public class DefaultLoggerCreator {
      * Loads {@code nanolog.properties} and reports the settings Nanolog does not know, then creates the logger named by
      * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. With {@value #PROPERTY_RUN}{@code =on} the result is a
      * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM. In agent mode
-     * ({@value #PROPERTY_AGENT}) the console gets shorter defaults, the run log is on unless switched off, and one
+     * ({@value #PROPERTY_AGENT}) the console gets shorter defaults, the run log is on unless switched off, and before
+     * the first entry one
      * {@code [NANOLOG]} line per JVM says so. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and
      * falls back to {@code ConsoleLogger}.
      *
@@ -511,11 +512,8 @@ public class DefaultLoggerCreator {
         String agent = Agent.detect();
         ILogger logger = createConfiguredLogger();
         String console = agent == null ? null : Agent.shorten(logger);
-        logger = RunLog.attach(logger, agent != null);
-        if (agent != null) {
-            Agent.announce(agent, console, RunLog.current());
-        }
-        return logger;
+        Agent.prepare(agent, logger, console);
+        return RunLog.attach(logger, agent != null);
     }
 
     private static ILogger createConfiguredLogger() {

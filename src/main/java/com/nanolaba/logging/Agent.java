@@ -54,8 +54,17 @@ final class Agent {
 
     private static final String OFF_HINT = PROPERTY_AGENT + "=off turns it off";
 
-    // guarded by the class
+    // guarded by the class: whether the notice was printed, and what it will say until then
     private static boolean announced;
+    private static String trigger;
+    private static ILogger shortened;
+    private static String console;
+
+    /**
+     * Whether the notice waits for the first entry: set by {@link #prepare}, read before every entry until
+     * {@link #announce} has printed it.
+     */
+    static volatile boolean pending;
 
     private Agent() {
     }
@@ -120,34 +129,65 @@ final class Agent {
     }
 
     /**
-     * Prints, once per JVM, that agent mode is on, what turned it on, what the console shows and where the full log
-     * is, so the agent knows what it does not see and where to read it.
+     * Remembers what the notice of agent mode will say, until {@link #announce} prints it with the first entry; with
+     * agent mode off, forgets it. Once the notice is printed, nothing changes: it is printed once per JVM.
      *
-     * @param trigger what turned agent mode on
-     * @param console what the console shows; {@code null} for a logger of its own
-     * @param runLog  the run log; {@code null} if it is off
+     * @param trigger   what turned agent mode on; {@code null} if it is off
+     * @param configured the logger of the configuration
+     * @param shown     what {@link #shorten} says that logger shows; {@code null} for a logger of its own
      */
-    static synchronized void announce(String trigger, String console, RunLog runLog) {
+    static synchronized void prepare(String trigger, ILogger configured, String shown) {
         if (announced) {
             return;
         }
-        announced = true;
-        List<String> parts = new ArrayList<>();
-        if (console != null) {
-            parts.add(console);
+        Agent.trigger = trigger;
+        shortened = configured;
+        console = shown;
+        pending = trigger != null;
+    }
+
+    /**
+     * Prints, once per JVM and before the first entry, that agent mode is on, what turned it on, what the installed
+     * logger shows and where the full log is, so the agent knows what it does not see and where to read it. Printed
+     * with the first entry rather than when the logger of the configuration is created, the line describes the logger
+     * the application installed in the meantime, and a run that logs nothing prints nothing (#110).
+     *
+     * @param installed   the logger the first entry goes to
+     * @param installedAt the class of that logger and where {@code LOG.init(logger)} installed it; {@code null} for the
+     *                    logger of the configuration
+     */
+    static synchronized void announce(ILogger installed, String installedAt) {
+        if (!pending) {
+            return;
         }
+        List<String> parts = new ArrayList<>();
+        if (RunLog.unwrap(installed) == shortened) {
+            if (console != null) {
+                parts.add(console);
+            }
+        } else if (installedAt != null) {
+            parts.add(installedAt + " keeps its own levels and format");
+        }
+        RunLog runLog = RunLog.current();
         if (runLog != null) {
             parts.add("the full log is in " + runLog.shownFile().toAbsolutePath() + ", WARN and ERROR also in " +
                       runLog.shownErrorsFile().toAbsolutePath());
         }
         parts.add(OFF_HINT);
         DefaultLoggerCreator.printNotice("Agent mode (" + trigger + "): " + String.join("; ", parts));
+        // only now, so an entry of another thread waits for the notice
+        announced = true;
+        pending = false;
     }
 
     /**
-     * Lets the next {@link #announce} print again; for tests.
+     * Forgets the notice, printed or not, so the next {@link #prepare} starts again; for tests.
      */
     static synchronized void reset() {
         announced = false;
+        pending = false;
+        trigger = null;
+        shortened = null;
+        console = null;
     }
 }

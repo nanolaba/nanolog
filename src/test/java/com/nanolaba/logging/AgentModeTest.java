@@ -381,7 +381,8 @@ class AgentModeTest extends AbstractLoggerTest {
         System.setProperty(PROPERTY_RUN_DIR, root.toString());
         getErrAndClear();
 
-        List<ILogger> loggers = ((CompositeLogger) DefaultLoggerCreator.createDefaultLogger()).getLoggers();
+        ILogger logger = DefaultLoggerCreator.createDefaultLogger();
+        List<ILogger> loggers = ((CompositeLogger) logger).getLoggers();
 
         ConsoleLogger console = (ConsoleLogger) loggers.get(0);
         assertFalse(console.isInfoEnabled());
@@ -389,10 +390,64 @@ class AgentModeTest extends AbstractLoggerTest {
         assertTrue(runLog.isTraceEnabled(), "the file keeps every level");
         assertEquals("[NANOLOG] Agent mode (AI_AGENT=claude-code): the console shows WARN, ERROR and every LOG.dbg; " +
                      "the full log is in " + root.resolve("latest.log").toAbsolutePath() + ", WARN and ERROR also in " +
-                     root.resolve("latest.errors.log").toAbsolutePath() + "; " + OFF_HINT + NL, getErrAndClear());
+                     root.resolve("latest.errors.log").toAbsolutePath() + "; " + OFF_HINT + NL, noticeFor(logger));
 
-        DefaultLoggerCreator.createDefaultLogger();
-        assertEquals("", getErrAndClear(), "once per JVM");
+        assertEquals("", noticeFor(DefaultLoggerCreator.createDefaultLogger()), "once per JVM");
+    }
+
+    /**
+     * The notice of agent mode as the first entry through a logger prints it; nothing is printed before.
+     */
+    private String noticeFor(ILogger logger) {
+        assertEquals("", getErrAndClear(), "nothing is printed before the first entry");
+        Agent.announce(logger, null);
+        return getErrAndClear();
+    }
+
+    @Test
+    public void testTheNoticeIsPrintedWithTheFirstEntry() {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN, "off");
+        LOG.init();
+        assertEquals("", getErrAndClear(), "a run that logs nothing prints nothing");
+
+        LOG.error("first");
+
+        String err = getErrAndClear();
+        assertTrue(err.startsWith("[NANOLOG] Agent mode (CLAUDECODE=1): the console shows WARN, ERROR and every LOG.dbg; " +
+                                  OFF_HINT + NL) && err.endsWith("first" + NL), err);
+        LOG.error("second");
+        assertFalse(getErrAndClear().contains("Agent mode"), "once per JVM");
+    }
+
+    @Test
+    public void testTheNoticeDescribesTheLoggerTheApplicationInstalled() {
+        // the logger of the configuration is replaced before anything is logged (#110)
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN, "off");
+        LOG.init();
+        int line = new Throwable().getStackTrace()[0].getLineNumber() + 1;
+        LOG.init(new ConsoleLogger());
+        getErrAndClear();
+
+        LOG.warn("first");
+
+        assertEquals("[NANOLOG] Agent mode (CLAUDECODE=1): com.nanolaba.logging.ConsoleLogger installed at " +
+                     "com.nanolaba.logging.AgentModeTest.testTheNoticeDescribesTheLoggerTheApplicationInstalled(AgentModeTest.java:" +
+                     line + ") keeps its own levels and format; " + OFF_HINT + NL, getErrAndClear());
+    }
+
+    @Test
+    public void testNoNoticeOnceAgentModeIsTurnedOffBeforeTheFirstEntry() {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN, "off");
+        LOG.init();
+        System.setProperty(PROPERTY_AGENT, "off");
+        LOG.init();
+
+        LOG.error("first");
+
+        assertFalse(getErrAndClear().contains("Agent mode"));
     }
 
     @Test
@@ -405,7 +460,7 @@ class AgentModeTest extends AbstractLoggerTest {
 
         assertFalse(console.isInfoEnabled());
         assertEquals("[NANOLOG] Agent mode (CLAUDECODE=1): the console shows WARN, ERROR and every LOG.dbg; " + OFF_HINT + NL,
-                     getErrAndClear());
+                     noticeFor(console));
     }
 
     /**
@@ -416,8 +471,7 @@ class AgentModeTest extends AbstractLoggerTest {
         System.setProperty(PROPERTY_RUN, "off");
         getErrAndClear();
         Agent.reset();
-        DefaultLoggerCreator.createDefaultLogger();
-        return getErrAndClear();
+        return noticeFor(DefaultLoggerCreator.createDefaultLogger());
     }
 
     private static String repeat(char c, int count) {
@@ -476,7 +530,7 @@ class AgentModeTest extends AbstractLoggerTest {
 
         assertTrue(console.isInfoEnabled());
         assertEquals("[NANOLOG] Agent mode (nanolog.agent=on): the console keeps nanolog.level and shows every LOG.dbg; " +
-                     OFF_HINT + NL, getErrAndClear());
+                     OFF_HINT + NL, noticeFor(console));
     }
 
     @Test
@@ -489,7 +543,7 @@ class AgentModeTest extends AbstractLoggerTest {
         ILogger logger = DefaultLoggerCreator.createDefaultLogger();
 
         assertTrue(logger instanceof MemoryLogger, String.valueOf(logger));
-        assertEquals("[NANOLOG] Agent mode (CLAUDECODE=1): " + OFF_HINT + NL, getErrAndClear());
+        assertEquals("[NANOLOG] Agent mode (CLAUDECODE=1): " + OFF_HINT + NL, noticeFor(logger));
     }
 
     @Test

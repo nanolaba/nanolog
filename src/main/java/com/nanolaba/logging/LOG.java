@@ -2943,6 +2943,11 @@ public class LOG {
      * Hands an entry whose level is enabled to the logger, and writes it to {@code System.err} if the logger throws.
      */
     private static void write(ILogger current, LogEntry entry) {
+        if (Agent.pending) {
+            // with the first entry, so the notice describes the logger installed by now (#110)
+            Origin origin = installedBy;
+            Agent.announce(current, origin == null ? null : className(current) + " installed at " + origin.site);
+        }
         Units.Scope unit = entry.getUnit();
         if (unit != null) {
             unit.count(entry);
