@@ -408,6 +408,63 @@ class AgentModeTest extends AbstractLoggerTest {
                      getErrAndClear());
     }
 
+    /**
+     * The line of agent mode with {@code AI_AGENT} set to a value, without the run log.
+     */
+    private String lineFor(String value) {
+        environment.put("AI_AGENT", value);
+        System.setProperty(PROPERTY_RUN, "off");
+        getErrAndClear();
+        Agent.reset();
+        DefaultLoggerCreator.createDefaultLogger();
+        return getErrAndClear();
+    }
+
+    private static String repeat(char c, int count) {
+        char[] chars = new char[count];
+        Arrays.fill(chars, c);
+        return new String(chars);
+    }
+
+    @Test
+    public void testTheLineShowsAValueOfUpTo64CharactersWhole() {
+        String value = repeat('x', Agent.MAX_VALUE);
+
+        assertEquals("[NANOLOG] Agent mode (AI_AGENT=" + value + "): the console shows WARN, ERROR and every LOG.dbg; " +
+                     OFF_HINT + NL, lineFor(value));
+    }
+
+    @Test
+    public void testTheLineCutsALongerValue() {
+        // anything in the process tree may set the variable, and the agent pays for every character of the line
+        String start = repeat('x', Agent.MAX_VALUE);
+
+        assertEquals("[NANOLOG] Agent mode (AI_AGENT=\"" + start + "... [+4936 chars]\"): the console shows WARN, ERROR " +
+                     "and every LOG.dbg; " + OFF_HINT + NL, lineFor(repeat('x', 5000)));
+        assertTrue(lineFor(start + "y").startsWith("[NANOLOG] Agent mode (AI_AGENT=\"" + start + "... [+1 char]\"): "));
+    }
+
+    @Test
+    public void testTheCutDoesNotSplitACharacterOutsideTheBmp() {
+        String start = repeat('x', Agent.MAX_VALUE - 1);
+
+        assertTrue(lineFor(start + "\uD83E\uDD16y").startsWith("[NANOLOG] Agent mode (AI_AGENT=\"" + start + "... [+3 chars]\"): "),
+                   "the robot face U+1F916 is two chars, and half of it would print as ?");
+    }
+
+    @Test
+    public void testTheLineQuotesAValueThatWouldNotReadAsOne() {
+        assertTrue(lineFor("my agent; nanolog.agent=on").startsWith(
+                "[NANOLOG] Agent mode (AI_AGENT=\"my agent; nanolog.agent=on\"): the console shows "));
+        assertTrue(lineFor("a\nb").startsWith("[NANOLOG] Agent mode (AI_AGENT=\"a\\u000ab\"): "), "still one line");
+    }
+
+    @Test
+    public void testTheLineEscapesAFormatCharacterOfTheValue() {
+        // U+202E reverses the rest of the line in a terminal that applies bidi
+        assertTrue(lineFor("claude\u202Eedoc-").startsWith("[NANOLOG] Agent mode (AI_AGENT=claude\\u202eedoc-): "));
+    }
+
     @Test
     public void testTheHeaderSaysThatAnExplicitLevelIsKept() {
         System.setProperty(PROPERTY_AGENT, "on");

@@ -152,12 +152,13 @@ The latest stable version is **1.4.1**; the version under development is **1.5-S
 	- 25.3 [Next to tinylog 2.8.1](#next-to-tinylog-281)
 	- 25.4 [When another logger fits better](#when-another-logger-fits-better)
 - 26 [Changelog](#changelog)
-	- 26.1 [1.4.1](#141)
-	- 26.2 [1.4](#14)
-	- 26.3 [1.3](#13)
-	- 26.4 [1.2](#12)
-	- 26.5 [1.1](#11)
-	- 26.6 [1.0](#10)
+	- 26.1 [1.5-SNAPSHOT](#15-snapshot)
+	- 26.2 [1.4.1](#141)
+	- 26.3 [1.4](#14)
+	- 26.4 [1.3](#13)
+	- 26.5 [1.2](#12)
+	- 26.6 [1.1](#11)
+	- 26.7 [1.0](#10)
 - 27 [Contributing](#contributing)
 - 28 [License](#license)
 
@@ -358,7 +359,7 @@ Without agent mode the same run printed 530 lines of **Nanolog** output: three l
 - **The console.** `WARN` and above, unless `nanolog.level` or a package rule says otherwise. One line per entry, with line breaks written as `\n`, a Windows line separator as `\r\n` (`nanolog.console.multiline=escape`), no date and no colours, and consecutive repeats collapsed into one line with a count (`nanolog.console.repeats=collapse`), unless these settings are given. Stack traces collapse runs of frames of the JDK, Kotlin, test runners, build tools and common frameworks and servers (Spring, Tomcat, Jetty, Netty, Hibernate), print at most 20 frames per throwable and keep every cause; `nanolog.exception.exclude` and `nanolog.exception.maxFrames` replace these defaults.
 - **`LOG.dbg` prints whatever the levels**: the agent put it there to see the value. With `Slf4jLogger` or `JulLogger`, a `LOG.dbg` line that the backend would drop, its class having `DEBUG` off there, is printed by **Nanolog** on `System.out` in the format of the console above. `nanolog.dbg=off` still silences it.
 - **The run log is on** and keeps every level, the date, the thread, the call site and the whole stack trace, so the agent reads it instead of running again with another level; `nanolog.run=off` turns it off. See [Run log](#run-log).
-- **One line says what happened**, once per JVM: what turned agent mode on, what the console shows and where the full log is.
+- **One line says what happened**, once per JVM: what turned agent mode on, what the console shows and where the full log is. The value of the variable is shown up to 64 characters, then cut with `... [+4936 chars]`, and in double quotes when it would not read as one value: anything in the process tree may set it, and the agent reads the line.
 - **The run ends with a summary**: see [Run summary](#run-summary-the-part-of-the-output-that-survives-truncation); `nanolog.summary=off` turns it off.
 - **Only Nanolog's own output changes.** The defaults above apply to the default logger, `ConsoleLogger` or `JsonLogger`; a logger set with `LOG.init(logger)`, or another class named by `nanolog.logger`, keeps its settings. The levels do not change either: `LOG.isDebugEnabled()` and the lazy arguments of a call answer as without agent mode, so code that checks a level behaves the same under an agent. A test that reads what the default logger prints to the console sees less under an agent: capture the entries with `MemoryLogger`, or set `NANOLOG_AGENT=off` for the test JVM (`environmentVariables` of Surefire).
 
@@ -810,7 +811,7 @@ NANOLOG_LEVEL=WARN NANOLOG_LEVELS=com.acme.payments=DEBUG java -jar app.jar
 - `nanolog.level.<name>` beats an item for the same name in `nanolog.levels`.
 - Setters called after the constructor override the values it read, so `new ConsoleLogger().setDebugEnabled(false)` in code wins over `nanolog.level`; package and class rules still apply on top.
 - `[NANOLOG]` lines are notices of what Nanolog does and diagnostics of its own problems. A diagnostic says where it comes from: a setting and where it was set (`set as a system property`, `set by the environment variable NANOLOG_LEVEL`, `set in file:/.../nanolog.properties`), a logger class or a call site. Each distinct diagnostic is printed once per JVM; `nanolog.diagnostics=all` prints every one, including each failure of a logger, and `off` none, while `ILogger.onDiagnostic` still gets the findings of strict mode and of `nanolog.dbg=fail`. The run summary, the line of agent mode and the path of the run log are notices with switches of their own.
-- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on. A diagnostic is always one line: control characters in the value it repeats are printed as escapes such as `\u000a`.
+- An invalid value prints a `[NANOLOG]` diagnostic to `System.err` and is ignored; logging goes on. A diagnostic is always one line: control characters in the value it repeats are printed as escapes such as `\u000a`, and so are format characters, such as the bidi override `\u202e`, which would make the line read in another order.
 - `nanolog.properties` is read when `LOG` initialises, so a `ConsoleLogger` created before that sees only `-D` and the environment.
 
 ### Changing levels at run time
@@ -1739,6 +1740,10 @@ When ServiceLoader does not find `tinylog-impl`, nothing is logged: [#126](https
 [jboss-logging]: https://github.com/jboss-logging/jboss-logging "JBoss Logging"
 
 ## Changelog
+
+### 1.5-SNAPSHOT
+
+- The `[NANOLOG]` line of agent mode shows the value of the variable that turned it on up to 64 characters, then `... [+N chars]`, in double quotes when it would not read as one value, and every `[NANOLOG]` line prints format characters, such as the bidi override U+202E or the zero-width space U+200B, as escapes such as `\u202e`. Before, a 5,000-character `AI_AGENT` made a line of 5,113 characters, and U+202E reversed how the rest of the line read in a terminal that applies bidi.
 
 ### 1.4.1
 

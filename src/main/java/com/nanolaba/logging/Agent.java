@@ -46,6 +46,12 @@ final class Agent {
      */
     static final int MAX_FRAMES = 20;
 
+    /**
+     * The most characters of the value of a variable that the line of agent mode shows: enough for the name of an
+     * agent, {@code claude-code}, or a flag, {@code 1}.
+     */
+    static final int MAX_VALUE = 64;
+
     private static final String OFF_HINT = PROPERTY_AGENT + "=off turns it off";
 
     // guarded by the class
@@ -57,8 +63,8 @@ final class Agent {
     /**
      * Reads {@code nanolog.agent} and, for {@code auto}, the environment.
      *
-     * @return what turned agent mode on, {@code AI_AGENT=claude-code} or {@code nanolog.agent=on}; {@code null} if it
-     * is off
+     * @return what turned agent mode on, {@code AI_AGENT=claude-code} or {@code nanolog.agent=on}, with the value
+     * {@link #shown}; {@code null} if it is off
      */
     static String detect() {
         String mode = readChoice(PROPERTY_AGENT, "auto", "on", "off");
@@ -70,10 +76,25 @@ final class Agent {
         for (String name : VARIABLES) {
             String value = environment.apply(name);
             if (value != null && !value.trim().isEmpty() && !NO.contains(value.trim().toLowerCase(Locale.ROOT))) {
-                return name + "=" + value;
+                return name + "=" + shown(value);
             }
         }
         return null;
+    }
+
+    /**
+     * The value of a variable as the line of agent mode shows it: whole up to {@link #MAX_VALUE} characters, otherwise
+     * its start and {@code ... [+4936 chars]}, and in double quotes when it would not read as one value, as a pair of
+     * the context. Anything in the process tree may set the variable, and the agent reads the line back; its control
+     * and format characters are escaped when it is printed.
+     */
+    private static String shown(String value) {
+        if (value.length() <= MAX_VALUE) {
+            return ConsoleLogger.quoted(value);
+        }
+        // a character outside the BMP stays whole
+        int end = Character.isHighSurrogate(value.charAt(MAX_VALUE - 1)) ? MAX_VALUE - 1 : MAX_VALUE;
+        return ConsoleLogger.quoted(value.substring(0, end) + "... [+" + Contents.chars(value.length() - end) + "]");
     }
 
     /**

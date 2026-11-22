@@ -361,8 +361,9 @@ public class DefaultLoggerCreator {
      * Prints a {@code [NANOLOG]} diagnostic to {@code System.err}. Configuration mistakes must not break logging.
      * <p>
      * A diagnostic echoes values it did not choose: settings, a level passed to {@code LOG.setLevel} from a request,
-     * an exception message, a template. Control characters and the Unicode line separators are printed as
-     * {@code \}{@code u000a} escapes, so a diagnostic is always one line and no value can forge a line of its own.
+     * an exception message, a template. Control characters, the Unicode line separators and the format characters
+     * are printed as {@code \}{@code u000a} escapes, so a diagnostic is always one line, no value can forge a line of
+     * its own, and a bidi override cannot make the line read in another order.
      */
     static boolean printDiagnostic(String message) {
         if (QUIET.get() == null && isPrinted(message)) {
@@ -445,17 +446,52 @@ public class DefaultLoggerCreator {
         diagnostics = Diagnostics.valueOf(readChoice(PROPERTY_DIAGNOSTICS, "once", "all", "off").toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * Control characters, U+2028/U+2029 and {@link #isFormat format characters} as {@code \}{@code u000a} escapes; a
+     * character outside the BMP as its two UTF-16 units, as Java and JSON write it.
+     */
     private static String escapeControlCharacters(String text) {
         StringBuilder result = new StringBuilder(text.length());
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (Character.isISOControl(c) || c == ' ' || c == ' ') {
-                result.append(String.format("\\u%04x", (int) c));
+        for (int i = 0; i < text.length(); ) {
+            int c = text.codePointAt(i);
+            int next = i + Character.charCount(c);
+            if (Character.isISOControl(c) || c == 0x2028 || c == 0x2029 || isFormat(c)) {
+                for (int unit = i; unit < next; unit++) {
+                    result.append(String.format("\\u%04x", (int) text.charAt(unit)));
+                }
             } else {
-                result.append(c);
+                result.append(text, i, next);
             }
+            i = next;
         }
         return result.toString();
+    }
+
+    /**
+     * The format characters of Unicode 16, the general category Cf, as the first and the last code point of each run;
+     * Java 25 has the same. They are invisible or change what follows: a bidi override such as U+202E makes a terminal
+     * show a line in another order than it holds. {@code Character.getType} would not do: Java 8 knows Unicode 6.2,
+     * without the bidi isolates U+2066 to U+2069, and the output would depend on the Java that runs it.
+     */
+    private static final int[] FORMAT = {
+            0x00AD, 0x00AD, 0x0600, 0x0605, 0x061C, 0x061C, 0x06DD, 0x06DD, 0x070F, 0x070F, 0x0890, 0x0891,
+            0x08E2, 0x08E2, 0x180E, 0x180E, 0x200B, 0x200F, 0x202A, 0x202E, 0x2060, 0x2064, 0x2066, 0x206F,
+            0xFEFF, 0xFEFF, 0xFFF9, 0xFFFB, 0x110BD, 0x110BD, 0x110CD, 0x110CD, 0x13430, 0x1343F, 0x1BCA0, 0x1BCA3,
+            0x1D173, 0x1D17A, 0xE0001, 0xE0001, 0xE0020, 0xE007F};
+
+    /**
+     * Whether a code point is a format character, Unicode category Cf: a zero-width space, a bidi control, a tag.
+     */
+    static boolean isFormat(int codePoint) {
+        for (int i = 0; i < FORMAT.length; i += 2) {
+            if (codePoint < FORMAT[i]) {
+                return false;
+            }
+            if (codePoint <= FORMAT[i + 1]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

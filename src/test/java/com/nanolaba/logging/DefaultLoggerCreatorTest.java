@@ -3,7 +3,9 @@ package com.nanolaba.logging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +19,7 @@ import static com.nanolaba.logging.DefaultLoggerCreator.PROPERTY_LOGGER_CONFIG_F
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class DefaultLoggerCreatorTest extends AbstractLoggerTest {
 
@@ -37,6 +40,38 @@ class DefaultLoggerCreatorTest extends AbstractLoggerTest {
 
         assertEquals("[NANOLOG] a\\u000ab\\u000dc\\u0009d\\u001fe f\\u007fg\\u009fh\\u2028j\\u2029k ~" + System.lineSeparator(),
                      getErrAndClear());
+    }
+
+    @Test
+    public void diagnosticEscapesFormatCharactersTest() {
+        // a bidi override, an isolate (unknown to Java 8), zero-width characters and a tag, invisible or reordering
+        DefaultLoggerCreator.printDiagnostic("a\u00ADb\u200Bc\u200Fd\u202Ee\u2066f\u206Fg\uFEFFh\uDB40\uDC41i\uDB40\uDC7Fj");
+
+        assertEquals("[NANOLOG] a\\u00adb\\u200bc\\u200fd\\u202ee\\u2066f\\u206fg\\ufeffh\\udb40\\udc41i\\udb40\\udc7fj" +
+                     System.lineSeparator(), getErrAndClear());
+    }
+
+    @Test
+    public void diagnosticKeepsTheCharactersAroundTheFormatCharactersTest() throws IOException {
+        // U+00AC and U+2010 border on runs of format characters, U+1F916 and U+E0100 lie past the last one
+        String text = "\u00AC\u05FF\u2010\u2065\uD83E\uDD16\uDB40\uDD00\uDB40\uDC80\u0416";
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(bytes, true, "UTF-8"));
+
+        DefaultLoggerCreator.printNotice(text);
+
+        assertEquals("[NANOLOG] " + text + System.lineSeparator(), new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void everyFormatCharacterOfThisJavaIsEscapedTest() {
+        // the table follows Unicode 16; a newer Java may know a format character that it lacks
+        for (int codePoint = 0; codePoint <= Character.MAX_CODE_POINT; codePoint++) {
+            if (Character.getType(codePoint) == Character.FORMAT && !DefaultLoggerCreator.isFormat(codePoint)) {
+                fail(String.format("U+%04X is a format character of Java %s; add it to DefaultLoggerCreator.FORMAT",
+                                   codePoint, System.getProperty("java.version")));
+            }
+        }
     }
 
     @Test

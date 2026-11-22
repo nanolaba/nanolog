@@ -240,7 +240,10 @@ final class Contents {
         }
     }
 
-    private static String chars(int count) {
+    /**
+     * A number of characters: {@code 1 char}, {@code 4936 chars}; also for the line of agent mode.
+     */
+    static String chars(int count) {
         return count + (count == 1 ? " char" : " chars");
     }
 
