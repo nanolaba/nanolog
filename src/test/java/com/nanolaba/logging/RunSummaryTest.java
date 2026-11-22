@@ -8,6 +8,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -745,6 +748,57 @@ class RunSummaryTest extends AbstractLoggerTest {
 
         new SummaryListener().testPlanExecutionFinished(null);
         assertEquals("", getErrAndClear());
+    }
+
+    @Test
+    public void testTheHookPrintsItAfterTheClassLoaderOfNanologIsClosed() throws Exception {
+        // Maven closes the realm of a plugin before the JVM runs its hooks, and a closed loader loads no more classes:
+        // the hook failed on Units.Scope, which a run without units never loads (#114)
+        URL classes = LOG.class.getProtectionDomain().getCodeSource().getLocation();
+        List<Thread> isolatedHooks = new ArrayList<>();
+        System.setProperty(PROPERTY_AGENT, "off");
+        System.setProperty(PROPERTY_SUMMARY, "on");
+        URLClassLoader loader = new URLClassLoader(new URL[]{classes}, null);
+        Field shutdownHooks = Class.forName(Summary.class.getName(), true, loader).getDeclaredField("shutdownHooks");
+        shutdownHooks.setAccessible(true);
+        shutdownHooks.set(null, (Consumer<Thread>) isolatedHooks::add);
+        loader.loadClass(LOG.class.getName()).getMethod("warn", Class.class, Object.class)
+              .invoke(null, String.class, "Careful");
+        loader.close();
+        getOutAndClear();
+
+        isolatedHooks.get(0).run();
+
+        assertEquals("[NANOLOG] Run summary: 1 entry: 1 WARN" + NL + "[NANOLOG]   WARN x1 at java.lang.String: Careful" + NL,
+                     getErrAndClear());
+    }
+
+    @Test
+    public void testAClassStillMissingAtExitCostsOneLineInsteadOfATrace() {
+        on();
+        LOG.warn("Careful");
+        Summary.registerHook();
+        PrintStream captured = System.err;
+        System.setErr(new PrintStream(errContent, true) {
+            private boolean failed;
+
+            @Override
+            public void println(String line) {
+                if (!failed) {
+                    failed = true;
+                    throw new NoClassDefFoundError("com/nanolaba/logging/Gone");
+                }
+                super.println(line);
+            }
+        });
+        try {
+            hooks.get(0).run();
+        } finally {
+            System.setErr(captured);
+        }
+
+        assertEquals("[NANOLOG] The end of the run is not printed: the class loader of Nanolog was closed before the JVM "
+                     + "exited (java.lang.NoClassDefFoundError: com/nanolaba/logging/Gone)" + NL, getErrAndClear());
     }
 
     @Test

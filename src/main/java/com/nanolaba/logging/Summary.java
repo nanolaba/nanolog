@@ -360,9 +360,45 @@ final class Summary {
     static void registerHook() {
         if (HOOK_REGISTERED.compareAndSet(false, true)) {
             try {
-                shutdownHooks.accept(new Thread(Summary::printOnce, "nanolog-summary"));
+                shutdownHooks.accept(new Thread(new Hook(), "nanolog-summary"));
             } catch (RuntimeException e) {
                 // IllegalStateException during shutdown, SecurityException: logging goes on
+            }
+        }
+    }
+
+    /**
+     * The hook that prints the end of the run at exit. The class loader of Nanolog may be closed by then: Maven closes
+     * the realm of a plugin when the build ends, and a closed loader loads no more classes (#114). The summary needs
+     * classes that the run may not have used, so the hook initialises them when it is made.
+     * <p>
+     * A class that is still missing at exit costs one line instead of a stack trace. That is the end of the run when a
+     * unit is still open at exit in a run that wrote no entry before: its line needs every class of writing an entry.
+     */
+    static final class Hook implements Runnable {
+
+        static {
+            // initialised, not only loaded, so that they are verified now and the verifier loads what it needs for that,
+            // such as SystemStreams.Lines for SystemStreams
+            ClassLoader loader = Summary.class.getClassLoader();
+            try {
+                // the kinds sorted, the units still open sorted and ended, the lines printed
+                Class.forName(Kind.class.getName(), true, loader);
+                Class.forName(Units.Scope.class.getName(), true, loader);
+                Class.forName(Units.Ending.class.getName(), true, loader);
+                Class.forName(SystemStreams.class.getName(), true, loader);
+            } catch (ClassNotFoundException | LinkageError e) {
+                // the class literals have loaded them; a jar without one of them is left to the end of the run
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                printOnce();
+            } catch (LinkageError e) {
+                SystemStreams.err().println("[NANOLOG] The end of the run is not printed: the class loader of Nanolog "
+                                            + "was closed before the JVM exited (" + e + ")");
             }
         }
     }
