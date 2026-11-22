@@ -186,7 +186,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
 
     private static final String KEEP = "keep";
     private static final String INDENT = "indent";
-    private static final String ESCAPE = "escape";
+    static final String ESCAPE = "escape";
     private static final String[] MULTILINE_MODES = {KEEP, INDENT, ESCAPE};
     private static final String EXPECTED_MULTILINE = "keep, indent or escape";
 
@@ -581,7 +581,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
             writeHead(out, last);
             out.append(" (repeated ").append(String.valueOf(repeatCount)).append(repeatCount == 1 ? " more time" : " more times")
                .append(" in ").append(duration(lastRepeat - runStart)).append(')');
-            print(last, applyMultiline(out.toString()));
+            print(last, applyMultiline(out.toString(), multiline));
             repeatCount = 0;
         }
     }
@@ -924,7 +924,7 @@ public class ConsoleLogger implements ILogger, ILevelControl {
         writeSourceLine(out, entry);
         writeThrowable(out, entry);
 
-        return applyMultiline(out.toString());
+        return applyMultiline(out.toString(), multiline);
     }
 
     /**
@@ -1665,10 +1665,10 @@ public class ConsoleLogger implements ILogger, ILevelControl {
     }
 
     /**
-     * The entry as {@link #getMultiline()} says: unchanged for {@code keep}.
+     * An entry as a mode of {@link #getMultiline()} says: unchanged for {@code keep}. {@code indent} and {@code escape}
+     * also escape the characters that make a line read other than it holds, bidi controls and tags (#113).
      */
-    private String applyMultiline(String text) {
-        String mode = multiline;
+    static String applyMultiline(String text, String mode) {
         if (KEEP.equals(mode)) {
             return text;
         }
@@ -1693,7 +1693,24 @@ public class ConsoleLogger implements ILogger, ILevelControl {
                 } else {
                     result.append(c == '\r' ? "\\r" : "\\n");
                 }
-            } else if (c != '\t' && (Character.isISOControl(c) || c == ' ' || c == ' ')) {
+            } else if (c != '\t' && (Character.isISOControl(c) || DefaultLoggerCreator.isMisleadingAt(text, i) || c == ' ' || c == ' ')) {
+                result.append(String.format("\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
+    /**
+     * A text with its bidi controls and tags escaped as {@code \}{@code u202e} and nothing else changed: for the
+     * run log, which keeps line breaks as {@code keep} says and is read back by agents (#113).
+     */
+    static String escapeMisleading(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (DefaultLoggerCreator.isMisleadingAt(text, i)) {
                 result.append(String.format("\\u%04x", (int) c));
             } else {
                 result.append(c);

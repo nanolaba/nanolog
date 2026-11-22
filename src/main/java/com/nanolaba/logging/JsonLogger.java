@@ -207,8 +207,9 @@ public class JsonLogger extends ConsoleLogger {
 
     /**
      * Appends a JSON string literal: quotes, backslashes and every control character are escaped, as are U+2028 and
-     * U+2029, which JavaScript treats as line breaks. Everything else, characters outside the BMP included, is
-     * written as is.
+     * U+2029, which JavaScript treats as line breaks, and the bidi controls and tags that make a line read other than
+     * it holds ({@link DefaultLoggerCreator#isMisleadingAt}); a JSON parser gives them back as they were (#113).
+     * Everything else, characters outside the BMP included, is written as is.
      */
     static void appendString(StringBuilder out, String value) {
         out.append('"');
@@ -237,7 +238,7 @@ public class JsonLogger extends ConsoleLogger {
                     out.append("\\f");
                     break;
                 default:
-                    if (c < 0x20 || c == '\u2028' || c == '\u2029') {
+                    if (c < 0x20 || DefaultLoggerCreator.isMisleadingAt(value, i) || c == '\u2028' || c == '\u2029') {
                         out.append(String.format("\\u%04x", (int) c));
                     } else {
                         out.append(c);

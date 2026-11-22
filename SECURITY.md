@@ -29,4 +29,4 @@ Include the version, the JDK, what an attacker can do, and the smallest code tha
 
 ## In scope
 
-Nanolog has no network code and no dependencies. What matters is what reaches the log: a secret written despite `LOG.secret` or `nanolog.redact`, a payload of `LOG.content` written in full without `nanolog.content=show`, or a value that forges a line of its own in a `[NANOLOG]` diagnostic or a JSON line.
+Nanolog has no network code and no dependencies. What matters is what reaches the log: a secret written despite `LOG.secret` or `nanolog.redact`, a payload of `LOG.content` written in full without `nanolog.content=show`, or a value that forges a line of its own in a `[NANOLOG]` diagnostic, a JSON line or an output that escapes, or makes such a line read as something else than it holds, with bidi controls or tags.

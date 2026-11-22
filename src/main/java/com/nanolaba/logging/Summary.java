@@ -310,7 +310,8 @@ final class Summary {
         kinds.sort(Comparator.comparingInt((Kind kind) -> -kind.level.ordinal()).thenComparing(kind -> kind.place));
         List<String> list = new ArrayList<>();
         for (Kind kind : kinds) {
-            list.add(kind.line());
+            // the lines of the summary on the console, escaped as printNotices escapes them (#113)
+            list.add(DefaultLoggerCreator.escapeControlCharacters(kind.line()));
         }
         return runLog.writeSummary(list);
     }

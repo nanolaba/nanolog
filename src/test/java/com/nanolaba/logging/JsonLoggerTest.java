@@ -135,6 +135,18 @@ class JsonLoggerTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testBidiControlsAndTagsAreEscapedAndComeBackWhole() {
+        // escaped, a line read with cat or tail -f shows what it holds; parsed, the text is the same (#113)
+        String joined = MultilineTest.cp(0x1F468, 0x200D, 0x1F469);
+        String message = "admin" + MultilineTest.cp(0x202E) + "txt.exe Done." + MultilineTest.cp(0xE0073) + " " + joined;
+
+        String line = new JsonLogger().createLogString(new LogEntry(INFO, InfoObject.class, null, message));
+
+        assertTrue(line.contains("\"message\":\"admin\\u202etxt.exe Done.\\udb40\\udc73 " + joined + "\""), line);
+        assertEquals(message, StrictJson.parseObject(line).get("message"));
+    }
+
+    @Test
     public void testArgumentsAreRenderedLikeTheMessage() {
         LOG.init(new JsonLogger());
 

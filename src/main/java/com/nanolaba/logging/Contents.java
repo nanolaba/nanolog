@@ -248,8 +248,8 @@ final class Contents {
     }
 
     /**
-     * Line breaks as {@code \r} and {@code \n}, other control characters and U+2028/U+2029 as {@code \u001b}; a tab
-     * stays.
+     * Line breaks as {@code \r} and {@code \n}, other control characters, U+2028/U+2029, bidi controls and tags
+     * ({@link DefaultLoggerCreator#isMisleadingAt}) as {@code \}{@code u001b}; a tab stays.
      */
     static String escape(String text) {
         StringBuilder result = new StringBuilder(text.length());
@@ -259,7 +259,7 @@ final class Contents {
                 result.append("\\n");
             } else if (c == '\r') {
                 result.append("\\r");
-            } else if (c != '\t' && (Character.isISOControl(c) || c == ' ' || c == ' ')) {
+            } else if (c != '\t' && (Character.isISOControl(c) || DefaultLoggerCreator.isMisleadingAt(text, i) || c == ' ' || c == ' ')) {
                 result.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
             } else {
                 result.append(c);

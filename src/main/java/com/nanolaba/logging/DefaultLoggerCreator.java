@@ -450,7 +450,7 @@ public class DefaultLoggerCreator {
      * Control characters, U+2028/U+2029 and {@link #isFormat format characters} as {@code \}{@code u000a} escapes; a
      * character outside the BMP as its two UTF-16 units, as Java and JSON write it.
      */
-    private static String escapeControlCharacters(String text) {
+    static String escapeControlCharacters(String text) {
         StringBuilder result = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); ) {
             int c = text.codePointAt(i);
@@ -478,6 +478,22 @@ public class DefaultLoggerCreator {
             0x08E2, 0x08E2, 0x180E, 0x180E, 0x200B, 0x200F, 0x202A, 0x202E, 0x2060, 0x2064, 0x2066, 0x206F,
             0xFEFF, 0xFEFF, 0xFFF9, 0xFFFB, 0x110BD, 0x110BD, 0x110CD, 0x110CD, 0x13430, 0x1343F, 0x1BCA0, 0x1BCA3,
             0x1D173, 0x1D17A, 0xE0001, 0xE0001, 0xE0020, 0xE007F};
+
+    /**
+     * Whether the char at an index belongs to a character that makes a logged line read other than it holds: a bidi
+     * embedding, override or isolate, U+202A to U+202E and U+2066 to U+2069, which reorders what follows, or a tag,
+     * U+E0000 to U+E007F, which spells ASCII text that is not shown and that a language model still reads (#113).
+     * Either half of a tag counts. The other format characters stay in logged text, which needs them: the joiners of
+     * Persian and of emoji, the zero-width space of Thai.
+     */
+    static boolean isMisleadingAt(CharSequence text, int index) {
+        char c = text.charAt(index);
+        if (Character.isSurrogate(c)) {
+            int codePoint = Character.isHighSurrogate(c) ? Character.codePointAt(text, index) : Character.codePointBefore(text, index + 1);
+            return codePoint >= 0xE0000 && codePoint <= 0xE007F;
+        }
+        return c >= 0x202A && c <= 0x202E || c >= 0x2066 && c <= 0x2069;
+    }
 
     /**
      * Whether a code point is a format character, Unicode category Cf: a zero-width space, a bidi control, a tag.

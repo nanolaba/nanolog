@@ -552,6 +552,22 @@ class RunSummaryTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTheListEscapesTheLinesAsTheConsoleDoes() throws IOException {
+        // a message built by concatenation is the template of its kind, values and all (#113)
+        withRunLog();
+        String esc = String.valueOf((char) 0x1B);
+        LOG.warn("Charge of " + esc + "[2K" + MultilineTest.cp(0x202E) + "42 failed");
+        getErrAndClear();
+
+        Summary.printOnce();
+
+        List<String> list = Files.readAllLines(root.resolve("latest.summary.log"), StandardCharsets.UTF_8);
+        assertEquals(1, list.size(), list.toString());
+        assertTrue(list.get(0).endsWith(": Charge of \\u001b[2K\\u202e42 failed"), list.get(0));
+        assertTrue(getErrAndClear().contains(": Charge of \\u001b[2K\\u202e42 failed"), "the same line on the console");
+    }
+
+    @Test
     public void testEveryKindIsListedInAFileThatTheSummaryNamesWhenItLeavesKindsOut() throws IOException {
         withRunLog();
         for (int i = Summary.MAX_SHOWN; i > 0; i--) {

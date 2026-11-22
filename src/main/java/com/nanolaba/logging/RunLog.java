@@ -569,7 +569,8 @@ final class RunLog extends ConsoleLogger {
         if (start() && out != null) {
             Path failed = file;
             try {
-                written = write(out, json == null ? createLogString(entry) : json.createLogString(entry), written);
+                // read back by agents, so no line reads other than it holds, also with keep (#113)
+                written = write(out, json == null ? escapeMisleading(createLogString(entry)) : json.createLogString(entry), written);
                 if (entry.getLevel() != null && entry.getLevel().ordinal() >= LogEntry.LogEntryLevel.WARN.ordinal()) {
                     failed = errorsFile;
                     errorsWritten = write(errors, errorLine(entry), errorsWritten);
@@ -603,7 +604,8 @@ final class RunLog extends ConsoleLogger {
 
     /**
      * A {@code WARN} or {@code ERROR} entry as one line, cheap to follow with {@code tail -f}: in text, the exception
-     * by its {@code toString()} and line breaks as {@code \n}; a JSON line is one line already.
+     * by its {@code toString()} and the rest as {@code nanolog.console.multiline=escape} writes it, whatever the run log
+     * reads, so the escape sequences of a value do not reach the terminal (#113); a JSON line is one line already.
      */
     private String errorLine(LogEntry entry) {
         if (json != null) {
@@ -611,7 +613,7 @@ final class RunLog extends ConsoleLogger {
         }
         brief = true;
         try {
-            return createLogString(entry).replace("\r", "\\r").replace("\n", "\\n");
+            return applyMultiline(createLogString(entry), ESCAPE);
         } finally {
             brief = false;
         }

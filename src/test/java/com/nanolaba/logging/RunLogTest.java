@@ -339,6 +339,33 @@ class RunLogTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testTheErrorsFileEscapesWhatWouldActInATerminal() throws IOException {
+        // tail -f latest.errors.log would erase a line and move up for a value with ESC [2K ESC [1A (#113)
+        RunLog log = open("1");
+        String esc = String.valueOf((char) 0x1B);
+
+        log.log(entry(WARN, "user " + esc + "[2K" + esc + "[1Afake line, admin" + MultilineTest.cp(0x202E) + "txt.exe", null));
+
+        assertEquals(Collections.singletonList("user \\u001b[2K\\u001b[1Afake line, admin\\u202etxt.exe"),
+                     lines(root.resolve("latest.errors.log")).stream().map(line -> line.substring(line.indexOf("user ")))
+                             .collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testTheFullLogKeepsLineBreaksAndEscapesBidiControlsAndTags() throws IOException {
+        // an agent reads the run log back: no line may read other than it holds, also with multiline=keep (#113)
+        RunLog log = open("1");
+        String esc = String.valueOf((char) 0x1B);
+
+        log.log(entry(INFO, "one" + esc + "[31m" + MultilineTest.cp(0x2066) + "\ntwo" + MultilineTest.cp(0xE0041), null));
+
+        List<String> all = lines(root.resolve("latest.log"));
+        assertEquals(2, all.size(), all.toString());
+        assertTrue(all.get(0).endsWith("one" + esc + "[31m\\u2066"), all.get(0));
+        assertEquals("two\\udb40\\udc41", all.get(1));
+    }
+
+    @Test
     public void testAnEntryWithoutALevelIsNotAnError() throws IOException {
         RunLog log = open("1");
 

@@ -91,6 +91,38 @@ class MultilineTest extends AbstractLoggerTest {
         assertEquals("INFO \u00e9\u4e2d\u00a0text", line(console("escape"), "\u00e9\u4e2d\u00a0text"), "printable text stays");
     }
 
+    /**
+     * Text made of code points, so that no character this test is about is in its source as it is.
+     */
+    static String cp(int... codePoints) {
+        StringBuilder text = new StringBuilder();
+        for (int codePoint : codePoints) {
+            text.appendCodePoint(codePoint);
+        }
+        return text.toString();
+    }
+
+    @Test
+    public void testBidiControlsAndTagsAreEscapedInBothModes() {
+        // U+202E reverses what follows in a terminal; tags spell text that is not shown, yet a model reads it (#113)
+        String hostile = "admin" + cp(0x202E) + "txt.exe " + cp(0x202A, 0x2066, 0x2069) + " Done." + cp(0xE0000, 0xE0073, 0xE007F);
+        String escaped = "admin\\u202etxt.exe \\u202a\\u2066\\u2069 Done.\\udb40\\udc00\\udb40\\udc73\\udb40\\udc7f";
+
+        assertEquals("INFO " + escaped, line(console("indent"), hostile));
+        assertEquals("INFO " + escaped, line(console("escape"), hostile));
+        assertEquals("INFO " + hostile, line(console("keep"), hostile), "keep writes them as they are");
+    }
+
+    @Test
+    public void testTheFormatCharactersThatTextNeedsStay() {
+        // the joiners of emoji and Persian, the zero-width space of Thai, a mark of Hebrew, the neighbours of the escaped
+        // runs and halves of pairs on their own
+        String text = cp(0x1F468, 0x200D, 0x1F469, ' ', 0x0645, 0x06CC, 0x200C, 0x062E, ' ', 0x0E01, 0x200B, 0x0E02, ' ',
+                         0x05D0, 0x200F, '1', ' ', 0x202F, 0x2065, 0x206A, 0xE0080, ' ', 0xD83E, ' ', 0xDC00);
+
+        assertEquals("INFO " + text, line(console("escape"), text));
+    }
+
     @Test
     public void testTheStackTraceFollowsTheMode() {
         LogEntry entry = new LogEntry(LogEntry.LogEntryLevel.ERROR, MultilineTest.class, trace("bad\ninput"), "Failed");

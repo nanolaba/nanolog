@@ -78,6 +78,16 @@ class ContentTest extends AbstractLoggerTest {
     }
 
     @Test
+    public void testShowEscapesBidiControlsAndTags() {
+        // a model reply can hide text in tags, which a terminal does not show and an agent reads (#113)
+        set(DefaultLoggerCreator.PROPERTY_CONTENT, "show");
+        String joined = MultilineTest.cp(0x1F468, 0x200D, 0x1F469);
+
+        assertEquals("Done.\\udb40\\udc73 admin\\u202etxt.exe " + joined,
+                     content("Done." + MultilineTest.cp(0xE0073) + " admin" + MultilineTest.cp(0x202E) + "txt.exe " + joined).toString());
+    }
+
+    @Test
     public void testTruncateShowsTheStart() {
         set(DefaultLoggerCreator.PROPERTY_CONTENT, " Truncate:10 ");
         assertEquals("You are a ... [+" + (PROMPT.length() - 10) + " chars]", content(PROMPT).toString());
