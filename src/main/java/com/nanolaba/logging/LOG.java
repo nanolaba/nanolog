@@ -72,7 +72,7 @@ public class LOG {
 
 
     static {
-        configure();
+        configure("the initialisation of LOG");
     }
 
     private LOG() {/**/}
@@ -87,6 +87,10 @@ public class LOG {
      * The logger it installs is the logger of the configuration, which {@link #init(ILogger)} may replace without a
      * diagnostic. When it replaces a logger that code of another organization installed with {@link #init(ILogger)},
      * it prints one; after {@link #lock()} it is ignored, with a diagnostic.
+     * <p>
+     * Settings that no longer turn the run log on, {@code nanolog.agent=off} without {@code nanolog.run=on}, stop it
+     * for the rest of the JVM: once its files are open, one {@code [NANOLOG]} line that names this call ends them and
+     * is printed. A run summary that this call turns off still sums up, at the end of the run, what it counted before.
      */
     public static void init() {
         Origin origin = Origin.ofCaller();
@@ -96,16 +100,21 @@ public class LOG {
         }
         ILogger previous = LOG.logger;
         Origin previousOrigin = installedBy;
-        configure();
+        configure("LOG.init() at " + origin.site);
         reportReplacement(previous, previousOrigin, LOG.logger, origin);
     }
 
     /**
      * Installs the logger of the configuration and reads the settings, for the class initialiser and {@link #init()}.
+     *
+     * @param by the call, {@code LOG.init() at Tool.main(Tool.java:6)}: named when the settings it reads stop the run
+     *           log or the run summary
      */
-    private static void configure() {
+    private static void configure(String by) {
         flushRepeats(LOG.logger);
-        LOG.logger = DefaultLoggerCreator.createDefaultLogger();
+        // the run log that holds what the summary counted so far, before this call may stop it (#115)
+        RunLog runLog = RunLog.opened();
+        LOG.logger = DefaultLoggerCreator.createDefaultLogger(by);
         LOG.installedBy = null;
         // after the logger: creating it loads nanolog.properties, which may set the other settings
         LOG.strict = DefaultLoggerCreator.readBoolean(DefaultLoggerCreator.PROPERTY_STRICT, false);
@@ -114,7 +123,7 @@ public class LOG {
         // creating the logger has reported an invalid nanolog.agent
         boolean agent = DefaultLoggerCreator.quietly(Agent::detect) != null;
         Dbg.ignoreLevels = agent;
-        Summary.mode = DefaultLoggerCreator.readSummaryMode(agent);
+        Summary.configure(DefaultLoggerCreator.readSummaryMode(agent), by, runLog);
         Units.configure();
         Breadcrumbs.configure();
         Contents.configure();

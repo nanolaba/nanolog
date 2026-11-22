@@ -84,6 +84,29 @@ final class Summary {
     static volatile Mode mode = Mode.OFF;
 
     /**
+     * The summary that a {@link LOG#init()} turned off after it had counted: the end of the run prints it all the same,
+     * for what it counted (#115); {@code null} while it counts, or if it never did.
+     */
+    private static volatile Stopped stopped;
+
+    /**
+     * What the end of the run prints of a summary turned off: its mode then, the call that turned it off and the run log
+     * that holds the entries it counted.
+     */
+    private static final class Stopped {
+
+        final Mode mode;
+        final String by;
+        final RunLog runLog;
+
+        Stopped(Mode mode, String by, RunLog runLog) {
+            this.mode = mode;
+            this.by = by;
+            this.runLog = runLog;
+        }
+    }
+
+    /**
      * Registers the hook that prints at exit. Tests replace it to run the hook themselves and must restore it
      * afterwards.
      */
@@ -165,6 +188,25 @@ final class Summary {
             }
             return different > 1 ? " (" + different + " different messages)" : "";
         }
+    }
+
+    /**
+     * Sets the mode that {@link LOG#init()} read. A call that turns the summary off stops the counting, and the end of
+     * the run still sums up what was counted before, as the mode then says: in agent mode the run was to end with it,
+     * and a test that turns agent mode off would drop it for the whole JVM (#115). A later call that turns it on again
+     * counts on.
+     *
+     * @param next   the mode read
+     * @param by     the call that read it, {@code LOG.init() at Tool.main(Tool.java:6)}
+     * @param runLog the run log that was open before that call, which holds what was counted; {@code null} if none was
+     */
+    static synchronized void configure(Mode next, String by, RunLog runLog) {
+        if (next != Mode.OFF) {
+            stopped = null;
+        } else if (mode != Mode.OFF) {
+            stopped = new Stopped(mode, by, runLog);
+        }
+        mode = next;
     }
 
     /**
@@ -302,7 +344,7 @@ final class Summary {
      * @return the path that names the list; {@code null} without a run log, or if the list could not be written
      */
     private static Path writeList() {
-        RunLog runLog = RunLog.opened();
+        RunLog runLog = runLog();
         if (runLog == null) {
             return null;
         }
@@ -316,9 +358,25 @@ final class Summary {
         return runLog.writeSummary(list);
     }
 
+    /**
+     * The run log that holds every entry counted, which the summary names and lists the kinds next to: the one open
+     * now, or the one that was open when a {@link LOG#init()} turned the summary off, even if that call stopped it.
+     *
+     * @return the run log; {@code null} if there is none, or if it stopped before the summary did
+     */
+    private static RunLog runLog() {
+        Stopped stop = stopped;
+        return stop != null ? stop.runLog : RunLog.opened();
+    }
+
     private static String header() {
         long total = TOTAL.get();
-        StringBuilder header = new StringBuilder("Run summary: ").append(total).append(total == 1 ? " entry:" : " entries:");
+        StringBuilder header = new StringBuilder("Run summary");
+        Stopped stop = stopped;
+        if (stop != null) {
+            header.append(" until ").append(stop.by).append(" turned it off");
+        }
+        header.append(": ").append(total).append(total == 1 ? " entry:" : " entries:");
         String separator = " ";
         for (int i = LEVELS.length - 1; i >= 0; i--) {
             long count = COUNTS[i].get();
@@ -327,7 +385,7 @@ final class Summary {
                 separator = ", ";
             }
         }
-        RunLog runLog = RunLog.opened();
+        RunLog runLog = runLog();
         if (runLog != null) {
             header.append("; the full log is in ").append(runLog.shownFile().toAbsolutePath());
         }
@@ -443,7 +501,8 @@ final class Summary {
             // the lines of the open units come first, so the summary counts them
             Units.interruptOpen();
             LOG.flushRepeats();
-            Mode current = mode;
+            Stopped stop = stopped;
+            Mode current = stop != null ? stop.mode : mode;
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
             // a run that logged nothing has nothing to sum up, and its run log is not even open (#111)
             if (TOTAL.get() > 0 && (current == Mode.ON || current == Mode.ERRORS && warned)) {
@@ -455,8 +514,8 @@ final class Summary {
     }
 
     /**
-     * Forgets the counts, the {@code LOG.dbg} calls, the hook, the sessions and plans of JUnit and that the end was
-     * printed; for tests.
+     * Forgets the counts, the {@code LOG.dbg} calls, the hook, the sessions and plans of JUnit, a summary turned off
+     * and that the end was printed; for tests.
      */
     static void reset() {
         for (AtomicLong count : COUNTS) {
@@ -465,6 +524,7 @@ final class Summary {
         TOTAL.set(0);
         KINDS.clear();
         FIRST_ERROR.set(null);
+        stopped = null;
         HOOK_REGISTERED.set(false);
         PRINTED.set(false);
         SESSIONS.set(0);

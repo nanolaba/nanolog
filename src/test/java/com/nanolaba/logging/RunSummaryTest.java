@@ -535,13 +535,120 @@ class RunSummaryTest extends AbstractLoggerTest {
         // a run log that no entry reached has no file to name (#111)
         System.setProperty(PROPERTY_RUN, "on");
         System.setProperty(PROPERTY_RUN_DIR, root.toString());
-        RunLog.attach(new ConsoleLogger(), false);
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
         Summary.count(new LogEntry(LogEntry.LogEntryLevel.WARN, RunSummaryTest.class, null, "counted"));
 
         assertEquals("Run summary: 1 entry: 1 WARN", Summary.lines().get(0));
         RunLog.current().start();
         assertEquals("Run summary: 1 entry: 1 WARN; the full log is in " + root.resolve("latest.log").toAbsolutePath(),
                      Summary.lines().get(0));
+    }
+
+    // TURNED OFF IN THE MIDDLE OF THE RUN
+
+    /**
+     * Agent mode with the run log in the temporary directory, and one warning logged.
+     *
+     * @return the line of the warning
+     */
+    private int agentModeWithAWarning() {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        Throwable here = new Throwable(); LOG.warn("counted");
+        getErrAndClear();
+        getOutAndClear();
+        return lineOf(here);
+    }
+
+    @Test
+    public void testALaterInitThatTurnsItOffKeepsWhatItCountedForTheEnd() throws IOException {
+        // the agent learns the warnings of the run from it, also when a test turned agent mode off (#115)
+        int warning = agentModeWithAWarning();
+        System.setProperty(PROPERTY_AGENT, "off");
+        Throwable here = new Throwable(); LOG.init();
+        LOG.error("not counted");
+        getErrAndClear();
+
+        Summary.printOnce();
+
+        String init = "LOG.init() at " + here.getStackTrace()[0];
+        String kind = "WARN x1 at " + FILE + warning + ": counted";
+        assertEquals("[NANOLOG] Run summary until " + init + " turned it off: 1 entry: 1 WARN; the full log is in " +
+                     root.resolve("latest.log").toAbsolutePath() + NL + "[NANOLOG]   " + kind + NL, getErrAndClear());
+        assertEquals(Arrays.asList(kind), Files.readAllLines(root.resolve("latest.summary.log"), StandardCharsets.UTF_8),
+                     "the list goes with the run log that holds the entries");
+    }
+
+    @Test
+    public void testItIsTurnedOffOnceAndNamesThatCall() {
+        agentModeWithAWarning();
+        System.setProperty(PROPERTY_AGENT, "off");
+        Throwable here = new Throwable(); LOG.init();
+        LOG.init();
+
+        assertEquals("Run summary until LOG.init() at " + here.getStackTrace()[0] + " turned it off: 1 entry: 1 WARN; the full " +
+                     "log is in " + root.resolve("latest.log").toAbsolutePath(), Summary.lines().get(0));
+    }
+
+    @Test
+    public void testItCountsAgainWhenALaterInitTurnsItOn() {
+        agentModeWithAWarning();
+        System.setProperty(PROPERTY_AGENT, "off");
+        LOG.init();
+        System.clearProperty(PROPERTY_AGENT);
+        LOG.init();
+        LOG.warn("counted again");
+        getErrAndClear();
+
+        assertSame(Summary.Mode.ON, Summary.mode);
+        assertEquals("Run summary: 2 entries: 2 WARN", Summary.lines().get(0), "the run log stopped for good");
+    }
+
+    @Test
+    public void testItNamesTheRunLogThatGoesOn() {
+        // nanolog.run=on keeps the run log after agent mode
+        agentModeWithAWarning();
+        System.setProperty(PROPERTY_AGENT, "off");
+        System.setProperty(PROPERTY_RUN, "on");
+        Throwable here = new Throwable(); LOG.init();
+        LOG.info("in the run log, not counted");
+
+        assertEquals("", getErrAndClear(), "the run log does not stop");
+        assertEquals("Run summary until LOG.init() at " + here.getStackTrace()[0] + " turned it off: 1 entry: 1 WARN; the full " +
+                     "log is in " + root.resolve("latest.log").toAbsolutePath(), Summary.lines().get(0));
+    }
+
+    @Test
+    public void testItNamesNoRunLogThatStoppedBefore() {
+        // the run log stopped first: it misses what was counted after it
+        agentModeWithAWarning();
+        System.setProperty(PROPERTY_RUN, "off");
+        LOG.init();
+        System.setProperty(PROPERTY_AGENT, "off");
+        Throwable here = new Throwable(); LOG.init();
+
+        assertEquals("Run summary until LOG.init() at " + here.getStackTrace()[0] + " turned it off: 1 entry: 1 WARN",
+                     Summary.lines().get(0));
+    }
+
+    @Test
+    public void testErrorsOnlyStaysErrorsOnly() {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_SUMMARY, "errors");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        LOG.info("in the run log, no warning");
+        System.setProperty(PROPERTY_SUMMARY, "off");
+        LOG.init();
+        getErrAndClear();
+        getOutAndClear();
+        String header = Summary.lines().get(0);
+        assertTrue(header.startsWith("Run summary until LOG.init() at ") && header.contains(" turned it off: 1 entry: 1 INFO;"), header);
+
+        Summary.printOnce();
+
+        assertEquals("", getErrAndClear());
     }
 
     /**

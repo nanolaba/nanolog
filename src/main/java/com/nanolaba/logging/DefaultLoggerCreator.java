@@ -513,15 +513,25 @@ public class DefaultLoggerCreator {
     /**
      * Loads {@code nanolog.properties} and reports the settings Nanolog does not know, then creates the logger named by
      * {@value #PROPERTY_LOGGER_CLASS}, or a {@link ConsoleLogger}. With {@value #PROPERTY_RUN}{@code =on} the result is a
-     * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM. In agent mode
+     * {@link CompositeLogger} of that logger and the run log, which is opened once per JVM; a later call whose settings
+     * no longer turn it on stops it for good, with a {@code [NANOLOG]} line once its files are open. In agent mode
      * ({@value #PROPERTY_AGENT}) the console gets shorter defaults, the run log is on unless switched off, and before
-     * the first entry one
-     * {@code [NANOLOG]} line per JVM says so. A class that cannot be created prints a {@code [NANOLOG]} diagnostic and
-     * falls back to {@code ConsoleLogger}.
+     * the first entry one {@code [NANOLOG]} line per JVM says so. A class that cannot be created prints a
+     * {@code [NANOLOG]} diagnostic and falls back to {@code ConsoleLogger}.
      *
      * @return the new logger
      */
     public static ILogger createDefaultLogger() {
+        return createDefaultLogger("DefaultLoggerCreator.createDefaultLogger()");
+    }
+
+    /**
+     * Creates the default logger as {@link #createDefaultLogger()} does.
+     *
+     * @param by the call that creates it, {@code LOG.init() at Tool.main(Tool.java:6)}, named by the line that stops
+     *           the run log when the settings no longer turn it on
+     */
+    static ILogger createDefaultLogger(String by) {
         // before the file, so the diagnostics about the file follow -D and the environment
         readDiagnostics();
         loadPropertiesFromFile();
@@ -529,7 +539,7 @@ public class DefaultLoggerCreator {
         ILogger logger = createConfiguredLogger();
         String console = agent == null ? null : Agent.shorten(logger);
         Agent.prepare(agent, logger, console);
-        return RunLog.attach(logger, agent != null);
+        return RunLog.attach(logger, agent != null, by);
     }
 
     private static ILogger createConfiguredLogger() {

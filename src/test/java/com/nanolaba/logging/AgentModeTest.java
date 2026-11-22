@@ -552,13 +552,13 @@ class AgentModeTest extends AbstractLoggerTest {
         getErrAndClear();
         ILogger console = new ConsoleLogger();
 
-        ILogger attached = RunLog.attach(console, true);
+        ILogger attached = RunLog.attach(console, true, "LOG.init()");
 
         assertSame(console, ((CompositeLogger) attached).getLoggers().get(0));
         assertSame(RunLog.current(), ((CompositeLogger) attached).getLoggers().get(1));
         assertEquals("", getErrAndClear());
         System.setProperty(PROPERTY_RUN, "off");
-        assertSame(console, RunLog.attach(console, true));
+        assertSame(console, RunLog.attach(console, true, "LOG.init()"));
     }
 
     @Test
@@ -592,6 +592,39 @@ class AgentModeTest extends AbstractLoggerTest {
 
         assertEquals("", getErrAndClear());
         assertFalse(Files.exists(root.resolve("runs")), "latest.log of the run before stays");
+    }
+
+    @Test
+    public void testAgentModeTurnedOffInTheMiddleOfTheRunSaysSoAndKeepsTheSummary() throws IOException {
+        // a test that sets nanolog.agent=off and does not put it back, before the LOG.init() of the next one (#115)
+        environment.put("AI_AGENT", "claude-code");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        Throwable first = new Throwable(); LOG.warn("entry 1, agent mode on");
+        Throwable second = new Throwable(); LOG.error("entry 2, agent mode on");
+        getErrAndClear();
+        getOutAndClear();
+        System.setProperty(PROPERTY_AGENT, "off");
+
+        Throwable here = new Throwable(); LOG.init();
+        String init = "LOG.init() at " + here.getStackTrace()[0];
+        String stop = "[NANOLOG] Agent mode turned off by " + init + " (nanolog.agent=off): the run log ends here, after 2 entries";
+        assertEquals(stop + NL, getErrAndClear());
+        LOG.error("entry 3, after LOG.init()");
+        LOG.init();
+        getErrAndClear();
+
+        Path latest = root.resolve("latest.log");
+        List<String> log = Files.readAllLines(latest, StandardCharsets.UTF_8);
+        assertEquals(3, log.size(), String.valueOf(log));
+        assertEquals(stop, log.get(2), "whoever reads the file sees why it ends");
+        Summary.printOnce();
+        String site = "AgentModeTest.java:";
+        assertEquals("[NANOLOG] Run summary until " + init + " turned it off: 2 entries: 1 ERROR, 1 WARN; the full log is in " +
+                     latest.toAbsolutePath() + NL +
+                     "[NANOLOG]   ERROR x1 at " + site + second.getStackTrace()[0].getLineNumber() + ": entry 2, agent mode on" + NL +
+                     "[NANOLOG]   WARN x1 at " + site + first.getStackTrace()[0].getLineNumber() + ": entry 1, agent mode on" + NL,
+                     getErrAndClear(), "the end of the run still sums up what the line of agent mode sent to the file");
     }
 
     // LEVELS WITH THE RUN LOG

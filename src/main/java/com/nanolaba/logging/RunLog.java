@@ -74,6 +74,8 @@ final class RunLog extends ConsoleLogger {
      */
     private static RunLog current;
     private static boolean attached;
+    // whether agent mode was on at the last attach, which tells what stops the run log at the next one
+    private static boolean agentMode;
 
     private final Path file;
     private final Path errorsFile;
@@ -98,6 +100,8 @@ final class RunLog extends ConsoleLogger {
     private OutputStream errors;
     private long written;
     private long errorsWritten;
+    // the entries it was given while its files were open, for the line that stops it
+    private long entries;
     private boolean brief;
     // whether opening the files was tried, and whether they are open or were
     private boolean started;
@@ -319,20 +323,28 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
-     * Adds the run log to the default logger when {@code nanolog.run=on}, the default in agent mode. It is opened by
-     * the first call, which prints where it is unless agent mode says so in its own line, and reused by every later
-     * {@code LOG.init()} of the JVM, as is a failure to open it.
+     * Adds the run log to the default logger when {@code nanolog.run=on}, the default in agent mode. It is made by the
+     * first call and reused by every later {@code LOG.init()} of the JVM, as is a failure to open it. A call whose
+     * settings no longer turn it on stops it for the rest of the JVM ({@link #stop}).
      *
      * @param logger the default logger
      * @param agent  whether agent mode is on
+     * @param by     the call that reads the settings, {@code LOG.init() at Tool.main(Tool.java:6)}, which the line
+     *               that stops the run log names
      * @return {@code logger}, or a {@link Tee} of it and the run log
      */
-    static synchronized ILogger attach(ILogger logger, boolean agent) {
+    static synchronized ILogger attach(ILogger logger, boolean agent, String by) {
         String run = agent ? readChoice(PROPERTY_RUN, "on", "off") : readChoice(PROPERTY_RUN, "off", "on");
+        boolean agentBefore = agentMode;
+        agentMode = agent;
         if ("off".equals(run)) {
             // a LOG.init() whose settings no longer turn it on stops it for the rest of the JVM (#111)
             if (current != null) {
-                current.close();
+                // the run log of agent mode ends with it unless nanolog.run keeps it, which it does not here
+                current.stop(agentBefore && getProperty(PROPERTY_RUN) == null
+                             ? "Agent mode turned off by " + by + " (" + PROPERTY_AGENT + "=" +
+                               quietly(() -> readChoice(PROPERTY_AGENT, "auto", "on", "off")) + "): the run log ends here"
+                             : "Run log turned off by " + by + " (" + PROPERTY_RUN + "=off): it ends here");
                 current = null;
             }
             return logger;
@@ -498,6 +510,7 @@ final class RunLog extends ConsoleLogger {
         }
         current = null;
         attached = false;
+        agentMode = false;
     }
 
     /**
@@ -567,6 +580,7 @@ final class RunLog extends ConsoleLogger {
     @Override
     public synchronized void log(LogEntry entry) {
         if (start() && out != null) {
+            entries++;
             Path failed = file;
             try {
                 // read back by agents, so no line reads other than it holds, also with keep (#113)
@@ -594,12 +608,24 @@ final class RunLog extends ConsoleLogger {
         }
         byte[] bytes = (line + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
         if (size + bytes.length > maxSize) {
-            String note = json == null ? "[NANOLOG] " + TRUNCATED : "{\"nanolog\":\"" + TRUNCATED + "\"}";
-            stream.write((note + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+            stream.write((note(TRUNCATED) + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
             return maxSize + 1;
         }
         stream.write(bytes);
         return size + bytes.length;
+    }
+
+    /**
+     * A line of Nanolog's own in the run log, escaped as the console escapes it: {@code [NANOLOG] text}, or
+     * {@code {"nanolog":"text"}} in JSON.
+     */
+    private String note(String text) {
+        if (json == null) {
+            return "[NANOLOG] " + escapeControlCharacters(text);
+        }
+        StringBuilder line = new StringBuilder("{\"nanolog\":");
+        JsonLogger.appendString(line, text);
+        return line.append('}').toString();
     }
 
     /**
@@ -627,6 +653,28 @@ final class RunLog extends ConsoleLogger {
         } else {
             super.writeThrowable(out, entry);
         }
+    }
+
+    /**
+     * Stops the run log for the rest of the JVM. While its files are open, a line says why and how many entries it
+     * holds, last in both files and on the console: the line of agent mode or of the run log has sent the reader to
+     * them, and a file that just stops reads as a run that crashed or hung there (#115). A run log that no entry has
+     * opened stops without a word (#111), and so does one that an I/O error closed, which said so then.
+     *
+     * @param reason what stopped it, {@code Run log turned off by LOG.init() at ... (nanolog.run=off): it ends here}
+     */
+    synchronized void stop(String reason) {
+        if (out != null) {
+            String line = reason + ", after " + entries + (entries == 1 ? " entry" : " entries");
+            try {
+                write(out, note(line), written);
+                write(errors, note(line), errorsWritten);
+            } catch (IOException e) {
+                // the console says it all the same
+            }
+            DefaultLoggerCreator.printNotice(line);
+        }
+        close();
     }
 
     /**

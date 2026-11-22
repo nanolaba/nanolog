@@ -57,7 +57,7 @@ class RunLogTest extends AbstractLoggerTest {
         RunLog.reset();
         for (String property : new String[]{DefaultLoggerCreator.PROPERTY_RUN, DefaultLoggerCreator.PROPERTY_RUN_DIR,
                 DefaultLoggerCreator.PROPERTY_RUN_FORMAT, DefaultLoggerCreator.PROPERTY_RUN_KEEP,
-                DefaultLoggerCreator.PROPERTY_RUN_MAX_SIZE, DefaultLoggerCreator.PROPERTY_LEVEL}) {
+                DefaultLoggerCreator.PROPERTY_RUN_MAX_SIZE, DefaultLoggerCreator.PROPERTY_LEVEL, DefaultLoggerCreator.PROPERTY_AGENT}) {
             System.clearProperty(property);
         }
         LOG.init();
@@ -269,7 +269,7 @@ class RunLogTest extends AbstractLoggerTest {
                                     "2026-11-19T17-16-05_286-jvmRun1 surefire-123tmp surefire_0-456tmp");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
-        RunLog.attach(new ConsoleLogger(), false);
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
         RunLog.current().start();
         getErrAndClear();
 
@@ -550,7 +550,7 @@ class RunLogTest extends AbstractLoggerTest {
     public void testResetClosesTheRunLogOfTheJvm() throws IOException {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
-        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
+        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false, "LOG.init()")).getLoggers().get(1);
         runLog.start();
 
         RunLog.reset();
@@ -566,7 +566,7 @@ class RunLogTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         getErrAndClear();
 
-        ILogger attached = RunLog.attach(new ConsoleLogger(), false);
+        ILogger attached = RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
 
         assertEquals("", getErrAndClear());
         assertFalse(Files.exists(root.resolve("runs")));
@@ -584,24 +584,166 @@ class RunLogTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         ILogger console = new ConsoleLogger();
-        ILogger attached = RunLog.attach(console, false);
+        ILogger attached = RunLog.attach(console, false, "LOG.init()");
 
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
-        assertSame(console, RunLog.attach(console, false));
+        assertSame(console, RunLog.attach(console, false, "LOG.init()"));
 
         assertNull(RunLog.current());
         assertSame(console, RunLog.with(console), "a logger installed later gets no run log");
         attached.log(entry(INFO, "after", null));
         assertFalse(Files.exists(root.resolve("runs")), "the run log stopped before it opened a file");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
-        assertSame(console, RunLog.attach(console, false), "for the rest of the JVM");
+        assertSame(console, RunLog.attach(console, false, "LOG.init()"), "for the rest of the JVM");
+        assertEquals("", getErrAndClear(), "no file, nothing to say about it");
+    }
+
+    @Test
+    public void testARunLogStoppedAfterItsEntriesEndsWithALineThatSaysWhy() throws IOException {
+        // read back, a file that just stops looks like a run that crashed or hung there (#115)
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        ILogger console = new ConsoleLogger();
+        ILogger attached = RunLog.attach(console, false, "LOG.init() at com.acme.Tool.main(Tool.java:6)");
+        attached.log(entry(INFO, "first", null));
+        attached.log(entry(WARN, "second", null));
+        getErrAndClear();
+        getOutAndClear();
+
+        System.clearProperty(DefaultLoggerCreator.PROPERTY_RUN);
+        assertSame(console, RunLog.attach(console, false, "LOG.init() at com.acme.Tool.main(Tool.java:9)"));
+
+        String line = "Run log turned off by LOG.init() at com.acme.Tool.main(Tool.java:9) (nanolog.run=off): it ends here, " +
+                      "after 2 entries";
+        assertEquals("[NANOLOG] " + line + NL, getErrAndClear());
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(3, log.size(), String.valueOf(log));
+        assertEquals("[NANOLOG] " + line, log.get(2));
+        List<String> errors = lines(root.resolve("latest.errors.log"));
+        assertEquals(2, errors.size(), "the errors file is followed with tail -f: " + errors);
+        assertEquals("[NANOLOG] " + line, errors.get(1));
+        attached.log(entry(ERROR, "after", null));
+        assertEquals(3, lines(root.resolve("latest.log")).size(), "nothing follows it");
+    }
+
+    @Test
+    public void testTheLineCountsOneEntry() throws IOException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()").log(entry(INFO, "only", null));
+        getErrAndClear();
+
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
+
+        assertEquals("[NANOLOG] Run log turned off by LOG.init() (nanolog.run=off): it ends here, after 1 entry" + NL,
+                     getErrAndClear());
+    }
+
+    @Test
+    public void testAJsonRunLogEndsWithALineOfJson() throws IOException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_FORMAT, "json");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init() at \"Tool\"").log(entry(WARN, "only", null));
+        getErrAndClear();
+
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init() at \"Tool\"");
+
+        String line = "{\"nanolog\":\"Run log turned off by LOG.init() at \\\"Tool\\\" (nanolog.run=off): it ends here, after 1 entry\"}";
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(line, log.get(log.size() - 1));
+        List<String> errors = lines(root.resolve("latest.errors.log"));
+        assertEquals(line, errors.get(errors.size() - 1));
+    }
+
+    @Test
+    public void testTheLineEscapesWhatItEchoes() throws IOException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()").log(entry(INFO, "only", null));
+        getErrAndClear();
+
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init() at Tool.main(Tool" + (char) 0x202E + ".java:6)");
+
+        String line = "[NANOLOG] Run log turned off by LOG.init() at Tool.main(Tool\\u202e.java:6) (nanolog.run=off): it ends " +
+                      "here, after 1 entry";
+        assertEquals(line + NL, getErrAndClear());
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(line, log.get(log.size() - 1));
+    }
+
+    @Test
+    public void testARunLogClosedByAnErrorSaysNothingMore() throws IOException {
+        // it said that it is off when it failed
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()").log(entry(INFO, "only", null));
+        RunLog.current().close();
+        getErrAndClear();
+
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
+
+        assertEquals("", getErrAndClear());
+        assertEquals(1, lines(root.resolve("latest.log")).size());
+    }
+
+    @Test
+    public void testAgentModeTurnedOffIsNamedAsTheReason() throws IOException {
+        // the line of agent mode named the run log, and nanolog.agent=off is what the agent was told turns it off
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), true, "LOG.init()").log(entry(WARN, "only", null));
+        getErrAndClear();
+        System.setProperty(DefaultLoggerCreator.PROPERTY_AGENT, "off");
+
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init() at com.acme.Tool.main(Tool.java:6)");
+
+        String line = "[NANOLOG] Agent mode turned off by LOG.init() at com.acme.Tool.main(Tool.java:6) (nanolog.agent=off): " +
+                      "the run log ends here, after 1 entry";
+        assertEquals(line + NL, getErrAndClear());
+        List<String> log = lines(root.resolve("latest.log"));
+        assertEquals(line, log.get(log.size() - 1));
+    }
+
+    @Test
+    public void testNanologRunOffIsTheReasonEvenWhenAgentModeEnds() throws IOException {
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), true, "LOG.init()").log(entry(WARN, "only", null));
+        getErrAndClear();
+        System.setProperty(DefaultLoggerCreator.PROPERTY_AGENT, "off");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
+
+        assertEquals("[NANOLOG] Run log turned off by LOG.init() (nanolog.run=off): it ends here, after 1 entry" + NL,
+                     getErrAndClear());
+    }
+
+    @Test
+    public void testAgentModeThatEndedBeforeIsNotTheReason() throws IOException {
+        // nanolog.run=on kept the run log when agent mode ended; it stops when that setting goes
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), true, "LOG.init()").log(entry(WARN, "only", null));
+        System.setProperty(DefaultLoggerCreator.PROPERTY_AGENT, "off");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
+        getErrAndClear();
+        System.clearProperty(DefaultLoggerCreator.PROPERTY_RUN);
+
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
+
+        assertEquals("[NANOLOG] Run log turned off by LOG.init() (nanolog.run=off): it ends here, after 1 entry" + NL,
+                     getErrAndClear());
     }
 
     @Test
     public void testOffByDefault() {
         ILogger console = new ConsoleLogger();
 
-        assertSame(console, RunLog.attach(console, false));
+        assertSame(console, RunLog.attach(console, false, "LOG.init()"));
         assertFalse(Files.exists(root.resolve("latest.log")));
     }
 
@@ -612,7 +754,7 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         ILogger console = new ConsoleLogger();
-        ILogger first = RunLog.attach(console, false);
+        ILogger first = RunLog.attach(console, false, "LOG.init()");
         RunLog.current().start();
 
         assertEquals("[NANOLOG] Run log: " + root.resolve("latest.log").toAbsolutePath() + "; WARN and ERROR also in " +
@@ -621,13 +763,13 @@ class RunLogTest extends AbstractLoggerTest {
         assertSame(console, loggers.get(0));
         RunLog runLog = (RunLog) loggers.get(1);
 
-        ILogger again = RunLog.attach(console, false);
+        ILogger again = RunLog.attach(console, false, "LOG.init()");
         assertSame(runLog, ((CompositeLogger) again).getLoggers().get(1), "LOG.init() keeps writing the same file");
         assertEquals("", getErrAndClear());
         assertEquals(2, runs().size());
 
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
-        assertSame(console, RunLog.attach(console, false));
+        assertSame(console, RunLog.attach(console, false, "LOG.init()"));
     }
 
     @Test
@@ -658,7 +800,7 @@ class RunLogTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         getErrAndClear();
 
-        RunLog.attach(new ConsoleLogger(), false);
+        RunLog.attach(new ConsoleLogger(), false, "LOG.init()");
         RunLog.current().start();
 
         // runs() sorts the names: <id>.errors.log, then <id>.log
@@ -885,7 +1027,7 @@ class RunLogTest extends AbstractLoggerTest {
         Files.createDirectories(root.resolve("runs"));
         Files.createFile(root.resolve("runs/0-old.log"));
 
-        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
+        RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false, "LOG.init()")).getLoggers().get(1);
         opened.add(runLog);
         runLog.start();
 
@@ -930,7 +1072,7 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         ILogger console = new ConsoleLogger();
-        ILogger attached = RunLog.attach(console, false);
+        ILogger attached = RunLog.attach(console, false, "LOG.init()");
         assertEquals("", getErrAndClear(), "nothing is opened before the first entry");
 
         attached.log(entry(INFO, "first", null));
@@ -939,7 +1081,7 @@ class RunLogTest extends AbstractLoggerTest {
         assertTrue(err.startsWith("[NANOLOG] Cannot open the run log in " + file.toAbsolutePath() + ": "), err);
         assertTrue(err.endsWith("; it is off" + NL), err);
         assertNull(RunLog.started());
-        assertSame(console, RunLog.attach(console, false), "not retried in the same JVM");
+        assertSame(console, RunLog.attach(console, false, "LOG.init()"), "not retried in the same JVM");
         assertSame(console, RunLog.with(console));
         assertEquals("", getErrAndClear());
     }
