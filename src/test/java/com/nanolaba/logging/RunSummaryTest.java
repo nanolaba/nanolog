@@ -409,6 +409,48 @@ class RunSummaryTest extends AbstractLoggerTest {
         assertEquals("          at com.acme.Cause.level2(Cause.java:3)", lines.get(lines.size() - 1));
     }
 
+    @Test
+    public void testOneLineOverIsShownInsteadOfItsCount() {
+        // the line that would count it takes as much room as the line itself
+        on();
+        IOException cause = new IOException("cause");
+        cause.setStackTrace(frames("com.acme.Cause", 4));
+        IllegalStateException error = new IllegalStateException("top", cause);
+        error.setStackTrace(frames("com.acme.Top", 10));
+        LOG.error(error, "One over");
+
+        // 11 lines for the error, 5 for its cause
+        List<String> lines = Summary.lines();
+        assertEquals(2 + Summary.MAX_TRACE_LINES + 1, lines.size(), String.join(NL, lines));
+        assertEquals("          at com.acme.Cause.level3(Cause.java:4)", lines.get(lines.size() - 1));
+    }
+
+    @Test
+    public void testTwoLinesOverAreCounted() {
+        on();
+        IOException cause = new IOException("cause");
+        cause.setStackTrace(frames("com.acme.Cause", 5));
+        IllegalStateException error = new IllegalStateException("top", cause);
+        error.setStackTrace(frames("com.acme.Top", 10));
+        LOG.error(error, "Two over");
+
+        List<String> lines = Summary.lines();
+        assertEquals(2 + Summary.MAX_TRACE_LINES + 1, lines.size(), String.join(NL, lines));
+        assertEquals("      ... 2 more lines", lines.get(lines.size() - 1));
+    }
+
+    @Test
+    public void testOneKindOverIsShownInsteadOfItsCount() {
+        on();
+        for (int i = 0; i < Summary.MAX_SHOWN + 1; i++) {
+            LOG.warn(RunSummaryTest.class, "Warning " + i);
+        }
+
+        List<String> lines = Summary.lines();
+        assertEquals(Summary.MAX_SHOWN + 2, lines.size(), String.join(NL, lines));
+        assertTrue(lines.get(Summary.MAX_SHOWN + 1).endsWith(": Warning " + Summary.MAX_SHOWN), lines.get(Summary.MAX_SHOWN + 1));
+    }
+
     private static StackTraceElement[] frames(String className, int count) {
         StackTraceElement[] frames = new StackTraceElement[count];
         String file = className.substring(className.lastIndexOf('.') + 1) + ".java";

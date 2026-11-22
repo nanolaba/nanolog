@@ -277,14 +277,15 @@ final class Summary {
         // errors first, each level in the order its kinds first appeared
         kinds.sort(Comparator.comparingInt((Kind kind) -> -kind.level.ordinal()).thenComparingInt(kind -> kind.order));
         String[] firstError = FIRST_ERROR.get();
-        for (Kind kind : kinds.subList(0, Math.min(MAX_SHOWN, kinds.size()))) {
+        int shown = shown(kinds.size(), MAX_SHOWN);
+        for (Kind kind : kinds.subList(0, shown)) {
             lines.add(INDENT + kind.line());
             if (firstError != null && firstError[0].equals(kind.key)) {
                 addTrace(lines, firstError[1]);
             }
         }
-        if (kinds.size() > MAX_SHOWN) {
-            lines.add(INDENT + "... and " + (kinds.size() - MAX_SHOWN) + " more kinds of WARN and ERROR" +
+        if (kinds.size() > shown) {
+            lines.add(INDENT + "... and " + (kinds.size() - shown) + " more kinds of WARN and ERROR" +
                       (list == null ? "" : "; the full list is in " + list.toAbsolutePath()));
         }
         String calls = Dbg.callsLine();
@@ -339,12 +340,21 @@ final class Summary {
 
     private static void addTrace(List<String> lines, String trace) {
         String[] traceLines = trace.replace("\r", "").replace("\t", "    ").split("\n");
-        for (int i = 0; i < Math.min(MAX_TRACE_LINES, traceLines.length); i++) {
+        int shown = shown(traceLines.length, MAX_TRACE_LINES);
+        for (int i = 0; i < shown; i++) {
             lines.add(TRACE_INDENT + traceLines[i]);
         }
-        if (traceLines.length > MAX_TRACE_LINES) {
-            lines.add(TRACE_INDENT + "... " + (traceLines.length - MAX_TRACE_LINES) + " more lines");
+        if (traceLines.length > shown) {
+            lines.add(TRACE_INDENT + "... " + (traceLines.length - shown) + " more lines");
         }
+    }
+
+    /**
+     * How many of a number of lines to show where at most {@code max} fit: all of them when one would be left, since
+     * the line that counts the rest takes as much room as that one (#112).
+     */
+    private static int shown(int count, int max) {
+        return count > max + 1 ? max : count;
     }
 
     /**
