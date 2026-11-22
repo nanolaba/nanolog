@@ -561,6 +561,39 @@ class AgentModeTest extends AbstractLoggerTest {
         assertSame(console, RunLog.attach(console, true));
     }
 
+    @Test
+    public void testAToolTurnsAgentModeOffAfterLogHasInitialised() {
+        // a hook of Claude Code, whose stderr the agent reads as the reason it refused an edit (#111)
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+        System.setProperty(PROPERTY_AGENT, "off");
+        LOG.init();
+        ConsoleLogger own = new ConsoleLogger();
+        LOG.init(own);
+        getErrAndClear();
+
+        LOG.error("Edit README.src.md instead");
+
+        assertSame(own, LOG.getLogger(), "no run log");
+        assertTrue(getErrAndClear().endsWith("Edit README.src.md instead" + NL));
+        assertFalse(Files.exists(root.resolve("runs")), "no file either");
+        Summary.printOnce();
+        assertEquals("", getErrAndClear(), "the summary is off without agent mode");
+    }
+
+    @Test
+    public void testARunThatLogsNothingWritesNothing() {
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        LOG.init();
+
+        Summary.printOnce();
+
+        assertEquals("", getErrAndClear());
+        assertFalse(Files.exists(root.resolve("runs")), "latest.log of the run before stays");
+    }
+
     // LEVELS WITH THE RUN LOG
 
     @Test

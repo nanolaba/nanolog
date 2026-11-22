@@ -34,9 +34,10 @@ import static com.nanolaba.logging.DefaultLoggerCreator.*;
  * {@code nanolog.run.keep} runs are kept. Each file stops at {@code nanolog.run.maxSize} with a note.
  * <p>
  * The run log is a {@link ConsoleLogger} with its own levels, read from the same settings, so a console kept short
- * leaves the file complete. Text lines show the thread and the call site. The file is opened once per JVM and is
- * written without a buffer, so what was logged is on disk even if the JVM is killed. An I/O error prints one
- * diagnostic and turns the run log off; logging goes on.
+ * leaves the file complete. Text lines show the thread and the call site. The files are opened once per JVM, with the
+ * first entry, so a run that logs nothing leaves the files of the run before alone (#111), and are written without a
+ * buffer, so what was logged is on disk even if the JVM is killed. An I/O error prints one diagnostic and turns the
+ * run log off; logging goes on.
  */
 final class RunLog extends ConsoleLogger {
 
@@ -68,16 +69,21 @@ final class RunLog extends ConsoleLogger {
     static Linker linker = Files::createLink;
 
     /**
-     * The run log of this JVM, opened by the first {@link #attach} with {@code nanolog.run=on}; {@code null} if it
-     * could not be opened. Guarded by the class.
+     * The run log of this JVM, made by the first {@link #attach} with {@code nanolog.run=on}; {@code null} if it is
+     * off. Guarded by the class, which is taken before an instance and never inside one.
      */
     private static RunLog current;
-    private static boolean opened;
+    private static boolean attached;
 
     private final Path file;
     private final Path errorsFile;
     private final JsonLogger json;
     private final long maxSize;
+    // where the files go and how many runs stay, for a run log that opens them with its first entry
+    private final Path directory;
+    private final int keep;
+    // whether the run log leaves its path to the line of agent mode
+    private boolean quiet;
     // latest.log and latest.errors.log, or the files of the run without hard links
     private Path latest;
     private Path latestErrors;
@@ -93,16 +99,38 @@ final class RunLog extends ConsoleLogger {
     private long written;
     private long errorsWritten;
     private boolean brief;
+    // whether opening the files was tried, and whether they are open or were
+    private boolean started;
+    private boolean filesOpened;
 
     /**
      * Writes to open streams. Reads the settings of {@link ConsoleLogger} like any other logger, so call it
      * {@link DefaultLoggerCreator#quietly quietly}: the console logger has reported an invalid one already.
      */
     RunLog(Path file, OutputStream out, Path errorsFile, OutputStream errors, boolean json, long maxSize) {
-        this.file = file;
+        this(file, errorsFile, null, 0, json, maxSize);
         this.out = out;
-        this.errorsFile = errorsFile;
         this.errors = errors;
+        started = true;
+        filesOpened = true;
+    }
+
+    /**
+     * A run log of a directory that opens its files with {@link #start()}; called {@link DefaultLoggerCreator#quietly
+     * quietly}, as the other constructor.
+     */
+    RunLog(Path directory, String id, boolean json, int keep, long maxSize) {
+        this(directory.resolve(RUNS).resolve(id + LOG_SUFFIX), directory.resolve(RUNS).resolve(id + ERRORS_SUFFIX),
+             directory, keep, json, maxSize);
+        summaryFile = directory.resolve(RUNS).resolve(id + SUMMARY_SUFFIX);
+        latestSummary = directory.resolve(LATEST_SUMMARY);
+    }
+
+    private RunLog(Path file, Path errorsFile, Path directory, int keep, boolean json, long maxSize) {
+        this.file = file;
+        this.errorsFile = errorsFile;
+        this.directory = directory;
+        this.keep = keep;
         this.json = json ? new JsonLogger() : null;
         this.maxSize = maxSize;
         this.latest = file;
@@ -187,24 +215,58 @@ final class RunLog extends ConsoleLogger {
      * control.
      */
     static RunLog open(Path directory, boolean json, int keep, long maxSize, String id) throws IOException {
+        RunLog log = quietly(() -> new RunLog(directory, id, json, keep, maxSize));
+        synchronized (log) {
+            log.started = true;
+            log.openFiles();
+        }
+        return log;
+    }
+
+    // guarded by this
+    private void openFiles() throws IOException {
         if (!Files.isDirectory(directory)) {
             Files.createDirectories(directory);
             Files.write(directory.resolve(".gitignore"), "*\n".getBytes(StandardCharsets.US_ASCII));
         }
         Path runs = Files.createDirectories(directory.resolve(RUNS));
-        Path file = runs.resolve(id + LOG_SUFFIX);
-        Path errorsFile = runs.resolve(id + ERRORS_SUFFIX);
-        OutputStream out = Files.newOutputStream(file);
-        OutputStream errors = Files.newOutputStream(errorsFile);
-        RunLog log = quietly(() -> new RunLog(file, out, errorsFile, errors, json, maxSize));
-        log.latest = link(directory.resolve(LATEST), file);
-        log.latestErrors = link(directory.resolve(LATEST_ERRORS), errorsFile);
-        log.summaryFile = runs.resolve(id + SUMMARY_SUFFIX);
+        out = Files.newOutputStream(file);
+        errors = Files.newOutputStream(errorsFile);
+        latest = link(directory.resolve(LATEST), file);
+        latestErrors = link(directory.resolve(LATEST_ERRORS), errorsFile);
         // the list of the run before would not be the list of the run in latest.log
-        log.latestSummary = directory.resolve(LATEST_SUMMARY);
-        deleteQuietly(log.latestSummary);
+        deleteQuietly(latestSummary);
         prune(runs, keep);
-        return log;
+        filesOpened = true;
+    }
+
+    /**
+     * Opens the files the first time it is called, by the first entry or by the line of agent mode that names them, and
+     * says where they are unless agent mode does; a failure prints one diagnostic and leaves the run log off.
+     *
+     * @return whether the files were opened
+     */
+    synchronized boolean start() {
+        if (!started) {
+            started = true;
+            try {
+                openFiles();
+                if (!quiet) {
+                    DefaultLoggerCreator.printNotice("Run log: " + shownFile().toAbsolutePath() + "; WARN and ERROR also in " +
+                                                     shownErrorsFile().toAbsolutePath());
+                }
+            } catch (IOException | RuntimeException e) {
+                printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
+            }
+        }
+        return filesOpened;
+    }
+
+    /**
+     * Whether the run log still takes entries: its files are open or not tried yet.
+     */
+    private synchronized boolean usable() {
+        return !started || out != null;
     }
 
     /**
@@ -268,26 +330,26 @@ final class RunLog extends ConsoleLogger {
     static synchronized ILogger attach(ILogger logger, boolean agent) {
         String run = agent ? readChoice(PROPERTY_RUN, "on", "off") : readChoice(PROPERTY_RUN, "off", "on");
         if ("off".equals(run)) {
+            // a LOG.init() whose settings no longer turn it on stops it for the rest of the JVM (#111)
+            if (current != null) {
+                current.close();
+                current = null;
+            }
             return logger;
         }
-        if (!opened) {
-            opened = true;
+        if (!attached) {
+            attached = true;
+            boolean json = "json".equals(readChoice(PROPERTY_RUN_FORMAT, "text", "json"));
+            int keep = readPositive(PROPERTY_RUN_KEEP, 10);
+            long maxSize = readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB;
+            String id = id(System.currentTimeMillis(), pid());
             Path directory = directory(getProperty(PROPERTY_RUN_DIR), Paths.get(System.getProperty("user.dir")));
-            try {
-                current = open(directory, "json".equals(readChoice(PROPERTY_RUN_FORMAT, "text", "json")),
-                               readPositive(PROPERTY_RUN_KEEP, 10), readPositive(PROPERTY_RUN_MAX_SIZE, 100) * MB,
-                               id(System.currentTimeMillis(), pid()));
-                current.own = testWorker(System.getProperty("sun.java.command"));
-                if (!agent) {
-                    DefaultLoggerCreator.printNotice("Run log: " + current.shownFile().toAbsolutePath() + "; WARN and ERROR also in " +
-                                    current.shownErrorsFile().toAbsolutePath());
-                }
-            } catch (IOException | RuntimeException e) {
-                printDiagnostic("Cannot open the run log in " + directory.toAbsolutePath() + ": " + e + "; it is off");
-            }
+            current = quietly(() -> new RunLog(directory, id, json, keep, maxSize));
+            current.own = testWorker(System.getProperty("sun.java.command"));
+            current.quiet = agent;
         }
         // only the console that agent mode shortened leaves levels to the run log
-        return current == null ? logger : new Tee(logger, current, agent && Agent.isConsole(logger));
+        return current == null || !current.usable() ? logger : new Tee(logger, current, agent && Agent.isConsole(logger));
     }
 
     /**
@@ -354,7 +416,7 @@ final class RunLog extends ConsoleLogger {
      */
     static ILogger with(ILogger logger) {
         RunLog runLog = current();
-        if (runLog == null || logger == null || writes(logger, runLog)) {
+        if (runLog == null || !runLog.usable() || logger == null || writes(logger, runLog)) {
             return logger;
         }
         return new Tee(logger, runLog, false);
@@ -375,12 +437,37 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
-     * The run log of this JVM.
+     * The run log of this JVM, whose files may not be open yet.
      *
-     * @return the run log; {@code null} if it is off or could not be opened
+     * @return the run log; {@code null} if it is off
      */
     static synchronized RunLog current() {
         return current;
+    }
+
+    /**
+     * The run log of this JVM with its files open, for a line that names them: the run summary, which does not open
+     * them for a run that logged nothing to them.
+     *
+     * @return the run log; {@code null} if it is off or its files were not opened
+     */
+    static synchronized RunLog opened() {
+        return current != null && current.filesOpened() ? current : null;
+    }
+
+    /**
+     * The run log of this JVM, its files opened now if they are not yet: for the line of agent mode, printed before the
+     * first entry reaches them.
+     *
+     * @return the run log; {@code null} if it is off or its files cannot be opened
+     */
+    static RunLog started() {
+        RunLog runLog = current();
+        return runLog != null && runLog.start() ? runLog : null;
+    }
+
+    private synchronized boolean filesOpened() {
+        return filesOpened;
     }
 
     /**
@@ -410,7 +497,7 @@ final class RunLog extends ConsoleLogger {
             current.close();
         }
         current = null;
-        opened = false;
+        attached = false;
     }
 
     /**
@@ -479,7 +566,7 @@ final class RunLog extends ConsoleLogger {
      */
     @Override
     public synchronized void log(LogEntry entry) {
-        if (out != null) {
+        if (start() && out != null) {
             Path failed = file;
             try {
                 written = write(out, json == null ? createLogString(entry) : json.createLogString(entry), written);
@@ -541,13 +628,14 @@ final class RunLog extends ConsoleLogger {
     }
 
     /**
-     * Closes both files; later entries are not written.
+     * Closes both files; later entries are not written, and a run log closed before its first entry never opens them.
      */
     synchronized void close() {
         closeQuietly(out);
         closeQuietly(errors);
         out = null;
         errors = null;
+        started = true;
     }
 
     private static void closeQuietly(OutputStream stream) {

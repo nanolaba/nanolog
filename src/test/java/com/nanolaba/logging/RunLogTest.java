@@ -270,6 +270,7 @@ class RunLogTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         RunLog.attach(new ConsoleLogger(), false);
+        RunLog.current().start();
         getErrAndClear();
 
         Path shown = RunLog.current().writeSummary(Arrays.asList("one"));
@@ -523,11 +524,50 @@ class RunLogTest extends AbstractLoggerTest {
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
         System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
         RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
+        runLog.start();
 
         RunLog.reset();
         runLog.log(entry(INFO, "after reset", null));
 
         assertEquals(0, lines(root.resolve("latest.log")).size());
+    }
+
+    @Test
+    public void testTheFilesAreOpenedWithTheFirstEntry() throws IOException {
+        // a run that logs nothing leaves latest.log to the run before (#111)
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        getErrAndClear();
+
+        ILogger attached = RunLog.attach(new ConsoleLogger(), false);
+
+        assertEquals("", getErrAndClear());
+        assertFalse(Files.exists(root.resolve("runs")));
+        assertNull(RunLog.opened(), "nothing names files that do not exist");
+        attached.log(entry(INFO, "first", null));
+        assertEquals("[NANOLOG] Run log: " + root.resolve("latest.log").toAbsolutePath() + "; WARN and ERROR also in " +
+                     root.resolve("latest.errors.log").toAbsolutePath() + NL, getErrAndClear());
+        assertSame(RunLog.current(), RunLog.opened());
+        assertEquals(1, lines(root.resolve("latest.log")).size());
+    }
+
+    @Test
+    public void testALaterInitThatTurnsItOffStopsIt() throws IOException {
+        // a tool sets nanolog.agent=off and calls LOG.init() before it logs (#111)
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN_DIR, root.toString());
+        ILogger console = new ConsoleLogger();
+        ILogger attached = RunLog.attach(console, false);
+
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "off");
+        assertSame(console, RunLog.attach(console, false));
+
+        assertNull(RunLog.current());
+        assertSame(console, RunLog.with(console), "a logger installed later gets no run log");
+        attached.log(entry(INFO, "after", null));
+        assertFalse(Files.exists(root.resolve("runs")), "the run log stopped before it opened a file");
+        System.setProperty(DefaultLoggerCreator.PROPERTY_RUN, "on");
+        assertSame(console, RunLog.attach(console, false), "for the rest of the JVM");
     }
 
     @Test
@@ -546,6 +586,7 @@ class RunLogTest extends AbstractLoggerTest {
 
         ILogger console = new ConsoleLogger();
         ILogger first = RunLog.attach(console, false);
+        RunLog.current().start();
 
         assertEquals("[NANOLOG] Run log: " + root.resolve("latest.log").toAbsolutePath() + "; WARN and ERROR also in " +
                      root.resolve("latest.errors.log").toAbsolutePath() + NL, getErrAndClear());
@@ -591,6 +632,7 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         RunLog.attach(new ConsoleLogger(), false);
+        RunLog.current().start();
 
         // runs() sorts the names: <id>.errors.log, then <id>.log
         Path ownErrors = root.resolve("runs").resolve(runs().get(0)).toAbsolutePath();
@@ -818,6 +860,7 @@ class RunLogTest extends AbstractLoggerTest {
 
         RunLog runLog = (RunLog) ((CompositeLogger) RunLog.attach(new ConsoleLogger(), false)).getLoggers().get(1);
         opened.add(runLog);
+        runLog.start();
 
         assertEquals(2, runs().size(), "keep 1: only this run");
         assertEquals(MB, runLog.maxSize());
@@ -860,12 +903,17 @@ class RunLogTest extends AbstractLoggerTest {
         getErrAndClear();
 
         ILogger console = new ConsoleLogger();
-        assertSame(console, RunLog.attach(console, false));
+        ILogger attached = RunLog.attach(console, false);
+        assertEquals("", getErrAndClear(), "nothing is opened before the first entry");
+
+        attached.log(entry(INFO, "first", null));
 
         String err = getErrAndClear();
         assertTrue(err.startsWith("[NANOLOG] Cannot open the run log in " + file.toAbsolutePath() + ": "), err);
         assertTrue(err.endsWith("; it is off" + NL), err);
+        assertNull(RunLog.started());
         assertSame(console, RunLog.attach(console, false), "not retried in the same JVM");
+        assertSame(console, RunLog.with(console));
         assertEquals("", getErrAndClear());
     }
 

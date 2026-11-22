@@ -302,7 +302,7 @@ final class Summary {
      * @return the path that names the list; {@code null} without a run log, or if the list could not be written
      */
     private static Path writeList() {
-        RunLog runLog = RunLog.current();
+        RunLog runLog = RunLog.opened();
         if (runLog == null) {
             return null;
         }
@@ -316,22 +316,17 @@ final class Summary {
     }
 
     private static String header() {
-        StringBuilder header = new StringBuilder("Run summary: ");
         long total = TOTAL.get();
-        if (total == 0) {
-            header.append("no entries");
-        } else {
-            header.append(total).append(total == 1 ? " entry:" : " entries:");
-            String separator = " ";
-            for (int i = LEVELS.length - 1; i >= 0; i--) {
-                long count = COUNTS[i].get();
-                if (count > 0) {
-                    header.append(separator).append(count).append(' ').append(LEVELS[i].name());
-                    separator = ", ";
-                }
+        StringBuilder header = new StringBuilder("Run summary: ").append(total).append(total == 1 ? " entry:" : " entries:");
+        String separator = " ";
+        for (int i = LEVELS.length - 1; i >= 0; i--) {
+            long count = COUNTS[i].get();
+            if (count > 0) {
+                header.append(separator).append(count).append(' ').append(LEVELS[i].name());
+                separator = ", ";
             }
         }
-        RunLog runLog = RunLog.current();
+        RunLog runLog = RunLog.opened();
         if (runLog != null) {
             header.append("; the full log is in ").append(runLog.shownFile().toAbsolutePath());
         }
@@ -413,7 +408,8 @@ final class Summary {
             LOG.flushRepeats();
             Mode current = mode;
             boolean warned = COUNTS[WARN.ordinal()].get() + COUNTS[ERROR.ordinal()].get() > 0;
-            if (current == Mode.ON || current == Mode.ERRORS && warned) {
+            // a run that logged nothing has nothing to sum up, and its run log is not even open (#111)
+            if (TOTAL.get() > 0 && (current == Mode.ON || current == Mode.ERRORS && warned)) {
                 DefaultLoggerCreator.printNotices(lines(writeList()));
             } else {
                 Dbg.printCalls();

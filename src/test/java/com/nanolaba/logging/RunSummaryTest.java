@@ -102,7 +102,20 @@ class RunSummaryTest extends AbstractLoggerTest {
         assertSame(Summary.Mode.OFF, Summary.mode);
         assertTrue(hooks.isEmpty());
         LOG.error("not counted");
-        assertEquals(Arrays.asList("Run summary: no entries"), Summary.lines());
+        assertEquals(Arrays.asList("Run summary: 0 entries:"), Summary.lines());
+    }
+
+    @Test
+    public void testARunThatLoggedNothingPrintsNoSummary() {
+        // a tool whose stderr an agent reads gets no lines about an empty run log (#111)
+        environment.put("CLAUDECODE", "1");
+        System.setProperty(PROPERTY_RUN, "off");
+        LOG.init();
+        getErrAndClear();
+
+        Summary.printOnce();
+
+        assertEquals("", getErrAndClear());
     }
 
     @Test
@@ -496,6 +509,7 @@ class RunSummaryTest extends AbstractLoggerTest {
         System.setProperty(PROPERTY_RUN, "on");
         System.setProperty(PROPERTY_RUN_DIR, root.toString());
         LOG.init();
+        RunLog.started();
         getErrAndClear();
         getOutAndClear();
         Path own;
@@ -511,6 +525,20 @@ class RunSummaryTest extends AbstractLoggerTest {
         } finally {
             later.close();
         }
+    }
+
+    @Test
+    public void testTheSummaryNamesTheRunLogOnlyOnceItsFilesAreOpen() {
+        // a run log that no entry reached has no file to name (#111)
+        System.setProperty(PROPERTY_RUN, "on");
+        System.setProperty(PROPERTY_RUN_DIR, root.toString());
+        RunLog.attach(new ConsoleLogger(), false);
+        Summary.count(new LogEntry(LogEntry.LogEntryLevel.WARN, RunSummaryTest.class, null, "counted"));
+
+        assertEquals("Run summary: 1 entry: 1 WARN", Summary.lines().get(0));
+        RunLog.current().start();
+        assertEquals("Run summary: 1 entry: 1 WARN; the full log is in " + root.resolve("latest.log").toAbsolutePath(),
+                     Summary.lines().get(0));
     }
 
     /**

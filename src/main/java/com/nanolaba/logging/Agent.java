@@ -168,7 +168,8 @@ final class Agent {
         } else if (installedAt != null) {
             parts.add(installedAt + " keeps its own levels and format");
         }
-        RunLog runLog = RunLog.current();
+        // opens the files now: the first entry has not reached them yet
+        RunLog runLog = RunLog.started();
         if (runLog != null) {
             parts.add("the full log is in " + runLog.shownFile().toAbsolutePath() + ", WARN and ERROR also in " +
                       runLog.shownErrorsFile().toAbsolutePath());
