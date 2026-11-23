@@ -183,12 +183,9 @@ dependencies {
 }
 ```
 
-<details>
-<summary>Скачивание вручную</summary>
+**Скачивание вручную**
 
 Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4.1) и добавьте его в classpath.
-
-</details>
 
 Требования: Java 8+. На Java 9+ jar — это модуль `com.nanolaba.nanolog`, которому нужен только `java.base` (SLF4J и JUnit необязательны), поэтому он работает на module path и в образе среды выполнения, собранном `jlink`. Класс логгера, названный в `nanolog.logger`, должен лежать в пакете, который экспортирует его модуль. На module path JUnit не находит `NanologExtension` сам: подключите его через `@ExtendWith(NanologExtension.class)`.
 

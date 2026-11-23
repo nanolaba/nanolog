@@ -183,12 +183,9 @@ dependencies {
 }
 ```
 
-<details>
-<summary>Manual download</summary>
+**Manual download**
 
 Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/1.4.1) and add it to the classpath.
-
-</details>
 
 Requirements: Java 8+. On Java 9+ the jar is the module `com.nanolaba.nanolog`, which needs only `java.base` (SLF4J and JUnit are optional), so it works on the module path and in a runtime image built with `jlink`. A logger class named in `nanolog.logger` must be in a package its module exports. On the module path JUnit does not find `NanologExtension` by itself: register it with `@ExtendWith(NanologExtension.class)`.
 

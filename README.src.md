@@ -127,10 +127,10 @@ dependencies {
 }
 ```
 
-${widget:details(summary="${en:'Manual download', ru:'Скачивание вручную'}")}
+**${en:'Manual download', ru:'Скачивание вручную'}**
+
 Get the JAR from [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion}) and add it to the classpath.<!--en-->
 Скачайте JAR из [Maven Central](https://repo1.maven.org/maven2/com/nanolaba/nanolog/${stableVersion}) и добавьте его в classpath.<!--ru-->
-${widget:endDetails}
 
 ${en:'Requirements: Java', ru:'Требования: Java'} ${pom.properties.maven.compiler.release}+. ${en:'On Java 9+ the jar is the module `com.nanolaba.nanolog`, which needs only `java.base` (SLF4J and JUnit are optional), so it works on the module path and in a runtime image built with `jlink`. A logger class named in `nanolog.logger` must be in a package its module exports. On the module path JUnit does not find `NanologExtension` by itself: register it with `@ExtendWith(NanologExtension.class)`.', ru:'На Java 9+ jar — это модуль `com.nanolaba.nanolog`, которому нужен только `java.base` (SLF4J и JUnit необязательны), поэтому он работает на module path и в образе среды выполнения, собранном `jlink`. Класс логгера, названный в `nanolog.logger`, должен лежать в пакете, который экспортирует его модуль. На module path JUnit не находит `NanologExtension` сам: подключите его через `@ExtendWith(NanologExtension.class)`.'}
 
