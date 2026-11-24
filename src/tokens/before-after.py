@@ -33,6 +33,7 @@ GREY = (156, 163, 175)
 BLUE = (96, 165, 250)
 RED = (248, 113, 113)
 GREEN = (74, 222, 128)
+DOT = (134, 239, 172)  # the green dot of the mark, as in assets/logo-dark.svg
 
 
 def font(names, size):
@@ -42,6 +43,18 @@ def font(names, size):
         except OSError:
             pass
     raise SystemExit("None of the fonts %s was found" % ", ".join(names))
+
+
+def mark(d, x, y, size):
+    """The Nanolog mark of assets/logo-dark.svg (viewBox 64): three lines narrowing to a green dot, the top two
+    lines blue at 40% and 70% over the background. x, y, size are in supersampled pixels."""
+    k = size / 64.0
+    w = 7 * k
+    for x1, x2, ly, alpha in ((6, 58, 11, 0.4), (15, 49, 24, 0.7), (24, 40, 37, 1.0)):
+        fill = tuple(round(b + (c - b) * alpha) for c, b in zip(BLUE, BG))
+        d.rounded_rectangle([x + x1 * k - w / 2, y + ly * k - w / 2, x + x2 * k + w / 2, y + ly * k + w / 2],
+                            radius=w / 2, fill=fill)
+    d.ellipse([x + 27 * k, y + 46 * k, x + 37 * k, y + 56 * k], fill=DOT)
 
 
 def read(path):
@@ -96,8 +109,16 @@ def main():
     img = Image.new("RGB", (width, total_h), BG)
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, 5 * S, total_h], fill=BLUE)
-    d.text((margin, 28 * S), "The same failing test run: what the console prints, and what a coding agent reads",
-           font=ui_title, fill=(243, 244, 246))
+    title = "The same failing test run: what the console prints, and what a coding agent reads"
+    d.text((margin, 28 * S), title, font=ui_title, fill=(243, 244, 246))
+    # the mark and the name in the top right corner, so the picture says whose it is when shared on its own
+    name_x = width - margin - d.textlength("Nanolog", font=ui_title)
+    top_y, bottom_y = d.textbbox((name_x, 28 * S), "Nanolog", font=ui_title)[1::2]
+    mark_size = 40 * S
+    mark_x = name_x - 12 * S - mark_size
+    assert margin + d.textlength(title, font=ui_title) + 40 * S < mark_x, "the title runs into the mark"
+    mark(d, mark_x, (top_y + bottom_y) / 2 - mark_size / 2, mark_size)
+    d.text((name_x, 28 * S), "Nanolog", font=ui_title, fill=(243, 244, 246))
     d.text((margin, 74 * S), "mvn -q test of a test that logs 200 orders and fails on order 150 (a deadlock with a "
            "cause). Nanolog %s with its default settings, every level on." % args.version, font=ui, fill=GREY)
     d.text((margin, 102 * S), "Both panels: the same font and the same height. Text as printed, long lines wrapped "
