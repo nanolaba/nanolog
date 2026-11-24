@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
 
-# Nanolog: Java logging with fewer tokens for AI coding agents
+# <picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"><img src="assets/logo.svg" alt="" height="40" align="absmiddle"></picture>&nbsp;Nanolog: Java logging with fewer tokens for AI coding agents
 
 **Nanolog** is a zero-dependency logging library for Java 8+ that keeps console output short when an AI
 coding agent runs your code. Under Claude Code, Codex, Gemini CLI or Cursor CLI the console keeps

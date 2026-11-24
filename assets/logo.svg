@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Nanolog</title>
+  <g fill="none" stroke="#2563eb" stroke-width="7" stroke-linecap="round">
+    <path d="M6 11H58" stroke-opacity="0.4"/>
+    <path d="M15 24H49" stroke-opacity="0.7"/>
+    <path d="M24 37H40"/>
+  </g>
+  <circle cx="32" cy="51" r="5" fill="#16a34a"/>
+</svg>

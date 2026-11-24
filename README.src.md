@@ -23,7 +23,7 @@ ${widget:badge(type='license', value='Apache-2.0', url='https://www.apache.org/l
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
 ${widget:badge(type='github-stars', repo='nanolaba/nanolog')}
 
-# ${en:'Nanolog: Java logging with fewer tokens for AI coding agents', ru:'Nanolog: логирование в Java с экономией токенов для ИИ-агентов'}
+# <picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"><img src="assets/logo.svg" alt="" height="40" align="absmiddle"></picture>&nbsp;${en:'Nanolog: Java logging with fewer tokens for AI coding agents', ru:'Nanolog: логирование в Java с экономией токенов для ИИ-агентов'}
 
 ${name} — библиотека логирования для Java 8+ без зависимостей, которая сокращает вывод в консоль, когда ИИ-агент<!--ru-->
 запускает ваш код. Под Claude Code, Codex, Gemini CLI или Cursor CLI в консоли остаются предупреждения,<!--ru-->

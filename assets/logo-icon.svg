@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64">
+  <title>Nanolog</title>
+  <desc>
+    The Nanolog mark on a dark tile, the source of logo-512.png for places that take no SVG (letters, article covers).
+    logo.svg and logo-dark.svg are the same mark without the tile, for light and dark backgrounds. Regenerate the PNG:
+      chrome --headless --disable-gpu --hide-scrollbars --default-background-color=00000000 --window-size=512,512
+             --screenshot=assets/logo-512.png assets/logo-icon.svg
+  </desc>
+  <rect width="64" height="64" rx="14" fill="#111827"/>
+  <g transform="translate(8 8) scale(0.75)">
+    <g fill="none" stroke="#60a5fa" stroke-width="7" stroke-linecap="round">
+      <path d="M6 11H58" stroke-opacity="0.4"/>
+      <path d="M15 24H49" stroke-opacity="0.7"/>
+      <path d="M24 37H40"/>
+    </g>
+    <circle cx="32" cy="51" r="5" fill="#86efac"/>
+  </g>
+</svg>

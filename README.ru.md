@@ -12,7 +12,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16916/badge)](https://www.bestpractices.dev/projects/16916)
 [![GitHub stars](https://img.shields.io/github/stars/nanolaba/nanolog?style=social)](https://github.com/nanolaba/nanolog)
 
-# Nanolog: логирование в Java с экономией токенов для ИИ-агентов
+# <picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"><img src="assets/logo.svg" alt="" height="40" align="absmiddle"></picture>&nbsp;Nanolog: логирование в Java с экономией токенов для ИИ-агентов
 
 **Nanolog** — библиотека логирования для Java 8+ без зависимостей, которая сокращает вывод в консоль, когда ИИ-агент
 запускает ваш код. Под Claude Code, Codex, Gemini CLI или Cursor CLI в консоли остаются предупреждения,

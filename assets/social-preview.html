@@ -35,10 +35,17 @@
     top: 70px;
   }
   .name {
+    display: flex;
+    align-items: center;
+    gap: 16px;
     font-size: 40px;
     font-weight: 700;
     color: #9ca3af;
     letter-spacing: 0.5px;
+  }
+  .name svg {
+    width: 52px;
+    height: 52px;
   }
   .headline {
     margin-top: 6px;
@@ -99,10 +106,10 @@
 <body>
 <div class="bar"></div>
 <div class="page">
-  <div class="name">Nanolog · Java logging</div>
+  <div class="name"><svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="#60a5fa" stroke-width="7" stroke-linecap="round"><path d="M6 11H58" stroke-opacity="0.4"/><path d="M15 24H49" stroke-opacity="0.7"/><path d="M24 37H40"/></g><circle cx="32" cy="51" r="5" fill="#86efac"/></svg>Nanolog · Java logging</div>
   <div class="headline">Fewer log tokens for AI coding agents</div>
   <div class="stat">
-    <div class="numbers"><span class="from">13,577</span> → 1,022</div>
+    <div class="numbers"><span class="from">13,577</span> → 1,058</div>
     <div class="caption">tokens of a failing <code>mvn -q test</code> in agent mode
       <small>measured with the o200k_base tokenizer</small></div>
   </div>
