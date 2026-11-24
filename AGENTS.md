@@ -272,7 +272,7 @@ Release checklist:
    - **Feedback.** The notes end with a "Feedback" block: the discussion of the release, [Q&A](https://github.com/nanolaba/nanolog/discussions/categories/q-a) and the [issue forms](https://github.com/nanolaba/nanolog/issues/new/choose).
    - **Social preview.** When the release changes what the project leads with, edit `assets/social-preview.html`, regenerate `assets/social-preview.png` with the command in its header (headless Chrome, 1280×640) and upload the PNG in *Settings → General → Social preview*; GitHub has no API for it.
 4. Once the version is on Maven Central, paste *Try it* of the README into a new Maven project and a new Gradle Kotlin DSL project: it compiles, and `LOG.dbg` prints the expression text.
-5. Bump `pom.xml` to the next `-SNAPSHOT`, run `mvn compile`, commit the regenerated README files.
+5. Put `pom.xml` back to the development version, run `mvn compile`, commit the regenerated README files. Feedback, bug fixes and small improvements after 1.4 ship as patch releases 1.4.x, and the development version stays `1.5-SNAPSHOT` across them: it is not bumped after each release, only when a new minor line starts. Markers `*1.5+*` in `agent-guide.src.md` become `*1.4.Z+*` in the release commit that ships them, as in 1.4.1.
 
 ## Conventions
 
