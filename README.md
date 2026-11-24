@@ -302,7 +302,7 @@ A coding agent pays for every token of output it reads, and a test run competes 
 Measured on 2026-11-19 on Windows 10, JDK 8, Maven 3.9 and Surefire 3.2.5, with the default settings. The counts include everything Maven printed, Surefire's report of a failure too, and agent mode leaves that report as it is; that is why the last run saves the least. o200k_base is the tokenizer of OpenAI's GPT-4o and later models; Claude tokens have not been counted yet. The project, the script and the full table with character counts are in [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` repeats the runs, and counts Claude tokens as well when an Anthropic API key is set.
 
 <details>
-<summary>The first run as a picture: what the console prints and what the agent reads</summary>
+<summary><b>👀 Picture: the failing run takes 558 lines without agent mode and 43 with it</b></summary>
 
 
 ![The failing test run side by side: without agent mode 558 lines and 13,577 tokens, of which the first 62 lines fit the height of the picture; in agent mode the whole run, 43 lines and 1,058 tokens, run summary included](assets/agent-mode-before-after.png)
