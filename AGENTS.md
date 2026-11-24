@@ -50,7 +50,7 @@ JMH benchmarks live in `src/jmh/java` (`com.nanolaba.logging.benchmark`) and bui
 
 - Run: `mvn -q compile jar:jar`, then `python src/tokens/measure.py --jar target/nanolog-<version>.jar` (`pip install tiktoken`, and `anthropic` for the Claude column). It unsets the variables that turn agent mode on for the run without it, so it works from inside an agent too.
 - The shop project takes the jar as `-Dtokens.jar`: a `nanolog.*` system property of its own would print `[NANOLOG] Unknown setting` into every output and be counted.
-- Results, with the environment, are in `src/tokens/RESULTS.md`. Re-measure after a change to agent mode, the console format, stack traces, repeats or the run summary, and update that file together with the numbers quoted in README *Why Nanolog*, *Agent-driven development*, *Agent mode*, *Run summary* and *Fewer tokens*, and in `agent-guide.src.md`. Quote only measured numbers, with the tokenizer named.
+- Results, with the environment, are in `src/tokens/RESULTS.md`. Re-measure after a change to agent mode, the console format, stack traces, repeats or the run summary, and update that file together with the numbers quoted in README *Why Nanolog*, *Agent-driven development*, *Agent mode*, *Run summary* and *Fewer tokens*, and in `agent-guide.src.md`, and redraw `assets/agent-mode-before-after.png`, the collapsed picture of run a in *Fewer tokens*, with `src/tokens/before-after.py` from the outputs of a JDK 8 run (the command is in `RESULTS.md`). Quote only measured numbers, with the tokenizer named.
 
 ### README generation
 

@@ -28,4 +28,11 @@ pip install tiktoken anthropic
 python src/tokens/measure.py --jar target/nanolog-1.4-SNAPSHOT.jar
 ```
 
-The outputs are saved to `src/tokens/shop/target/tokens/` for a look at what was counted. Re-measure after any change to agent mode, the console, stack traces, repeats or the run summary, then update this file and the numbers quoted in the README.
+The outputs are saved to `src/tokens/shop/target/tokens/` for a look at what was counted. Re-measure after any change to agent mode, the console, stack traces, repeats or the run summary, then update this file and the numbers quoted in the README, and redraw the picture of run **a** in README *Fewer tokens* from the outputs of a JDK 8 run, like the table:
+
+```
+pip install pillow
+python src/tokens/before-after.py --version <version> --setup "Windows 10, JDK 1.8.0_421, Maven 3.9.16, Surefire 3.2.5"
+```
+
+It writes `assets/agent-mode-before-after.png` and counts the lines, characters and tokens it shows itself. The current picture is drawn from a run of measure.py on the 1.4.1 jar from Maven Central on 2026-11-23, JDK 8, whose counts for **a** are those of the table.

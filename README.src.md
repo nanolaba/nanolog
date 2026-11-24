@@ -222,6 +222,15 @@ A coding agent pays for every token of output it reads, and a test run competes 
 Measured on 2026-11-19 on Windows 10, JDK 8, Maven 3.9 and Surefire 3.2.5, with the default settings. The counts include everything Maven printed, Surefire's report of a failure too, and agent mode leaves that report as it is; that is why the last run saves the least. o200k_base is the tokenizer of OpenAI's GPT-4o and later models; Claude tokens have not been counted yet. The project, the script and the full table with character counts are in [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` repeats the runs, and counts Claude tokens as well when an Anthropic API key is set.<!--en-->
 Замерено 19.11.2026 на Windows 10, JDK 8, Maven 3.9 и Surefire 3.2.5, с настройками по умолчанию. В счёт входит всё, что напечатал Maven, в том числе отчёт Surefire о падении, а агентский режим оставляет его как есть; поэтому последний запуск экономит меньше всех. o200k_base — токенизатор OpenAI для GPT-4o и более новых моделей; токены Claude пока не подсчитаны. Проект, скрипт и полная таблица с числом символов лежат в [`src/tokens`](src/tokens) ([`RESULTS.md`](src/tokens/RESULTS.md)): `python src/tokens/measure.py` повторяет запуски и, если задан ключ Anthropic API, считает и токены Claude.<!--ru-->
 
+${widget:details(summary="${en:'The first run as a picture: what the console prints and what the agent reads', ru:'Первый запуск на картинке: что печатает консоль и что читает агент'}")}
+
+![${en:'The failing test run side by side: without agent mode 558 lines and 13,577 tokens, of which the first 62 lines fit the height of the picture; in agent mode the whole run, 43 lines and 1,058 tokens, run summary included', ru:'Упавший запуск рядом: без агентского режима 558 строк и 13 577 токенов, из которых в высоту картинки помещаются первые 62 строки; в агентском режиме весь запуск, вместе со сводкой, — 43 строки и 1 058 токенов'}](assets/agent-mode-before-after.png)
+
+Both panels have the same font and height. The picture is drawn from the saved output of the run by [`src/tokens/before-after.py`](src/tokens/before-after.py), which also counts the lines and tokens it shows.<!--en-->
+У обеих панелей одинаковые шрифт и высота. Картинку рисует [`src/tokens/before-after.py`](src/tokens/before-after.py) из сохранённого вывода запуска и сам считает строки и токены, которые на ней показаны.<!--ru-->
+
+${widget:endDetails}
+
 ${en:'Where the tokens go:', ru:'Куда уходят токены:'}
 
 - ${en:'**The console keeps `WARN` and above** in agent mode, and the run log every level: a green run prints one line about agent mode and the run summary. See', ru:'**Консоль оставляет `WARN` и выше** в агентском режиме, а журнал запуска — все уровни: зелёный запуск печатает строку об агентском режиме и сводку. См.'} [${en:'Agent mode', ru:'Агентский режим'}](#${en:'agent-mode-nanolog-detects-coding-agents', ru:'агентский-режим-nanolog-распознаёт-кодовых-агентов'}).
