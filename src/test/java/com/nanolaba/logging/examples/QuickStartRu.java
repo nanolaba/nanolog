@@ -15,8 +15,17 @@ public class QuickStartRu {
         // Ленивое сообщение: лямбда выполнится, только если уровень DEBUG включён
         LOG.debug(() -> "Дорогой отчёт: " + buildReport());
 
-        // Класс-источник можно указать и явно
-        LOG.warn(QuickStartRu.class, "Мало места на диске");
+        // Контекст добавляет requestId=r-17 ко всем записям внутри блока;
+        // единица работы пишет одну строку в конце: исход, длительность, поля, предупреждения
+        try (LOG.Context context = LOG.context("requestId", "r-17");
+             LOG.Unit checkout = LOG.unit("checkout")) {
+            checkout.put("orderId", "A-17");
+            LOG.info("Платёж принят", LOG.kv("method", "card")); // именованное поле
+            LOG.warn("Мало места на диске");
+        }
+
+        // Таймер, который возвращает значение лямбды
+        String report = LOG.timed("Сборка отчёта", () -> buildReport());
 
         String input = "not a number";
         try {

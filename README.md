@@ -217,8 +217,17 @@ public class QuickStart {
         // Lazy message: the lambda runs only if DEBUG is enabled
         LOG.debug(() -> "Expensive report: " + buildReport());
 
-        // The source class can also be passed explicitly
-        LOG.warn(QuickStart.class, "Disk space is low");
+        // The context adds requestId=r-17 to every entry in the block;
+        // the unit writes one line when it ends: outcome, duration, fields, warnings
+        try (LOG.Context context = LOG.context("requestId", "r-17");
+             LOG.Unit checkout = LOG.unit("checkout")) {
+            checkout.put("orderId", "A-17");
+            LOG.info("Payment accepted", LOG.kv("method", "card")); // a named field
+            LOG.warn("Disk space is low");
+        }
+
+        // A timer that returns the value of the lambda
+        String report = LOG.timed("Build report", () -> buildReport());
 
         String input = "not a number";
         try {
@@ -241,11 +250,16 @@ Console output (`ERROR` goes to `System.err`, everything else to `System.out`):
 INFO 10.11.2026 21:30:00 [QuickStart] Application started
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...
-WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low
+INFO 10.11.2026 21:30:00 [QuickStart] Payment accepted method=card requestId=r-17
+WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low requestId=r-17
+INFO 10.11.2026 21:30:00 [QuickStart] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
+INFO 10.11.2026 21:30:00 [QuickStart] Build report took 0 ms
 ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
 ```
+
+With `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` the same entries are JSON lines: `method`, `orderId` and `duration_ms` go into `"fields"` and `requestId` into `"context"`, for `jq` and log collectors. More in [Fields](#fields-named-arguments), [Context](#context-tag-the-lines-of-one-request), [Wide events](#wide-events-one-line-per-request-canonical-log-lines) and [Timing a block](#timing-a-block).
 
 ### API at a glance
 

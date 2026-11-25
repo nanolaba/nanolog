@@ -15,8 +15,17 @@ public class QuickStart {
         // Lazy message: the lambda runs only if DEBUG is enabled
         LOG.debug(() -> "Expensive report: " + buildReport());
 
-        // The source class can also be passed explicitly
-        LOG.warn(QuickStart.class, "Disk space is low");
+        // The context adds requestId=r-17 to every entry in the block;
+        // the unit writes one line when it ends: outcome, duration, fields, warnings
+        try (LOG.Context context = LOG.context("requestId", "r-17");
+             LOG.Unit checkout = LOG.unit("checkout")) {
+            checkout.put("orderId", "A-17");
+            LOG.info("Payment accepted", LOG.kv("method", "card")); // a named field
+            LOG.warn("Disk space is low");
+        }
+
+        // A timer that returns the value of the lambda
+        String report = LOG.timed("Build report", () -> buildReport());
 
         String input = "not a number";
         try {

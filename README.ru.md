@@ -217,8 +217,17 @@ public class QuickStartRu {
         // Ленивое сообщение: лямбда выполнится, только если уровень DEBUG включён
         LOG.debug(() -> "Дорогой отчёт: " + buildReport());
 
-        // Класс-источник можно указать и явно
-        LOG.warn(QuickStartRu.class, "Мало места на диске");
+        // Контекст добавляет requestId=r-17 ко всем записям внутри блока;
+        // единица работы пишет одну строку в конце: исход, длительность, поля, предупреждения
+        try (LOG.Context context = LOG.context("requestId", "r-17");
+             LOG.Unit checkout = LOG.unit("checkout")) {
+            checkout.put("orderId", "A-17");
+            LOG.info("Платёж принят", LOG.kv("method", "card")); // именованное поле
+            LOG.warn("Мало места на диске");
+        }
+
+        // Таймер, который возвращает значение лямбды
+        String report = LOG.timed("Сборка отчёта", () -> buildReport());
 
         String input = "not a number";
         try {
@@ -241,11 +250,16 @@ public class QuickStartRu {
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...
-WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске
+INFO 10.11.2026 21:30:00 [QuickStartRu] Платёж принят method=card requestId=r-17
+WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске requestId=r-17
+INFO 10.11.2026 21:30:00 [QuickStartRu] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
+INFO 10.11.2026 21:30:00 [QuickStartRu] Сборка отчёта took 0 ms
 ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
 ```
+
+С `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` те же записи становятся JSON-строками: `method`, `orderId` и `duration_ms` попадают в `"fields"`, а `requestId` — в `"context"`, для `jq` и сборщиков логов. Подробнее — [Поля](#поля-именованные-аргументы), [Контекст](#контекст-метка-для-строк-одного-запроса), [Wide events](#wide-events-одна-строка-на-запрос-canonical-log-lines) и [Замер времени блока](#замер-времени-блока).
 
 ### API одним взглядом
 
