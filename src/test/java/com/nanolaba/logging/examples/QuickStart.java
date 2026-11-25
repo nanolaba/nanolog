@@ -20,8 +20,8 @@ public class QuickStart {
         try (LOG.Context context = LOG.context("requestId", "r-17");
              LOG.Unit checkout = LOG.unit("checkout")) {
             checkout.put("orderId", "A-17");
+            LOG.warn("Card declined, retrying");
             LOG.info("Payment accepted", LOG.kv("method", "card")); // a named field
-            LOG.warn("Disk space is low");
         }
 
         // A timer that returns the value of the lambda

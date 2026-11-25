@@ -222,8 +222,8 @@ public class QuickStart {
         try (LOG.Context context = LOG.context("requestId", "r-17");
              LOG.Unit checkout = LOG.unit("checkout")) {
             checkout.put("orderId", "A-17");
+            LOG.warn("Card declined, retrying");
             LOG.info("Payment accepted", LOG.kv("method", "card")); // a named field
-            LOG.warn("Disk space is low");
         }
 
         // A timer that returns the value of the lambda
@@ -253,8 +253,8 @@ Console output (`ERROR` goes to `System.err`, everything else to `System.out`):
 INFO 10.11.2026 21:30:00 [QuickStart] Application started
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...
+WARN 10.11.2026 21:30:00 [QuickStart] Card declined, retrying requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStart] Payment accepted method=card requestId=r-17
-WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStart] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStart] Build report took 0 ms
 DBG 10.11.2026 21:30:00 [QuickStart.main(QuickStart.java:28)] report.length() = 3 (Integer)

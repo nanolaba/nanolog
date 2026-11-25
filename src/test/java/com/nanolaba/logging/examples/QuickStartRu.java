@@ -20,8 +20,8 @@ public class QuickStartRu {
         try (LOG.Context context = LOG.context("requestId", "r-17");
              LOG.Unit checkout = LOG.unit("checkout")) {
             checkout.put("orderId", "A-17");
+            LOG.warn("Карта отклонена, повторяем");
             LOG.info("Платёж принят", LOG.kv("method", "card")); // именованное поле
-            LOG.warn("Мало места на диске");
         }
 
         // Таймер, который возвращает значение лямбды

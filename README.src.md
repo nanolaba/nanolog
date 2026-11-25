@@ -155,8 +155,8 @@ ${en:'Console output (', ru:'Вывод в консоль ('}`ERROR` ${en:'goes 
 INFO 10.11.2026 21:30:00 [QuickStart] Application started<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Loaded 42 items in 17 ms<!--en-->
 DEBUG 10.11.2026 21:30:00 [QuickStart] Expensive report: ...<!--en-->
+WARN 10.11.2026 21:30:00 [QuickStart] Card declined, retrying requestId=r-17<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStart] Payment accepted method=card requestId=r-17<!--en-->
-WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low requestId=r-17<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStart] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStart] Build report took 0 ms<!--en-->
 DBG 10.11.2026 21:30:00 [QuickStart.main(QuickStart.java:28)] report.length() = 3 (Integer)<!--en-->
@@ -164,8 +164,8 @@ ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...<!--ru-->
+WARN 10.11.2026 21:30:00 [QuickStartRu] Карта отклонена, повторяем requestId=r-17<!--ru-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Платёж принят method=card requestId=r-17<!--ru-->
-WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске requestId=r-17<!--ru-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17<!--ru-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Сборка отчёта took 0 ms<!--ru-->
 DBG 10.11.2026 21:30:00 [QuickStartRu.main(QuickStartRu.java:28)] report.length() = 3 (Integer)<!--ru-->

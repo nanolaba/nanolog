@@ -222,8 +222,8 @@ public class QuickStartRu {
         try (LOG.Context context = LOG.context("requestId", "r-17");
              LOG.Unit checkout = LOG.unit("checkout")) {
             checkout.put("orderId", "A-17");
+            LOG.warn("Карта отклонена, повторяем");
             LOG.info("Платёж принят", LOG.kv("method", "card")); // именованное поле
-            LOG.warn("Мало места на диске");
         }
 
         // Таймер, который возвращает значение лямбды
@@ -253,8 +253,8 @@ public class QuickStartRu {
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Дорогой отчёт: ...
+WARN 10.11.2026 21:30:00 [QuickStartRu] Карта отклонена, повторяем requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStartRu] Платёж принят method=card requestId=r-17
-WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStartRu] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStartRu] Сборка отчёта took 0 ms
 DBG 10.11.2026 21:30:00 [QuickStartRu.main(QuickStartRu.java:28)] report.length() = 3 (Integer)
