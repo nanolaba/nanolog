@@ -229,6 +229,9 @@ public class QuickStart {
         // A timer that returns the value of the lambda
         String report = LOG.timed("Build report", () -> buildReport());
 
+        // Print debugging: the expression as written, its value, type and call site
+        LOG.dbg(report.length());
+
         String input = "not a number";
         try {
             Integer.parseInt(input);
@@ -254,12 +257,14 @@ INFO 10.11.2026 21:30:00 [QuickStart] Payment accepted method=card requestId=r-1
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStart] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStart] Build report took 0 ms
+DBG 10.11.2026 21:30:00 [QuickStart.main(QuickStart.java:28)] report.length() = 3 (Integer)
 ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
+[NANOLOG] 1 LOG.dbg call ran in this JVM: QuickStart.java:28
 ```
 
-With `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` the same entries are JSON lines: `method`, `orderId` and `duration_ms` go into `"fields"` and `requestId` into `"context"`, for `jq` and log collectors. More in [Fields](#fields-named-arguments), [Context](#context-tag-the-lines-of-one-request), [Wide events](#wide-events-one-line-per-request-canonical-log-lines) and [Timing a block](#timing-a-block).
+With `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` the same entries are JSON lines: `method`, `orderId` and `duration_ms` go into `"fields"` and `requestId` into `"context"`, for `jq` and log collectors. More in [Fields](#fields-named-arguments), [Context](#context-tag-the-lines-of-one-request), [Wide events](#wide-events-one-line-per-request-canonical-log-lines), [Timing a block](#timing-a-block) and [Print debugging](#print-debugging-logdbg-prints-the-expression-and-its-value).
 
 ### API at a glance
 

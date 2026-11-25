@@ -159,6 +159,7 @@ INFO 10.11.2026 21:30:00 [QuickStart] Payment accepted method=card requestId=r-1
 WARN 10.11.2026 21:30:00 [QuickStart] Disk space is low requestId=r-17<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStart] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStart] Build report took 0 ms<!--en-->
+DBG 10.11.2026 21:30:00 [QuickStart.main(QuickStart.java:28)] report.length() = 3 (Integer)<!--en-->
 ERROR 10.11.2026 21:30:00 [QuickStart] Failed to parse "not a number" java.lang.NumberFormatException: For input string: "not a number"<!--en-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Приложение запущено<!--ru-->
 DEBUG 10.11.2026 21:30:00 [QuickStartRu] Загружено 42 элементов за 17 мс<!--ru-->
@@ -167,12 +168,15 @@ INFO 10.11.2026 21:30:00 [QuickStartRu] Платёж принят method=card re
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске requestId=r-17<!--ru-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17<!--ru-->
 INFO 10.11.2026 21:30:00 [QuickStartRu] Сборка отчёта took 0 ms<!--ru-->
+DBG 10.11.2026 21:30:00 [QuickStartRu.main(QuickStartRu.java:28)] report.length() = 3 (Integer)<!--ru-->
 ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number" java.lang.NumberFormatException: For input string: "not a number"<!--ru-->
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
+[NANOLOG] 1 LOG.dbg call ran in this JVM: QuickStart.java:28<!--en-->
+[NANOLOG] 1 LOG.dbg call ran in this JVM: QuickStartRu.java:28<!--ru-->
 ```
 
-${en:'With `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` the same entries are JSON lines: `method`, `orderId` and `duration_ms` go into `"fields"` and `requestId` into `"context"`, for `jq` and log collectors. More in', ru:'С `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` те же записи становятся JSON-строками: `method`, `orderId` и `duration_ms` попадают в `"fields"`, а `requestId` — в `"context"`, для `jq` и сборщиков логов. Подробнее —'} [${en:'Fields', ru:'Поля'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}), [${en:'Context', ru:'Контекст'}](#${en:'context-tag-the-lines-of-one-request', ru:'контекст-метка-для-строк-одного-запроса'}), [${en:'Wide events', ru:'Wide events'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}) ${en:'and', ru:'и'} [${en:'Timing a block', ru:'Замер времени блока'}](#${en:'timing-a-block', ru:'замер-времени-блока'}).
+${en:'With `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` the same entries are JSON lines: `method`, `orderId` and `duration_ms` go into `"fields"` and `requestId` into `"context"`, for `jq` and log collectors. More in', ru:'С `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` те же записи становятся JSON-строками: `method`, `orderId` и `duration_ms` попадают в `"fields"`, а `requestId` — в `"context"`, для `jq` и сборщиков логов. Подробнее —'} [${en:'Fields', ru:'Поля'}](#${en:'fields-named-arguments', ru:'поля-именованные-аргументы'}), [${en:'Context', ru:'Контекст'}](#${en:'context-tag-the-lines-of-one-request', ru:'контекст-метка-для-строк-одного-запроса'}), [${en:'Wide events', ru:'Wide events'}](#${en:'wide-events-one-line-per-request-canonical-log-lines', ru:'wide-events-одна-строка-на-запрос-canonical-log-lines'}), [${en:'Timing a block', ru:'Замер времени блока'}](#${en:'timing-a-block', ru:'замер-времени-блока'}) ${en:'and', ru:'и'} [${en:'Print debugging', ru:'Отладочная печать'}](#${en:'print-debugging-logdbg-prints-the-expression-and-its-value', ru:'отладочная-печать-logdbg-печатает-выражение-и-его-значение'}).
 
 ### ${en:'API at a glance', ru:'API одним взглядом'}
 

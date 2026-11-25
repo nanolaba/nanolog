@@ -27,6 +27,9 @@ public class QuickStart {
         // A timer that returns the value of the lambda
         String report = LOG.timed("Build report", () -> buildReport());
 
+        // Print debugging: the expression as written, its value, type and call site
+        LOG.dbg(report.length());
+
         String input = "not a number";
         try {
             Integer.parseInt(input);

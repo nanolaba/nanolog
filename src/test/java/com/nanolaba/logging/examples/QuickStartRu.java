@@ -27,6 +27,9 @@ public class QuickStartRu {
         // Таймер, который возвращает значение лямбды
         String report = LOG.timed("Сборка отчёта", () -> buildReport());
 
+        // Отладочная печать: выражение как в коде, его значение, тип и место вызова
+        LOG.dbg(report.length());
+
         String input = "not a number";
         try {
             Integer.parseInt(input);

@@ -229,6 +229,9 @@ public class QuickStartRu {
         // Таймер, который возвращает значение лямбды
         String report = LOG.timed("Сборка отчёта", () -> buildReport());
 
+        // Отладочная печать: выражение как в коде, его значение, тип и место вызова
+        LOG.dbg(report.length());
+
         String input = "not a number";
         try {
             Integer.parseInt(input);
@@ -254,12 +257,14 @@ INFO 10.11.2026 21:30:00 [QuickStartRu] Платёж принят method=card re
 WARN 10.11.2026 21:30:00 [QuickStartRu] Мало места на диске requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStartRu] checkout ok 6 ms orderId=A-17 warn=1 requestId=r-17
 INFO 10.11.2026 21:30:00 [QuickStartRu] Сборка отчёта took 0 ms
+DBG 10.11.2026 21:30:00 [QuickStartRu.main(QuickStartRu.java:28)] report.length() = 3 (Integer)
 ERROR 10.11.2026 21:30:00 [QuickStartRu] Не удалось разобрать "not a number" java.lang.NumberFormatException: For input string: "not a number"
 	at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)
 	...
+[NANOLOG] 1 LOG.dbg call ran in this JVM: QuickStartRu.java:28
 ```
 
-С `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` те же записи становятся JSON-строками: `method`, `orderId` и `duration_ms` попадают в `"fields"`, а `requestId` — в `"context"`, для `jq` и сборщиков логов. Подробнее — [Поля](#поля-именованные-аргументы), [Контекст](#контекст-метка-для-строк-одного-запроса), [Wide events](#wide-events-одна-строка-на-запрос-canonical-log-lines) и [Замер времени блока](#замер-времени-блока).
+С `-Dnanolog.logger=com.nanolaba.logging.JsonLogger` те же записи становятся JSON-строками: `method`, `orderId` и `duration_ms` попадают в `"fields"`, а `requestId` — в `"context"`, для `jq` и сборщиков логов. Подробнее — [Поля](#поля-именованные-аргументы), [Контекст](#контекст-метка-для-строк-одного-запроса), [Wide events](#wide-events-одна-строка-на-запрос-canonical-log-lines), [Замер времени блока](#замер-времени-блока) и [Отладочная печать](#отладочная-печать-logdbg-печатает-выражение-и-его-значение).
 
 ### API одним взглядом
 
